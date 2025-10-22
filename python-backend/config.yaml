@@ -1,0 +1,52 @@
+# Machine Vision Flow Configuration
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+
+image_buffer:
+  max_size_mb: 1000
+  max_images: 100
+  thumbnail_width: 320
+  thumbnail_quality: 70
+
+camera:
+  default_resolution:
+    width: 1920
+    height: 1080
+  preview_interval: 2000  # milliseconds
+  capture_timeout: 5000   # milliseconds
+
+preview:
+  resolution: [1280, 720]  # Width x Height for live preview
+  fps: 15                  # Frames per second
+  quality: 85              # JPEG quality (1-100)
+  max_clients: 1           # Maximum concurrent preview streams
+  timeout_minutes: 5       # Auto-stop stream after inactivity
+
+template:
+  storage_path: "./templates"
+  max_file_size_mb: 10
+  supported_formats: ["png", "jpg", "jpeg"]
+
+history:
+  max_inspections: 100
+  retention_minutes: 60
+
+vision:
+  template_matching:
+    default_method: "TM_CCOEFF_NORMED"
+    default_threshold: 0.8
+    multi_scale_steps: 20
+    scale_range: [0.8, 1.2]
+
+performance:
+  enable_profiling: true
+  log_slow_operations: true
+  slow_threshold_ms: 100
+
+debug:
+  save_debug_images: false
+  debug_output_path: "./debug"
+  show_overlays: true

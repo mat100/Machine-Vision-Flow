@@ -1,0 +1,193 @@
+<script type="text/javascript">
+    RED.nodes.registerType('mv-camera-capture', {
+        category: 'machine vision',
+        color: '#a6bbcf',
+        defaults: {
+            name: {value: ""},
+            cameraId: {value: "test"},
+            apiUrl: {value: "http://localhost:8000"},
+            autoConnect: {value: false},
+            resolution: {
+                value: {
+                    width: 1920,
+                    height: 1080
+                }
+            }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "camera.png",
+        label: function() {
+            return this.name || "Camera Capture";
+        },
+        labelStyle: function() {
+            return this.name ? "node_label_italic" : "";
+        },
+        paletteLabel: "camera capture",
+        inputLabels: "trigger",
+        outputLabels: ["image captured"],
+        oneditprepare: function() {
+            var node = this;
+
+            // Initialize resolution fields
+            $("#node-input-resolution-width").val(this.resolution.width || 1920);
+            $("#node-input-resolution-height").val(this.resolution.height || 1080);
+
+            // Load available cameras from API
+            var apiUrl = $("#node-input-apiUrl").val() || "http://localhost:8000";
+
+            // Add refresh button next to camera select
+            var refreshBtn = $('<button type="button" class="red-ui-button" style="margin-left: 10px;"><i class="fa fa-refresh"></i></button>');
+            $("#node-input-cameraId").after(refreshBtn);
+
+            function loadCameras() {
+                refreshBtn.find('i').addClass('fa-spin');
+
+                $.ajax({
+                    url: apiUrl + "/api/camera/list",
+                    type: "POST",
+                    contentType: "application/json",
+                    timeout: 5000,
+                    success: function(cameras) {
+                        refreshBtn.find('i').removeClass('fa-spin');
+
+                        // Clear existing options
+                        $("#node-input-cameraId").empty();
+
+                        // Always add test option
+                        $("#node-input-cameraId").append('<option value="test">Test Image (no camera)</option>');
+
+                        // Add separator if there are real cameras
+                        if (cameras && cameras.length > 0) {
+                            $("#node-input-cameraId").append('<option disabled>──────────</option>');
+                        }
+
+                        // Add detected cameras
+                        if (cameras && cameras.length > 0) {
+                            cameras.forEach(function(camera) {
+                                var label = camera.name + " (" + camera.type + ")";
+                                if (camera.connected) {
+                                    label += " ✓";
+                                }
+                                $("#node-input-cameraId").append(
+                                    $('<option></option>').val(camera.id).text(label)
+                                );
+                            });
+                        } else {
+                            $("#node-input-cameraId").append('<option disabled>No cameras detected</option>');
+                        }
+
+                        // Set current value if it exists
+                        if (node.cameraId) {
+                            $("#node-input-cameraId").val(node.cameraId);
+                        }
+                    },
+                    error: function(err) {
+                        refreshBtn.find('i').removeClass('fa-spin');
+                        console.error("Failed to load cameras:", err);
+
+                        // Fallback to manual input
+                        $("#node-input-cameraId").replaceWith('<input type="text" id="node-input-cameraId" placeholder="test">');
+                        $("#node-input-cameraId").val(node.cameraId || "test");
+
+                        // Add tooltip about error
+                        $("#node-input-cameraId").after('<div class="form-tips" style="color: #d00;">Failed to load cameras. Enter manually.</div>');
+                    }
+                });
+            }
+
+            // Load cameras on init
+            loadCameras();
+
+            // Refresh button click
+            refreshBtn.click(function() {
+                loadCameras();
+            });
+
+            // Update cameras when API URL changes
+            $("#node-input-apiUrl").on('change', function() {
+                apiUrl = $(this).val();
+                loadCameras();
+            });
+        },
+        oneditsave: function() {
+            // Save resolution
+            this.resolution = {
+                width: parseInt($("#node-input-resolution-width").val()) || 1920,
+                height: parseInt($("#node-input-resolution-height").val()) || 1080
+            };
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="mv-camera-capture">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-cameraId"><i class="fa fa-camera"></i> Camera</label>
+        <select id="node-input-cameraId" style="width: 60%;">
+            <option value="test">Test Image (no camera)</option>
+        </select>
+        <div class="form-tips">
+            Click refresh button to reload available cameras
+        </div>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-apiUrl"><i class="fa fa-server"></i> API URL</label>
+        <input type="text" id="node-input-apiUrl" placeholder="http://localhost:8000">
+    </div>
+
+    <div class="form-row">
+        <label><i class="fa fa-arrows"></i> Resolution</label>
+        <label for="node-input-resolution-width" style="width: 70px; margin-left: 10px;">Width:</label>
+        <input type="number" id="node-input-resolution-width" style="width: 80px" min="320" max="4096">
+        <label for="node-input-resolution-height" style="width: 70px; margin-left: 10px;">Height:</label>
+        <input type="number" id="node-input-resolution-height" style="width: 80px" min="240" max="2160">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-autoConnect"><i class="fa fa-plug"></i> Auto Connect</label>
+        <input type="checkbox" id="node-input-autoConnect" style="width: auto;">
+        <label for="node-input-autoConnect" style="width: auto; margin-left: 10px;">
+            Connect to camera on startup
+        </label>
+    </div>
+</script>
+
+<script type="text/html" data-help-name="mv-camera-capture">
+    <p>Captures an image from a camera when triggered by an input message.</p>
+
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">any</span></dt>
+        <dd>Any message triggers image capture</dd>
+        <dt class="optional">cameraId <span class="property-type">string</span></dt>
+        <dd>Override the configured camera ID</dd>
+    </dl>
+
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>Contains image_id, timestamp, thumbnail_base64, and metadata</dd>
+        <dt>image_id <span class="property-type">string</span></dt>
+        <dd>Unique identifier for the captured image</dd>
+        <dt>thumbnail <span class="property-type">string</span></dt>
+        <dd>Base64 encoded thumbnail for preview</dd>
+    </dl>
+
+    <h3>Details</h3>
+    <p>This node captures an image from a configured camera when triggered by any input message.</p>
+    <p>The image is stored on the Python backend and referenced by image_id.</p>
+    <p>The thumbnail can be displayed using the image-output node.</p>
+
+    <h3>Camera IDs</h3>
+    <ul>
+        <li><b>test</b> - Generates a test image (no camera required)</li>
+        <li><b>usb_0, usb_1, ...</b> - USB cameras by index</li>
+        <li><b>custom</b> - Any string for IP cameras or custom sources</li>
+    </ul>
+</script>

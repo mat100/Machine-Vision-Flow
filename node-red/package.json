@@ -1,0 +1,37 @@
+{
+  "name": "node-red-contrib-machine-vision-flow",
+  "version": "1.0.0",
+  "description": "Machine Vision nodes for Node-RED inspired by Keyence and Cognex",
+  "author": "Machine Vision Flow",
+  "license": "MIT",
+  "keywords": [
+    "node-red",
+    "machine-vision",
+    "computer-vision",
+    "opencv",
+    "template-matching",
+    "inspection"
+  ],
+  "node-red": {
+    "nodes": {
+      "mv-camera-capture": "nodes/camera/mv-camera-capture.js",
+      "mv-image-simulator": "nodes/camera/mv-image-simulator.js",
+      "mv-live-preview": "nodes/camera/mv-live-preview.js",
+      "mv-template-match": "nodes/vision/mv-template-match.js",
+      "mv-edge-detect": "nodes/vision/mv-edge-detect.js",
+      "mv-result-merger": "nodes/analysis/mv-result-merger.js",
+      "mv-overlay": "nodes/output/mv-overlay.js"
+    }
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "form-data": "^4.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/machine-vision-flow"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
