@@ -5,6 +5,7 @@ Machine Vision Flow - Main FastAPI Application
 import asyncio
 import logging
 import sys
+import signal
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -64,6 +65,7 @@ image_manager = None
 camera_manager = None
 template_manager = None
 history_buffer = None
+shutdown_event = asyncio.Event()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -98,11 +100,18 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down Machine Vision Flow server...")
 
-    # Cleanup managers
-    if camera_manager:
-        await camera_manager.cleanup()
-    if image_manager:
-        image_manager.cleanup()
+    # Cleanup managers - ensure camera is properly released
+    try:
+        if camera_manager:
+            logger.info("Releasing all cameras...")
+            await camera_manager.cleanup()
+            # Give cameras time to fully release
+            await asyncio.sleep(0.5)
+        if image_manager:
+            logger.info("Cleaning up image manager...")
+            image_manager.cleanup()
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
 
     logger.info("Server shutdown complete")
 
@@ -176,7 +185,23 @@ app.state.template_manager = lambda: template_manager
 app.state.history_buffer = lambda: history_buffer
 app.state.config = config
 
+def handle_signal(signum, frame):
+    """Handle shutdown signals gracefully"""
+    logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+    shutdown_event.set()
+    # Force exit after timeout
+    import threading
+    def force_exit():
+        import time
+        time.sleep(10)  # Give 10 seconds for graceful shutdown
+        logger.warning("Forcing exit after timeout")
+        sys.exit(1)
+    threading.Thread(target=force_exit, daemon=True).start()
+
 if __name__ == "__main__":
+    # Register signal handlers
+    signal.signal(signal.SIGTERM, handle_signal)
+    signal.signal(signal.SIGINT, handle_signal)
     reload_excludes = [
         "*.log",
         "*.pyc",
@@ -186,11 +211,25 @@ if __name__ == "__main__":
         "venv"
     ] if config['server']['debug'] else None
 
-    uvicorn.run(
+    # Configure server with proper shutdown handling
+    server_config = uvicorn.Config(
         "main:app",
         host=config['server']['host'],
         port=config['server']['port'],
         reload=config['server']['debug'],
         reload_excludes=reload_excludes,
-        log_level="info"
+        log_level="info",
+        loop="asyncio"
     )
+
+    server = uvicorn.Server(server_config)
+
+    # Run server with proper signal handling
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt, shutting down...")
+    except Exception as e:
+        logger.error(f"Server error: {e}")
+    finally:
+        logger.info("Server exiting...")

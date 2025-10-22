@@ -77,9 +77,21 @@ class Camera:
         """Disconnect camera"""
         with self.lock:
             if self.cap:
-                self.cap.release()
-                self.cap = None
+                try:
+                    # Ensure all buffers are cleared before release
+                    if self.cap.isOpened():
+                        # Read and discard any remaining frames in buffer
+                        for _ in range(5):
+                            self.cap.grab()
+                    self.cap.release()
+                    # Explicitly delete the VideoCapture object
+                    del self.cap
+                except Exception as e:
+                    logger.warning(f"Error during camera release: {e}")
+                finally:
+                    self.cap = None
             self.connected = False
+            self.last_frame = None
             logger.info(f"Camera {self.config.id} disconnected")
 
     def capture(self) -> Optional[np.ndarray]:
@@ -163,7 +175,10 @@ class CameraManager:
                             'height': height if height > 0 else 1080
                         }
                     })
+                    # Properly release the camera
                     cap.release()
+                    # Explicitly delete to free resources
+                    del cap
             except Exception as e:
                 logger.debug(f"Camera index {i} not available: {e}")
                 continue
@@ -305,14 +320,33 @@ class CameraManager:
         """Clean up all cameras"""
         logger.info("Cleaning up Camera Manager...")
 
-        # Stop preview stream
+        # Stop preview stream first
         self.stop_preview_stream()
 
-        # Disconnect all cameras
+        # Small delay to ensure preview thread is fully stopped
+        await asyncio.sleep(0.1)
+
+        # Disconnect all cameras properly
         with self.lock:
-            for camera_id in list(self.cameras.keys()):
-                self.cameras[camera_id].disconnect()
+            camera_ids = list(self.cameras.keys())
+
+        # Disconnect cameras outside the lock to avoid deadlock
+        for camera_id in camera_ids:
+            try:
+                logger.info(f"Disconnecting camera {camera_id}...")
+                with self.lock:
+                    if camera_id in self.cameras:
+                        self.cameras[camera_id].disconnect()
+            except Exception as e:
+                logger.error(f"Error disconnecting camera {camera_id}: {e}")
+
+        # Clear the cameras dictionary
+        with self.lock:
             self.cameras.clear()
+
+        # Force garbage collection to ensure resources are freed
+        import gc
+        gc.collect()
 
         logger.info("Camera Manager cleanup complete")
 
