@@ -1,0 +1,102 @@
+# Machine Vision Flow - Development Configuration
+# This configuration is used when running in development mode
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+  reload: true  # Enable auto-reload on code changes
+  reload_dirs:
+    - "./api"
+    - "./core"
+    - "./vision"
+    - "./utils"
+  reload_excludes:
+    - "*.log"
+    - "*.pyc"
+    - "__pycache__"
+    - ".git"
+    - ".venv"
+    - "venv"
+    - "*.db"
+    - "*.sqlite"
+
+# Development-specific logging
+logging:
+  level: "DEBUG"
+  format: "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+  colorize: true
+  log_requests: true
+  log_responses: false  # Set to true to log full responses (can be verbose)
+
+image_buffer:
+  max_size_mb: 1000
+  max_images: 100
+  thumbnail_width: 320
+  thumbnail_quality: 70
+  debug_save: true  # Save debug images in development
+
+camera:
+  default_resolution:
+    width: 1920
+    height: 1080
+  preview_interval: 2000
+  capture_timeout: 5000
+  use_test_images: true  # Use test images when camera not available
+
+preview:
+  resolution: [1280, 720]
+  fps: 15
+  quality: 75
+  max_clients: 3  # Allow more clients in dev
+  timeout_minutes: 30  # Longer timeout in dev
+
+template:
+  storage_path: "./templates"
+  max_file_size_mb: 10
+  supported_formats: ["png", "jpg", "jpeg"]
+  auto_learn: true  # Enable auto-learning from ROI in dev
+
+history:
+  max_inspections: 500  # Keep more history in dev
+  retention_minutes: 180  # Longer retention in dev
+  persist_to_file: true  # Save history to file in dev
+  history_file: "./debug/history.json"
+
+vision:
+  template_matching:
+    default_method: "TM_CCOEFF_NORMED"
+    default_threshold: 0.8
+    multi_scale_steps: 20
+    scale_range: [0.8, 1.2]
+    debug_visualize: true  # Show debug visualizations
+
+performance:
+  enable_profiling: true
+  log_slow_operations: true
+  slow_threshold_ms: 50  # More aggressive in dev
+  profile_output: "./debug/profile.json"
+
+debug:
+  save_debug_images: true
+  debug_output_path: "./debug"
+  show_overlays: true
+  verbose_errors: true
+  show_stack_traces: true
+  timing_logs: true  # Log operation timings
+  memory_tracking: true  # Track memory usage
+
+# Development tools integration
+dev_tools:
+  enable_swagger: true  # Enable Swagger UI at /docs
+  enable_redoc: true  # Enable ReDoc at /redoc
+  enable_graphql: false  # GraphQL playground if needed
+  cors_origins: ["*"]  # Allow all origins in dev
+  hot_reload_delay: 1  # Seconds to wait before reload
+
+# Test data configuration
+test_data:
+  generate_mock_data: true
+  mock_camera_count: 2
+  test_images_path: "./test_data/images"
+  test_templates_path: "./test_data/templates"

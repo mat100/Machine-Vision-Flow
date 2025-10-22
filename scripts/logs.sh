@@ -3,62 +3,59 @@
 # Machine Vision Flow - Log Viewer
 #
 
+set -euo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/common.sh"
 
-# Colors
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+print_banner "Machine Vision Flow - Logs" "$BLUE"
 
-echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║    Machine Vision Flow - Logs          ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
-echo
+show_log() {
+    local file="$1"
+    local label="$2"
 
-# Log selection
-if [ "$1" == "backend" ] || [ "$1" == "python" ]; then
-    LOG_FILE="$PROJECT_DIR/python-backend/backend.log"
-    if [ -f "$LOG_FILE" ]; then
-        echo -e "${YELLOW}Showing Python backend log:${NC}"
-        tail -f "$LOG_FILE"
+    if [ -f "$file" ]; then
+        echo -e "${YELLOW}Showing ${label} log:${NC}"
+        tail -f "$file"
     else
-        echo "Backend log not found"
+        echo "${label} log not found"
     fi
-elif [ "$1" == "node-red" ] || [ "$1" == "nodered" ]; then
-    LOG_FILE="$PROJECT_DIR/node-red.log"
-    if [ -f "$LOG_FILE" ]; then
-        echo -e "${YELLOW}Showing Node-RED log:${NC}"
-        tail -f "$LOG_FILE"
-    else
-        echo "Node-RED log not found"
-    fi
-elif [ "$1" == "clear" ]; then
-    echo "Clearing log files..."
-    > "$PROJECT_DIR/python-backend/backend.log" 2>/dev/null || true
-    > "$PROJECT_DIR/node-red.log" 2>/dev/null || true
-    echo "Log files cleared"
-else
-    # Show both logs
-    echo -e "${YELLOW}Following all logs (Ctrl+C to exit)...${NC}"
-    echo
+}
 
-    # Use multitail if available
-    if command -v multitail &> /dev/null; then
-        multitail -i "$PROJECT_DIR/python-backend/backend.log" \
-                  -i "$PROJECT_DIR/node-red.log"
-    else
-        # Fallback to tail with marking
-        tail -f "$PROJECT_DIR/python-backend/backend.log" \
-                "$PROJECT_DIR/node-red.log" 2>/dev/null | \
-        while IFS= read -r line; do
-            if [[ $line == *"python-backend/backend.log"* ]]; then
-                echo -e "${BLUE}[BACKEND]${NC} $line"
-            elif [[ $line == *"node-red.log"* ]]; then
-                echo -e "${YELLOW}[NODE-RED]${NC} $line"
-            else
-                echo "$line"
-            fi
-        done
-    fi
-fi
+case "${1:-all}" in
+    backend|python)
+        show_log "$BACKEND_LOG_FILE" "Python backend"
+        ;;
+    node-red|nodered)
+        show_log "$NODE_RED_LOG_FILE" "Node-RED"
+        ;;
+    clear)
+        echo "Clearing log files..."
+        : >"$BACKEND_LOG_FILE" 2>/dev/null || true
+        : >"$NODE_RED_LOG_FILE" 2>/dev/null || true
+        echo "Log files cleared"
+        ;;
+    *)
+        echo -e "${YELLOW}Following all logs (Ctrl+C to exit)...${NC}"
+        echo
+        touch "$BACKEND_LOG_FILE" "$NODE_RED_LOG_FILE"
+        if command -v multitail >/dev/null 2>&1; then
+            multitail -i "$BACKEND_LOG_FILE" -i "$NODE_RED_LOG_FILE"
+        else
+            tail -f "$BACKEND_LOG_FILE" "$NODE_RED_LOG_FILE" 2>/dev/null | while IFS= read -r line; do
+                case "$line" in
+                    *"$BACKEND_LOG_FILE"*)
+                        echo -e "${BLUE}[BACKEND]${NC} $line"
+                        ;;
+                    *"$NODE_RED_LOG_FILE"*)
+                        echo -e "${YELLOW}[NODE-RED]${NC} $line"
+                        ;;
+                    *)
+                        echo "$line"
+                        ;;
+                esac
+            done
+        fi
+        ;;
+esac

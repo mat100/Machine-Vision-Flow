@@ -26,20 +26,38 @@ from core.camera_manager import CameraManager
 from core.template_manager import TemplateManager
 from core.history_buffer import HistoryBuffer
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
 # Load configuration
 def load_config():
-    config_path = Path(__file__).parent / "config.yaml"
+    # Check for environment variable or dev config
+    import os
+    config_file = os.environ.get('MV_CONFIG_FILE')
+
+    if config_file and Path(config_file).exists():
+        config_path = Path(config_file)
+        print(f"Loading configuration from: {config_path}")
+    else:
+        # Try dev config first if it exists
+        dev_config = Path(__file__).parent / "config.dev.yaml"
+        if dev_config.exists() and os.environ.get('NODE_ENV') == 'development':
+            config_path = dev_config
+            print("Using development configuration")
+        else:
+            config_path = Path(__file__).parent / "config.yaml"
+
     with open(config_path, 'r') as f:
         return yaml.safe_load(f)
 
 config = load_config()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG if config.get('server', {}).get('debug', False) else logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Suppress watchfiles debug messages
+logging.getLogger("watchfiles").setLevel(logging.WARNING)
 
 # Initialize managers
 image_manager = None
@@ -159,10 +177,20 @@ app.state.history_buffer = lambda: history_buffer
 app.state.config = config
 
 if __name__ == "__main__":
+    reload_excludes = [
+        "*.log",
+        "*.pyc",
+        "__pycache__",
+        ".git",
+        ".venv",
+        "venv"
+    ] if config['server']['debug'] else None
+
     uvicorn.run(
         "main:app",
         host=config['server']['host'],
         port=config['server']['port'],
         reload=config['server']['debug'],
+        reload_excludes=reload_excludes,
         log_level="info"
     )

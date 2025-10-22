@@ -3,15 +3,14 @@
 # Machine Vision Flow - Restart Script
 #
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/common.sh"
 
-echo "Restarting Machine Vision Flow..."
-echo
+print_banner "Restarting Machine Vision Flow" "$BLUE"
 
 "$SCRIPT_DIR/stop.sh"
-echo
 sleep 2
-"$SCRIPT_DIR/start.sh" $@
+"$SCRIPT_DIR/start.sh" "$@"
