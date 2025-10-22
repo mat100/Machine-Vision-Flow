@@ -21,7 +21,7 @@ camera:
 preview:
   resolution: [1280, 720]  # Width x Height for live preview
   fps: 15                  # Frames per second
-  quality: 85              # JPEG quality (1-100)
+  quality: 75              # JPEG quality (1-100)
   max_clients: 1           # Maximum concurrent preview streams
   timeout_minutes: 5       # Auto-stop stream after inactivity
 

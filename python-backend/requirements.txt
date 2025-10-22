@@ -13,6 +13,9 @@ Pillow==10.1.0
 # Image processing & shared memory
 python-dotenv==1.0.0
 
+# System monitoring
+psutil==5.9.6
+
 # Development & testing
 pytest==7.4.3
 pytest-asyncio==0.21.1

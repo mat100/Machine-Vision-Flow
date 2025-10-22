@@ -3,14 +3,16 @@
  * Provides MJPEG stream URL for camera live preview
  */
 
+const axios = require('axios');
+
 module.exports = function(RED) {
     function MVLivePreviewNode(config) {
         RED.nodes.createNode(this, config);
 
         const node = this;
-        const apiUrl = config.apiUrl || 'http://localhost:8000';
 
         // Store configuration
+        node.apiUrl = config.apiUrl || 'http://localhost:8000';
         node.cameraId = config.cameraId || 'test';
         node.autoStart = config.autoStart || false;
         node.showControls = config.showControls || true;
@@ -22,6 +24,51 @@ module.exports = function(RED) {
         // Set initial status
         this.status({ fill: "grey", shape: "ring", text: "Ready" });
 
+        function emitState({ streaming, cameraId, timestamp }) {
+            const resolvedCamera = cameraId || node.cameraId;
+            const isStreaming = Boolean(streaming);
+            const messageTimestamp = timestamp || new Date().toISOString();
+
+            node.send({
+                payload: {
+                    streaming: isStreaming,
+                    camera_id: resolvedCamera,
+                    stream_url: isStreaming ? node.streamUrl : null,
+                    timestamp: messageTimestamp,
+                    api_url: node.apiUrl
+                },
+                stream_url: isStreaming ? node.streamUrl : null,
+                camera_id: resolvedCamera,
+                api_url: node.apiUrl
+            });
+        }
+
+        function ensureCameraConnected(cameraId) {
+            if (cameraId === 'test') {
+                // Synthetic frame generator does not need explicit connection
+                return Promise.resolve(true);
+            }
+
+            return axios.post(`${node.apiUrl}/api/camera/connect`, {
+                camera_id: cameraId
+            }).then(() => {
+                node.log(`Camera ${cameraId} ready for streaming`);
+                return true;
+            }).catch(error => {
+                const message = error.response && error.response.data && error.response.data.detail
+                    ? error.response.data.detail
+                    : error.message;
+                node.status({ fill: "red", shape: "ring", text: `Connect failed: ${message}` });
+                node.error(`Failed to connect camera ${cameraId}: ${message}`);
+                emitState({
+                    streaming: false,
+                    cameraId,
+                    timestamp: new Date().toISOString()
+                });
+                throw error;
+            });
+        }
+
         // Start stream function
         function startStream(cameraId) {
             if (!cameraId) {
@@ -30,37 +77,50 @@ module.exports = function(RED) {
                 return;
             }
 
-            // Build MJPEG stream URL
-            node.streamUrl = `${apiUrl}/api/camera/stream/${cameraId}`;
-            node.streamActive = true;
+            if (node.streamActive) {
+                if (node.cameraId === cameraId) {
+                    // Already streaming this camera – refresh message/state
+                    emitState({ streaming: true, cameraId });
+                    return;
+                }
 
-            // Update status
-            node.status({ fill: "green", shape: "dot", text: `Streaming: ${cameraId}` });
+                // Stop current stream before switching cameras
+                stopStream({ emitMessage: true });
+            }
 
-            // Send stream URL in message
-            const msg = {
-                payload: {
-                    streaming: true,
-                    camera_id: cameraId,
-                    stream_url: node.streamUrl,
-                    timestamp: new Date().toISOString()
-                },
-                stream_url: node.streamUrl,
-                camera_id: cameraId
-            };
+            node.cameraId = cameraId;
+            ensureCameraConnected(cameraId)
+                .then(() => {
+                    // Build MJPEG stream URL
+                    node.streamUrl = `${node.apiUrl}/api/camera/stream/${cameraId}`;
+                    node.streamActive = true;
 
-            node.send(msg);
-            node.log(`Started MJPEG stream for camera: ${cameraId}`);
+                    // Update status
+                    node.status({ fill: "green", shape: "dot", text: `Streaming: ${cameraId}` });
+
+                    // Send stream URL in message
+                    emitState({
+                        streaming: true,
+                        cameraId,
+                        timestamp: new Date().toISOString()
+                    });
+                    node.log(`Started MJPEG stream for camera: ${cameraId}`);
+                })
+                .catch(() => {
+                    // Error already handled in ensureCameraConnected
+                });
         }
 
         // Stop stream function
-        function stopStream() {
-            if (node.streamActive && node.cameraId) {
+        function stopStream(options = {}) {
+            const { emitMessage = true } = options;
+            const activeCamera = node.cameraId;
+
+            if (node.streamActive && activeCamera) {
                 // Call stop endpoint
-                const axios = require('axios');
-                axios.post(`${apiUrl}/api/camera/stream/stop/${node.cameraId}`)
+                axios.post(`${node.apiUrl}/api/camera/stream/stop/${activeCamera}`)
                     .then(response => {
-                        node.log(`Stopped stream for camera: ${node.cameraId}`);
+                        node.log(`Stopped stream for camera: ${activeCamera}`);
                     })
                     .catch(error => {
                         node.warn(`Failed to stop stream: ${error.message}`);
@@ -72,17 +132,13 @@ module.exports = function(RED) {
             node.status({ fill: "grey", shape: "ring", text: "Stopped" });
 
             // Send stop message
-            const msg = {
-                payload: {
+            if (emitMessage) {
+                emitState({
                     streaming: false,
-                    camera_id: node.cameraId,
+                    cameraId: activeCamera,
                     timestamp: new Date().toISOString()
-                },
-                stream_url: null,  // Clear stream URL
-                camera_id: node.cameraId
-            };
-
-            node.send(msg);
+                });
+            }
         }
 
         // Handle input messages
@@ -92,7 +148,14 @@ module.exports = function(RED) {
                 // Start command
                 if (msg.payload.command === 'start' || msg.payload.start === true) {
                     const cameraId = msg.payload.camera_id || msg.camera_id || node.cameraId;
-                    startStream(cameraId);
+                    if (!node.streamActive) {
+                        startStream(cameraId);
+                    } else if (node.cameraId !== cameraId) {
+                        stopStream({ emitMessage: true });
+                        setTimeout(() => startStream(cameraId), 300);
+                    } else {
+                        emitState({ streaming: true, cameraId });
+                    }
                     return;
                 }
 
@@ -125,12 +188,19 @@ module.exports = function(RED) {
         // Auto-start if configured
         if (node.autoStart) {
             setTimeout(() => startStream(node.cameraId), 1000);
+        } else {
+            // Emit initial state for dashboard templates
+            emitState({
+                streaming: false,
+                cameraId: node.cameraId,
+                timestamp: new Date().toISOString()
+            });
         }
 
         // Cleanup on node removal or redeploy
         node.on('close', function(done) {
             if (node.streamActive) {
-                stopStream();
+                stopStream({ emitMessage: false });
             }
             done();
         });

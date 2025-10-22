@@ -99,8 +99,9 @@ class Camera:
 
     def get_preview(self) -> Optional[np.ndarray]:
         """Get preview frame (can be cached)"""
-        # Return last frame if recent enough (within 2 seconds)
-        if self.last_frame is not None and (time.time() - self.last_capture_time) < 2.0:
+        # Keep a very short cache based on target FPS to avoid stale frames
+        cache_ttl = 1.0 / max(self.config.fps, 1)
+        if self.last_frame is not None and (time.time() - self.last_capture_time) < cache_ttl:
             return self.last_frame
 
         # Otherwise capture new frame
