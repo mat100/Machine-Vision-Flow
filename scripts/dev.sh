@@ -136,9 +136,9 @@ check_dev_requirements() {
     fi
 }
 
-# Start Python backend with auto-reload
+# Start Python backend in development mode
 start_python_dev() {
-    log_info "Starting Python backend with auto-reload..."
+    log_info "Starting Python backend in development mode..."
 
     # Ensure virtual environment
     ensure_python_backend_env false
@@ -150,17 +150,9 @@ start_python_dev() {
         log_info "Using development configuration"
     fi
 
-    # Start with uvicorn in reload mode
+    # Start with python main.py (no auto-reload)
     pushd "$BACKEND_DIR" >/dev/null
-    nohup "$BACKEND_VENV_DIR/bin/uvicorn" main:app \
-        --host 0.0.0.0 \
-        --port 8000 \
-        --reload \
-        --reload-dir api \
-        --reload-dir core \
-        --reload-dir vision \
-        --reload-dir utils \
-        --log-level debug \
+    nohup "$BACKEND_VENV_DIR/bin/python" main.py \
         > "$BACKEND_LOG_FILE" 2>&1 &
     PYTHON_PID=$!
     popd >/dev/null
@@ -169,7 +161,7 @@ start_python_dev() {
     STARTED_PYTHON=true
 
     wait_for_port 8000 "Python backend" 10
-    log_success "Python backend started with auto-reload (PID: $PYTHON_PID)"
+    log_success "Python backend started in development mode (PID: $PYTHON_PID)"
 }
 
 # Start Node-RED with file watching

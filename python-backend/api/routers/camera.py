@@ -4,7 +4,7 @@ Camera API Router
 
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Query
 from fastapi.responses import StreamingResponse
 from datetime import datetime
 import numpy as np
@@ -18,26 +18,32 @@ from api.models import (
     CameraCaptureResponse,
     Size
 )
+from api.dependencies import (
+    get_managers,
+    get_camera_manager,
+    get_image_manager,
+    camera_id_param,
+    optional_roi_params,
+    validate_camera_exists
+)
+from api.exceptions import (
+    CameraNotFoundException,
+    CameraConnectionException,
+    safe_endpoint
+)
+from core.constants import CameraConstants, ImageConstants
+from core.image_utils import ImageUtils
+from core.roi_handler import ROIHandler, ROI
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def get_managers(request: Request):
-    """Get managers from app state"""
-    return {
-        'image_manager': request.app.state.image_manager(),
-        'camera_manager': request.app.state.camera_manager(),
-        'config': request.app.state.config
-    }
-
-
 @router.post("/list")
-async def list_cameras(managers=Depends(get_managers)) -> List[CameraInfo]:
+async def list_cameras(camera_manager = Depends(get_camera_manager)) -> List[CameraInfo]:
     """List available cameras"""
     try:
-        camera_manager = managers['camera_manager']
         cameras = camera_manager.list_available_cameras()
 
         return [
@@ -62,11 +68,10 @@ async def list_cameras(managers=Depends(get_managers)) -> List[CameraInfo]:
 @router.post("/connect")
 async def connect_camera(
     request: CameraConnectRequest,
-    managers=Depends(get_managers)
+    camera_manager = Depends(get_camera_manager)
 ) -> dict:
     """Connect to a camera"""
     try:
-        camera_manager = managers['camera_manager']
 
         # Parse camera ID to get type and source
         if request.camera_id.startswith("usb_"):
@@ -101,63 +106,61 @@ async def connect_camera(
 
 
 @router.post("/capture")
+@safe_endpoint
 async def capture_image(
-    camera_id: str,
-    managers=Depends(get_managers)
+    camera_id: str = Depends(camera_id_param),
+    roi: Optional[dict] = Depends(optional_roi_params),
+    camera_manager = Depends(get_camera_manager),
+    image_manager = Depends(get_image_manager)
 ) -> CameraCaptureResponse:
     """Capture image from camera"""
-    try:
-        camera_manager = managers['camera_manager']
-        image_manager = managers['image_manager']
-        config = managers['config']
+    # Capture image
+    image = camera_manager.capture(camera_id)
 
-        # Capture image
-        image = camera_manager.capture(camera_id)
+    if image is None:
+        # Try test image for development
+        logger.warning(f"Camera {camera_id} not found, using test image")
+        image = camera_manager.create_test_image(f"Camera: {camera_id}")
 
+    # Apply ROI if specified
+    if roi:
+        roi_obj = ROI.from_dict(roi)
+        image = ROIHandler.extract_roi(image, roi_obj, safe_mode=True)
         if image is None:
-            # Try test image for development
-            logger.warning(f"Camera {camera_id} not found, using test image")
-            image = camera_manager.create_test_image(f"Camera: {camera_id}")
+            raise HTTPException(status_code=400, detail="Invalid ROI parameters")
 
-        # Store in image manager
-        metadata = {
+    # Store in image manager
+    metadata = {
+        'camera_id': camera_id,
+        'timestamp': datetime.now().isoformat(),
+        'roi': roi
+    }
+    image_id = image_manager.store(image, metadata)
+
+    # Create thumbnail
+    _, thumbnail_base64 = image_manager.create_thumbnail(image)
+
+    return CameraCaptureResponse(
+        success=True,
+        image_id=image_id,
+        timestamp=datetime.now(),
+        thumbnail_base64=thumbnail_base64,
+        metadata={
             'camera_id': camera_id,
-            'timestamp': datetime.now().isoformat()
+            'width': image.shape[1],
+            'height': image.shape[0]
         }
-        image_id = image_manager.store(image, metadata)
-
-        # Create thumbnail
-        thumbnail_width = config['image_buffer']['thumbnail_width']
-        _, thumbnail_base64 = image_manager.create_thumbnail(image, thumbnail_width)
-
-        return CameraCaptureResponse(
-            success=True,
-            image_id=image_id,
-            timestamp=datetime.now(),
-            thumbnail_base64=thumbnail_base64,
-            metadata={
-                'camera_id': camera_id,
-                'width': image.shape[1],
-                'height': image.shape[0]
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"Failed to capture image: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    )
 
 
 @router.get("/preview/{camera_id}")
 async def get_preview(
     camera_id: str,
-    managers=Depends(get_managers)
+    camera_manager = Depends(get_camera_manager),
+    image_manager = Depends(get_image_manager)
 ) -> dict:
     """Get preview image from camera"""
     try:
-        camera_manager = managers['camera_manager']
-        image_manager = managers['image_manager']
-        config = managers['config']
-
         # Get preview frame
         image = camera_manager.get_preview(camera_id)
 
@@ -166,8 +169,7 @@ async def get_preview(
             image = camera_manager.create_test_image(f"Preview: {camera_id}")
 
         # Create thumbnail
-        thumbnail_width = config['image_buffer']['thumbnail_width']
-        _, thumbnail_base64 = image_manager.create_thumbnail(image, thumbnail_width)
+        _, thumbnail_base64 = image_manager.create_thumbnail(image)
 
         return {
             "success": True,
@@ -183,11 +185,10 @@ async def get_preview(
 @router.delete("/disconnect/{camera_id}")
 async def disconnect_camera(
     camera_id: str,
-    managers=Depends(get_managers)
+    camera_manager = Depends(get_camera_manager)
 ) -> dict:
     """Disconnect camera"""
     try:
-        camera_manager = managers['camera_manager']
 
         success = camera_manager.disconnect_camera(camera_id)
 
@@ -211,7 +212,8 @@ active_streams = {}
 @router.get("/stream/{camera_id}")
 async def stream_mjpeg(
     camera_id: str,
-    managers=Depends(get_managers)
+    camera_manager = Depends(get_camera_manager),
+    request: Request = None
 ):
     """
     Stream MJPEG video from camera for live preview.
@@ -220,8 +222,7 @@ async def stream_mjpeg(
     Resolution: 1280x720
     FPS: 15
     """
-    camera_manager = managers['camera_manager']
-    config = managers['config']
+    config = request.app.state.config if request else {}
 
     # Check if stream already exists for another camera (single stream limitation)
     if active_streams and camera_id not in active_streams:

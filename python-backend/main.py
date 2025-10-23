@@ -13,7 +13,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
-import yaml
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent))
@@ -27,32 +26,16 @@ from core.camera_manager import CameraManager
 from core.template_manager import TemplateManager
 from core.history_buffer import HistoryBuffer
 
-# Load configuration
-def load_config():
-    # Check for environment variable or dev config
-    import os
-    config_file = os.environ.get('MV_CONFIG_FILE')
+# Import configuration and exception handlers
+from config import get_settings, Settings
+from api.exceptions import register_exception_handlers
 
-    if config_file and Path(config_file).exists():
-        config_path = Path(config_file)
-        print(f"Loading configuration from: {config_path}")
-    else:
-        # Try dev config first if it exists
-        dev_config = Path(__file__).parent / "config.dev.yaml"
-        if dev_config.exists() and os.environ.get('NODE_ENV') == 'development':
-            config_path = dev_config
-            print("Using development configuration")
-        else:
-            config_path = Path(__file__).parent / "config.yaml"
-
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
-
-config = load_config()
+# Get configuration
+settings = get_settings()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG if config.get('server', {}).get('debug', False) else logging.INFO,
+    level=getattr(logging, settings.system.log_level),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -74,26 +57,34 @@ async def lifespan(app: FastAPI):
 
     # Startup
     logger.info("Starting Machine Vision Flow server...")
+    logger.info(f"Environment: {settings.environment}")
+    logger.info(f"Debug mode: {settings.system.debug}")
 
-    # Initialize managers
+    # Initialize managers with Pydantic config
     image_manager = ImageManager(
-        max_size_mb=config['image_buffer']['max_size_mb'],
-        max_images=config['image_buffer']['max_images']
+        max_size_mb=settings.image.max_memory_mb,
+        max_images=settings.image.max_images
     )
 
-    camera_manager = CameraManager(
-        default_resolution=config['camera']['default_resolution']
-    )
+    camera_manager = CameraManager()
 
     template_manager = TemplateManager(
-        storage_path=config['template']['storage_path']
+        storage_path=settings.template.storage_path
     )
 
     history_buffer = HistoryBuffer(
-        max_size=config['history']['max_inspections']
+        max_size=settings.history.buffer_size
     )
 
     logger.info("All managers initialized successfully")
+
+    # Store managers in app state for access by routers
+    app.state.image_manager = image_manager
+    app.state.camera_manager = camera_manager
+    app.state.template_manager = template_manager
+    app.state.history_buffer = history_buffer
+    app.state.config = settings.to_dict()
+    app.state.debug = settings.system.debug
 
     yield
 
@@ -124,13 +115,17 @@ app = FastAPI(
 )
 
 # Configure CORS for Node-RED
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, specify Node-RED URL
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if settings.api.cors_enabled:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.api.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+# Register exception handlers
+register_exception_handlers(app)
 
 # Include routers
 app.include_router(camera.router, prefix="/api/camera", tags=["Camera"])
@@ -178,12 +173,7 @@ async def global_exception_handler(request, exc):
         content={"detail": f"Internal server error: {str(exc)}"}
     )
 
-# Make managers accessible to routers
-app.state.image_manager = lambda: image_manager
-app.state.camera_manager = lambda: camera_manager
-app.state.template_manager = lambda: template_manager
-app.state.history_buffer = lambda: history_buffer
-app.state.config = config
+# Note: Managers are set in lifespan handler above
 
 def handle_signal(signum, frame):
     """Handle shutdown signals gracefully"""
@@ -209,14 +199,14 @@ if __name__ == "__main__":
         ".git",
         ".venv",
         "venv"
-    ] if config['server']['debug'] else None
+    ] if settings.system.debug else None
 
     # Configure server with proper shutdown handling
     server_config = uvicorn.Config(
         "main:app",
-        host=config['server']['host'],
-        port=config['server']['port'],
-        reload=config['server']['debug'],
+        host=settings.api.host,
+        port=settings.api.port,
+        reload=settings.system.debug,
         reload_excludes=reload_excludes,
         log_level="info",
         loop="asyncio"

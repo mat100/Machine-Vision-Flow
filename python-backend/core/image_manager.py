@@ -12,6 +12,9 @@ import numpy as np
 import cv2
 from threading import Lock
 
+from core.image_utils import ImageUtils
+from core.constants import ImageConstants
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,7 +24,8 @@ class ImageManager:
     and LRU cache for memory management
     """
 
-    def __init__(self, max_size_mb: int = 1000, max_images: int = 100):
+    def __init__(self, max_size_mb: int = ImageConstants.DEFAULT_MAX_MEMORY_MB,
+                 max_images: int = ImageConstants.DEFAULT_MAX_IMAGES):
         """
         Initialize Image Manager
 
@@ -264,7 +268,7 @@ class ImageManager:
 
             logger.info("Image Manager cleanup complete")
 
-    def create_thumbnail(self, image: np.ndarray, width: int = 320) -> Tuple[np.ndarray, str]:
+    def create_thumbnail(self, image: np.ndarray, width: int = ImageConstants.DEFAULT_THUMBNAIL_WIDTH) -> Tuple[np.ndarray, str]:
         """
         Create thumbnail from image
 
@@ -275,34 +279,14 @@ class ImageManager:
         Returns:
             Thumbnail array and base64 string
         """
-        import base64
-        from io import BytesIO
-        from PIL import Image
+        # Use centralized ImageUtils for thumbnail creation
+        thumbnail_array, thumbnail_base64 = ImageUtils.create_thumbnail(
+            image=image,
+            width=width,
+            maintain_aspect=True
+        )
 
-        # Calculate height to maintain aspect ratio
-        height = int(image.shape[0] * width / image.shape[1])
+        # Add data URI prefix for compatibility
+        thumbnail_base64_with_prefix = f"data:image/jpeg;base64,{thumbnail_base64}"
 
-        # Resize image
-        thumbnail = cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
-
-        # Convert to RGB if needed
-        if len(thumbnail.shape) == 2:
-            thumbnail_rgb = cv2.cvtColor(thumbnail, cv2.COLOR_GRAY2RGB)
-        elif thumbnail.shape[2] == 4:
-            thumbnail_rgb = cv2.cvtColor(thumbnail, cv2.COLOR_BGRA2RGB)
-        else:
-            thumbnail_rgb = cv2.cvtColor(thumbnail, cv2.COLOR_BGR2RGB)
-
-        # Convert to PIL Image
-        pil_image = Image.fromarray(thumbnail_rgb)
-
-        # Save to bytes
-        buffer = BytesIO()
-        pil_image.save(buffer, format='JPEG', quality=70)
-        buffer.seek(0)
-
-        # Encode to base64
-        base64_str = base64.b64encode(buffer.read()).decode('utf-8')
-        base64_with_prefix = f"data:image/jpeg;base64,{base64_str}"
-
-        return thumbnail, base64_with_prefix
+        return thumbnail_array, thumbnail_base64_with_prefix
