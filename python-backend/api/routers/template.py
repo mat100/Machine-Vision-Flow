@@ -15,164 +15,129 @@ from api.models import (
     TemplateLearnRequest,
     Size
 )
+from api.dependencies import (
+    get_vision_service,
+    get_template_manager  # Still needed for upload, list, delete operations
+)
+from api.exceptions import (
+    ImageNotFoundException,
+    TemplateNotFoundException,
+    safe_endpoint
+)
+from core.constants import TemplateConstants, ErrorMessages
+from core.roi_handler import ROIHandler, ROI
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def get_managers(request: Request):
-    """Get managers from app state"""
-    return {
-        'image_manager': request.app.state.image_manager(),
-        'template_manager': request.app.state.template_manager(),
-        'config': request.app.state.config
-    }
-
-
 @router.get("/list")
-async def list_templates(managers=Depends(get_managers)) -> List[TemplateInfo]:
+@safe_endpoint
+async def list_templates(template_manager = Depends(get_template_manager)) -> List[TemplateInfo]:
     """List all templates"""
-    try:
-        template_manager = managers['template_manager']
-        templates = template_manager.list_templates()
+    templates = template_manager.list_templates()
 
-        return [
-            TemplateInfo(
-                id=t['id'],
-                name=t['name'],
-                description=t.get('description'),
-                size=Size(width=t['size']['width'], height=t['size']['height']),
-                created_at=datetime.fromisoformat(t['created_at'])
-            )
-            for t in templates
-        ]
-
-    except Exception as e:
-        logger.error(f"Failed to list templates: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return [
+        TemplateInfo(
+            id=t['id'],
+            name=t['name'],
+            description=t.get('description'),
+            size=Size(width=t['size']['width'], height=t['size']['height']),
+            created_at=datetime.fromisoformat(t['created_at'])
+        )
+        for t in templates
+    ]
 
 
 @router.post("/upload")
+@safe_endpoint
 async def upload_template(
     file: UploadFile = File(...),
     name: str = Form(...),
     description: str = Form(None),
-    managers=Depends(get_managers)
+    template_manager = Depends(get_template_manager)
 ) -> TemplateUploadResponse:
     """Upload new template"""
-    try:
-        template_manager = managers['template_manager']
+    # Read and decode image
+    contents = await file.read()
+    nparr = np.frombuffer(contents, np.uint8)
+    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-        # Read and decode image
-        contents = await file.read()
-        nparr = np.frombuffer(contents, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if image is None:
+        raise HTTPException(status_code=400, detail="Invalid image file")
 
-        if image is None:
-            raise HTTPException(status_code=400, detail="Invalid image file")
+    # Upload template
+    template_id = template_manager.upload_template(name, image, description)
 
-        # Upload template
-        template_id = template_manager.upload_template(name, image, description)
-
-        return TemplateUploadResponse(
-            success=True,
-            template_id=template_id,
-            name=name,
-            size=Size(width=image.shape[1], height=image.shape[0])
-        )
-
-    except Exception as e:
-        logger.error(f"Failed to upload template: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return TemplateUploadResponse(
+        success=True,
+        template_id=template_id,
+        name=name,
+        size=Size(width=image.shape[1], height=image.shape[0])
+    )
 
 
 @router.post("/learn")
+@safe_endpoint
 async def learn_template(
     request: TemplateLearnRequest,
-    managers=Depends(get_managers)
+    vision_service = Depends(get_vision_service)
 ) -> dict:
     """Learn template from image region"""
-    try:
-        template_manager = managers['template_manager']
-        image_manager = managers['image_manager']
+    # Convert ROI from request to ROI object
+    roi = ROI(
+        x=request.roi.x,
+        y=request.roi.y,
+        width=request.roi.width,
+        height=request.roi.height
+    )
 
-        # Get source image
-        source_image = image_manager.get(request.image_id)
-        if source_image is None:
-            raise HTTPException(status_code=404, detail="Image not found")
+    # Service handles validation, learning, and thumbnail creation
+    template_id, thumbnail_base64 = vision_service.learn_template_from_roi(
+        image_id=request.image_id,
+        roi=roi,
+        name=request.name,
+        description=request.description
+    )
 
-        # Learn template from ROI
-        roi_dict = {
-            'x': request.roi.x,
-            'y': request.roi.y,
-            'width': request.roi.width,
-            'height': request.roi.height
-        }
-
-        template_id = template_manager.learn_template(
-            name=request.name,
-            source_image=source_image,
-            roi=roi_dict,
-            description=request.description
-        )
-
-        # Get thumbnail
-        thumbnail_base64 = template_manager.create_template_thumbnail(template_id)
-
-        return {
-            "success": True,
-            "template_id": template_id,
-            "thumbnail_base64": thumbnail_base64
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to learn template: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "success": True,
+        "template_id": template_id,
+        "thumbnail_base64": thumbnail_base64
+    }
 
 
 @router.get("/{template_id}/image")
+@safe_endpoint
 async def get_template_image(
     template_id: str,
-    managers=Depends(get_managers)
+    template_manager = Depends(get_template_manager)
 ) -> dict:
     """Get template image"""
-    try:
-        template_manager = managers['template_manager']
+    thumbnail = template_manager.create_template_thumbnail(template_id, max_width=200)
+    if thumbnail is None:
+        raise TemplateNotFoundException(template_id)
 
-        thumbnail = template_manager.create_template_thumbnail(template_id, max_width=200)
-        if thumbnail is None:
-            raise HTTPException(status_code=404, detail="Template not found")
-
-        return {
-            "success": True,
-            "template_id": template_id,
-            "image_base64": thumbnail
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to get template image: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "success": True,
+        "template_id": template_id,
+        "image_base64": thumbnail
+    }
 
 
 @router.delete("/{template_id}")
+@safe_endpoint
 async def delete_template(
     template_id: str,
-    managers=Depends(get_managers)
+    template_manager = Depends(get_template_manager)
 ) -> dict:
     """Delete template"""
-    try:
-        template_manager = managers['template_manager']
+    success = template_manager.delete_template(template_id)
+    if not success:
+        raise TemplateNotFoundException(template_id)
 
-        success = template_manager.delete_template(template_id)
-        if not success:
-            raise HTTPException(status_code=404, detail="Template not found")
-
-        return {
-            "success": True,
-            "message": f"Template {template_id} deleted"
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to delete template: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "success": True,
+        "message": f"Template {template_id} deleted"
+    }

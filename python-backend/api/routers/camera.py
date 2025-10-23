@@ -19,9 +19,8 @@ from api.models import (
     Size
 )
 from api.dependencies import (
-    get_managers,
-    get_camera_manager,
-    get_image_manager,
+    get_camera_service,
+    get_camera_manager,  # Still needed for stream endpoint
     camera_id_param,
     optional_roi_params,
     validate_camera_exists
@@ -32,8 +31,7 @@ from api.exceptions import (
     safe_endpoint
 )
 from core.constants import CameraConstants, ImageConstants
-from core.image_utils import ImageUtils
-from core.roi_handler import ROIHandler, ROI
+from core.roi_handler import ROI
 
 logger = logging.getLogger(__name__)
 
@@ -41,68 +39,57 @@ router = APIRouter()
 
 
 @router.post("/list")
-async def list_cameras(camera_manager = Depends(get_camera_manager)) -> List[CameraInfo]:
+@safe_endpoint
+async def list_cameras(camera_service = Depends(get_camera_service)) -> List[CameraInfo]:
     """List available cameras"""
-    try:
-        cameras = camera_manager.list_available_cameras()
+    cameras = camera_service.list_available_cameras()
 
-        return [
-            CameraInfo(
-                id=cam['id'],
-                name=cam['name'],
-                type=cam['type'],
-                resolution=Size(
-                    width=cam.get('resolution', {}).get('width', 1920),
-                    height=cam.get('resolution', {}).get('height', 1080)
-                ),
-                connected=cam.get('connected', False)
-            )
-            for cam in cameras
-        ]
-
-    except Exception as e:
-        logger.error(f"Failed to list cameras: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return [
+        CameraInfo(
+            id=cam['id'],
+            name=cam['name'],
+            type=cam['type'],
+            resolution=Size(
+                width=cam.get('resolution', {}).get('width', 1920),
+                height=cam.get('resolution', {}).get('height', 1080)
+            ),
+            connected=cam.get('connected', False)
+        )
+        for cam in cameras
+    ]
 
 
 @router.post("/connect")
+@safe_endpoint
 async def connect_camera(
     request: CameraConnectRequest,
-    camera_manager = Depends(get_camera_manager)
+    camera_service = Depends(get_camera_service)
 ) -> dict:
     """Connect to a camera"""
-    try:
+    # Parse camera ID to get type and source
+    if request.camera_id.startswith("usb_"):
+        camera_type = "usb"
+        source = int(request.camera_id.split("_")[1])
+    else:
+        camera_type = "usb"  # Default
+        source = 0
 
-        # Parse camera ID to get type and source
-        if request.camera_id.startswith("usb_"):
-            camera_type = "usb"
-            source = int(request.camera_id.split("_")[1])
-        else:
-            camera_type = "usb"  # Default
-            source = 0
+    resolution = None
+    if request.resolution:
+        resolution = (request.resolution.width, request.resolution.height)
 
-        resolution = None
-        if request.resolution:
-            resolution = (request.resolution.width, request.resolution.height)
+    # Service handles connection and raises exception on failure
+    camera_service.connect_camera(
+        camera_id=request.camera_id,
+        camera_type=camera_type,
+        source=source,
+        resolution=resolution
+    )
 
-        success = camera_manager.connect_camera(
-            camera_id=request.camera_id,
-            camera_type=camera_type,
-            source=source,
-            resolution=resolution
-        )
-
-        if not success:
-            raise HTTPException(status_code=400, detail="Failed to connect camera")
-
-        return {
-            "success": True,
-            "message": f"Camera {request.camera_id} connected"
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to connect camera: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "success": True,
+        "message": f"Camera {request.camera_id} connected"
+    }
 
 
 @router.post("/capture")
@@ -110,99 +97,61 @@ async def connect_camera(
 async def capture_image(
     camera_id: str = Depends(camera_id_param),
     roi: Optional[dict] = Depends(optional_roi_params),
-    camera_manager = Depends(get_camera_manager),
-    image_manager = Depends(get_image_manager)
+    camera_service = Depends(get_camera_service)
 ) -> CameraCaptureResponse:
     """Capture image from camera"""
-    # Capture image
-    image = camera_manager.capture(camera_id)
+    # Convert ROI dict to ROI object if provided
+    roi_obj = ROI.from_dict(roi) if roi else None
 
-    if image is None:
-        # Try test image for development
-        logger.warning(f"Camera {camera_id} not found, using test image")
-        image = camera_manager.create_test_image(f"Camera: {camera_id}")
-
-    # Apply ROI if specified
-    if roi:
-        roi_obj = ROI.from_dict(roi)
-        image = ROIHandler.extract_roi(image, roi_obj, safe_mode=True)
-        if image is None:
-            raise HTTPException(status_code=400, detail="Invalid ROI parameters")
-
-    # Store in image manager
-    metadata = {
-        'camera_id': camera_id,
-        'timestamp': datetime.now().isoformat(),
-        'roi': roi
-    }
-    image_id = image_manager.store(image, metadata)
-
-    # Create thumbnail
-    _, thumbnail_base64 = image_manager.create_thumbnail(image)
+    # Service handles capture, ROI extraction, storage, and thumbnail creation
+    image_id, thumbnail_base64, metadata = camera_service.capture_and_store(
+        camera_id=camera_id,
+        roi=roi_obj
+    )
 
     return CameraCaptureResponse(
         success=True,
         image_id=image_id,
         timestamp=datetime.now(),
         thumbnail_base64=thumbnail_base64,
-        metadata={
-            'camera_id': camera_id,
-            'width': image.shape[1],
-            'height': image.shape[0]
-        }
+        metadata=metadata
     )
 
 
 @router.get("/preview/{camera_id}")
+@safe_endpoint
 async def get_preview(
     camera_id: str,
-    camera_manager = Depends(get_camera_manager),
-    image_manager = Depends(get_image_manager)
+    camera_service = Depends(get_camera_service)
 ) -> dict:
     """Get preview image from camera"""
-    try:
-        # Get preview frame
-        image = camera_manager.get_preview(camera_id)
+    # Service handles preview and thumbnail creation
+    _, thumbnail_base64 = camera_service.get_preview(
+        camera_id=camera_id,
+        create_thumbnail=True
+    )
 
-        if image is None:
-            # Use test image
-            image = camera_manager.create_test_image(f"Preview: {camera_id}")
-
-        # Create thumbnail
-        _, thumbnail_base64 = image_manager.create_thumbnail(image)
-
-        return {
-            "success": True,
-            "thumbnail_base64": thumbnail_base64,
-            "timestamp": datetime.now().isoformat()
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to get preview: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "success": True,
+        "thumbnail_base64": thumbnail_base64,
+        "timestamp": datetime.now().isoformat()
+    }
 
 
 @router.delete("/disconnect/{camera_id}")
+@safe_endpoint
 async def disconnect_camera(
     camera_id: str,
-    camera_manager = Depends(get_camera_manager)
+    camera_service = Depends(get_camera_service)
 ) -> dict:
     """Disconnect camera"""
-    try:
+    # Service handles disconnection and raises exception on failure
+    camera_service.disconnect_camera(camera_id)
 
-        success = camera_manager.disconnect_camera(camera_id)
-
-        if not success:
-            raise HTTPException(status_code=404, detail="Camera not found")
-
-        return {
-            "success": True,
-            "message": f"Camera {camera_id} disconnected"
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to disconnect camera: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "success": True,
+        "message": f"Camera {camera_id} disconnected"
+    }
 
 
 # Store active streams to limit concurrent connections

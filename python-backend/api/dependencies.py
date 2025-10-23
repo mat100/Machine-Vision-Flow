@@ -14,6 +14,11 @@ from core.camera_manager import CameraManager
 from core.template_manager import TemplateManager
 from core.history_buffer import HistoryBuffer
 
+# Import services
+from services.camera_service import CameraService
+from services.image_service import ImageService
+from services.vision_service import VisionService
+
 logger = logging.getLogger(__name__)
 
 # Optional security bearer for future use
@@ -279,3 +284,62 @@ def error_response(
         content["details"] = details
 
     return HTTPException(status_code=status_code, detail=content)
+
+
+# Service layer dependencies
+def get_camera_service(
+    camera_manager: CameraManager = Depends(get_camera_manager),
+    image_manager: ImageManager = Depends(get_image_manager)
+) -> CameraService:
+    """
+    Get camera service instance.
+
+    Args:
+        camera_manager: Camera manager dependency
+        image_manager: Image manager dependency
+
+    Returns:
+        CameraService instance
+    """
+    return CameraService(
+        camera_manager=camera_manager,
+        image_manager=image_manager
+    )
+
+
+def get_image_service(
+    image_manager: ImageManager = Depends(get_image_manager)
+) -> ImageService:
+    """
+    Get image service instance.
+
+    Args:
+        image_manager: Image manager dependency
+
+    Returns:
+        ImageService instance
+    """
+    return ImageService(image_manager=image_manager)
+
+
+def get_vision_service(
+    image_manager: ImageManager = Depends(get_image_manager),
+    template_manager: TemplateManager = Depends(get_template_manager),
+    history_buffer: HistoryBuffer = Depends(get_history_buffer)
+) -> VisionService:
+    """
+    Get vision service instance.
+
+    Args:
+        image_manager: Image manager dependency
+        template_manager: Template manager dependency
+        history_buffer: History buffer dependency
+
+    Returns:
+        VisionService instance
+    """
+    return VisionService(
+        image_manager=image_manager,
+        template_manager=template_manager,
+        history_buffer=history_buffer
+    )
