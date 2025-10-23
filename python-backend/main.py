@@ -157,10 +157,10 @@ async def health_check():
     return {
         "status": "healthy",
         "services": {
-            "image_manager": image_manager is not None,
-            "camera_manager": camera_manager is not None,
-            "template_manager": template_manager is not None,
-            "history_buffer": history_buffer is not None
+            "image_manager": hasattr(app.state, 'image_manager') and app.state.image_manager is not None,
+            "camera_manager": hasattr(app.state, 'camera_manager') and app.state.camera_manager is not None,
+            "template_manager": hasattr(app.state, 'template_manager') and app.state.template_manager is not None,
+            "history_buffer": hasattr(app.state, 'history_buffer') and app.state.history_buffer is not None
         }
     }
 

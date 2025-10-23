@@ -51,6 +51,25 @@ async def get_recent_history(
     )
 
 
+@router.post("/clear")
+@safe_endpoint
+async def clear_history(history_buffer = Depends(get_history_buffer)) -> dict:
+    """Clear all history"""
+    history_buffer.clear()
+
+    return {
+        "success": True,
+        "message": "History cleared"
+    }
+
+
+@router.get("/statistics")
+@safe_endpoint
+async def get_statistics(history_buffer = Depends(get_history_buffer)) -> dict:
+    """Get detailed statistics"""
+    return history_buffer.get_statistics()
+
+
 @router.get("/{inspection_id}")
 @safe_endpoint
 async def get_inspection(
@@ -72,25 +91,6 @@ async def get_inspection(
         processing_time_ms=record.processing_time_ms,
         detections=record.detections
     )
-
-
-@router.post("/clear")
-@safe_endpoint
-async def clear_history(history_buffer = Depends(get_history_buffer)) -> dict:
-    """Clear all history"""
-    history_buffer.clear()
-
-    return {
-        "success": True,
-        "message": "History cleared"
-    }
-
-
-@router.get("/statistics")
-@safe_endpoint
-async def get_statistics(history_buffer = Depends(get_history_buffer)) -> dict:
-    """Get detailed statistics"""
-    return history_buffer.get_statistics()
 
 
 @router.get("/analysis/failures")
