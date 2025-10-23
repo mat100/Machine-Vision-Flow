@@ -84,7 +84,7 @@ class CameraService:
         if not success:
             raise CameraConnectionException(
                 camera_id=camera_id,
-                message="Failed to connect to camera"
+                reason="Connection failed"
             )
 
         logger.info(f"Camera {camera_id} connected successfully")
