@@ -32,6 +32,12 @@ Thank you for your interest in contributing to Machine Vision Flow! This documen
    make install
    ```
 
+   **Note:** This installs development dependencies. For production, use:
+   ```bash
+   cd python-backend
+   pip install -r requirements.txt
+   ```
+
 3. **Set up pre-commit hooks:**
    ```bash
    make setup-hooks
@@ -41,6 +47,28 @@ Thank you for your interest in contributing to Machine Vision Flow! This documen
    ```bash
    make test
    ```
+
+### Dependency Management
+
+The project uses separate requirement files:
+
+- **`requirements.txt`** - Production dependencies only (pinned versions)
+- **`requirements-dev.txt`** - Development dependencies (testing, linting, etc.)
+
+**Installing dependencies:**
+```bash
+# Development (includes production + dev tools)
+pip install -r requirements-dev.txt
+
+# Production only
+pip install -r requirements.txt
+```
+
+**Adding new dependencies:**
+1. Add to appropriate file with pinned version
+2. Run `pip install -r requirements-dev.txt` to install
+3. Test thoroughly
+4. Commit both requirement files
 
 ## Development Workflow
 

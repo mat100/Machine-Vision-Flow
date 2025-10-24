@@ -27,6 +27,14 @@ After starting, available at:
 - **API Documentation**: http://localhost:8000/docs
 - **Node-RED**: http://localhost:1880
 
+## 📦 Dependencies
+
+The project uses separate requirement files:
+- **`requirements.txt`** - Production dependencies (pinned versions)
+- **`requirements-dev.txt`** - Development tools (testing, linting, formatting)
+
+See [CONTRIBUTING.md](CONTRIBUTING.md#dependency-management) for details.
+
 ## 📋 Available Commands
 
 ### Makefile (recommended)

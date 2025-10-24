@@ -1,0 +1,27 @@
+# Development dependencies for Machine Vision Flow
+# Install with: pip install -r requirements-dev.txt
+#
+# This includes all production dependencies plus development tools
+
+# Include production dependencies
+-r requirements.txt
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==7.0.0
+httpx==0.25.2  # For FastAPI TestClient
+
+# Code quality & formatting
+black==25.9.0
+isort==7.0.0
+flake8==7.3.0
+autoflake==2.3.1
+
+# Pre-commit hooks
+pre-commit==3.6.0
+
+# Optional tools for advanced development
+# mypy==1.7.0  # Type checking
+# bandit==1.7.5  # Security scanning
+# pytest-benchmark==4.0.0  # Performance testing
