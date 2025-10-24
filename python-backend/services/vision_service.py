@@ -54,7 +54,6 @@ class VisionService:
         template_id: str,
         method: str = "TM_CCOEFF_NORMED",
         threshold: float = 0.8,
-        roi: Optional[ROI] = None,
         record_history: bool = True,
     ) -> Tuple[List[TemplateMatchResult], str, int]:
         """
@@ -65,7 +64,6 @@ class VisionService:
             template_id: Template identifier
             method: OpenCV matching method
             threshold: Match threshold (0-1)
-            roi: Optional ROI to search in
             record_history: Whether to record in history
 
         Returns:
@@ -87,21 +85,11 @@ class VisionService:
         if template is None:
             raise TemplateNotFoundException(template_id)
 
-        # Apply ROI if specified
-        roi_offset = (0, 0)
-        if roi:
-            search_image = ROIHandler.extract_roi(image, roi, safe_mode=True)
-            if search_image is None:
-                raise ValueError("Invalid ROI parameters")
-            roi_offset = (roi.x, roi.y)
-        else:
-            search_image = image
-
         # Convert to grayscale if needed
-        if len(search_image.shape) == 3:
-            search_gray = cv2.cvtColor(search_image, cv2.COLOR_BGR2GRAY)
+        if len(image.shape) == 3:
+            search_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
-            search_gray = search_image
+            search_gray = image
 
         if len(template.shape) == 3:
             template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
@@ -134,9 +122,8 @@ class VisionService:
 
         # Create result if match found
         if loc is not None:
-            # Adjust for ROI offset
-            x = loc[0] + roi_offset[0]
-            y = loc[1] + roi_offset[1]
+            x = loc[0]
+            y = loc[1]
 
             matches.append(
                 TemplateMatchResult(
@@ -246,7 +233,6 @@ class VisionService:
         image_id: str,
         method: str = "canny",
         params: Optional[Dict] = None,
-        roi: Optional[Dict] = None,
         preprocessing: Optional[Dict] = None,
         record_history: bool = True,
     ) -> Tuple[Dict, str, int]:
@@ -257,7 +243,6 @@ class VisionService:
             image_id: Image identifier
             method: Edge detection method (canny, sobel, laplacian, etc.)
             params: Method-specific parameters
-            roi: Optional ROI dictionary
             preprocessing: Optional preprocessing parameters
             record_history: Whether to record in history
 
@@ -304,7 +289,7 @@ class VisionService:
 
         # Perform edge detection
         result = detector.detect(
-            image=image, method=edge_method, params=params, roi=roi, preprocessing=preprocessing
+            image=image, method=edge_method, params=params, preprocessing=preprocessing
         )
 
         # Create result image with overlay

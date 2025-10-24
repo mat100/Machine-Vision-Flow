@@ -147,10 +147,10 @@ class TemplateManager:
             Template ID
         """
         # Extract ROI
-        x = roi["x"]
-        y = roi["y"]
-        width = roi["width"]
-        height = roi["height"]
+        x = int(roi["x"])
+        y = int(roi["y"])
+        width = int(roi["width"])
+        height = int(roi["height"])
 
         # Validate ROI
         if x < 0 or y < 0:

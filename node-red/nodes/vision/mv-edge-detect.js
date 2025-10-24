@@ -40,50 +40,45 @@ module.exports = function(RED) {
 
                 node.status({fill: "blue", shape: "dot", text: "detecting edges..."});
 
-                // Prepare request
+                // Prepare request with explicit fields
                 const requestData = {
                     image_id: imageId,
                     method: node.method,
-                    threshold1: node.cannyLow,
-                    threshold2: node.cannyHigh
-                };
-
-                // Add preprocessing if enabled
-                const preprocessing = {};
-                if (node.blurEnabled) {
-                    preprocessing.blur_enabled = true;
-                    preprocessing.blur_kernel = parseInt(node.blurKernel) || 5;
-                }
-                if (node.bilateralEnabled) {
-                    preprocessing.bilateral_enabled = true;
-                }
-                if (node.morphologyEnabled) {
-                    preprocessing.morphology_enabled = true;
-                    preprocessing.morphology_operation = node.morphologyOperation;
-                }
-
-                if (Object.keys(preprocessing).length > 0) {
-                    requestData.preprocessing = preprocessing;
-                }
-
-                // Add parameters based on method
-                const params = {
+                    // Canny parameters
+                    canny_low: parseInt(node.cannyLow) || 50,
+                    canny_high: parseInt(node.cannyHigh) || 150,
+                    // Sobel parameters
+                    sobel_threshold: parseInt(node.sobelThreshold) || 50,
+                    sobel_kernel: 3,
+                    // Laplacian parameters
+                    laplacian_threshold: parseInt(node.laplacianThreshold) || 30,
+                    laplacian_kernel: 3,
+                    // Prewitt parameters
+                    prewitt_threshold: 50,
+                    // Scharr parameters
+                    scharr_threshold: 50,
+                    // Morphological gradient parameters
+                    morph_threshold: 30,
+                    morph_kernel: 3,
+                    // Contour filtering parameters
                     min_contour_area: parseInt(node.minContourArea) || 10,
                     max_contour_area: parseInt(node.maxContourArea) || 100000,
+                    min_contour_perimeter: 0,
+                    max_contour_perimeter: 999999,
                     max_contours: parseInt(node.maxContours) || 20,
-                    show_centers: true
+                    show_centers: true,
+                    // Preprocessing options
+                    blur_enabled: node.blurEnabled || false,
+                    blur_kernel: parseInt(node.blurKernel) || 5,
+                    bilateral_enabled: node.bilateralEnabled || false,
+                    bilateral_d: 9,
+                    bilateral_sigma_color: 75,
+                    bilateral_sigma_space: 75,
+                    morphology_enabled: node.morphologyEnabled || false,
+                    morphology_operation: node.morphologyOperation || 'close',
+                    morphology_kernel: 3,
+                    equalize_enabled: false
                 };
-
-                if (node.method === 'canny') {
-                    params.canny_low = node.cannyLow;
-                    params.canny_high = node.cannyHigh;
-                } else if (node.method === 'sobel') {
-                    params.sobel_threshold = node.sobelThreshold;
-                } else if (node.method === 'laplacian') {
-                    params.laplacian_threshold = node.laplacianThreshold;
-                }
-
-                requestData.params = params;
 
                 // Call API
                 const response = await axios.post(
@@ -122,7 +117,8 @@ module.exports = function(RED) {
                     method: node.method,
                     params: {
                         method: node.method,
-                        preprocessing: preprocessing
+                        min_contour_area: requestData.min_contour_area,
+                        max_contour_area: requestData.max_contour_area
                     },
                     duration_ms: result.processing_time_ms,
                     result: {

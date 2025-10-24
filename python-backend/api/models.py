@@ -121,7 +121,6 @@ class TemplateMatchRequest(BaseModel):
     template_id: str
     method: TemplateMethod = TemplateMethod.TM_CCOEFF_NORMED
     threshold: float = Field(0.8, ge=0.0, le=1.0)
-    roi: Optional[ROI] = None
     multi_scale: bool = False
     scale_range: Optional[List[float]] = [0.8, 1.2]
     rotation: bool = False
@@ -153,9 +152,66 @@ class EdgeDetectRequest(BaseModel):
 
     image_id: str
     method: str = "canny"
-    threshold1: float = 100
-    threshold2: float = 200
-    roi: Optional[ROI] = None
+
+    # Canny parameters
+    canny_low: Optional[int] = Field(50, ge=0, le=255, description="Canny low threshold")
+    canny_high: Optional[int] = Field(150, ge=0, le=255, description="Canny high threshold")
+
+    # Sobel parameters
+    sobel_threshold: Optional[float] = Field(50, ge=0, description="Sobel threshold")
+    sobel_kernel: Optional[int] = Field(3, ge=1, description="Sobel kernel size")
+
+    # Laplacian parameters
+    laplacian_threshold: Optional[float] = Field(30, ge=0, description="Laplacian threshold")
+    laplacian_kernel: Optional[int] = Field(3, ge=1, description="Laplacian kernel size")
+
+    # Prewitt parameters
+    prewitt_threshold: Optional[float] = Field(50, ge=0, description="Prewitt threshold")
+
+    # Scharr parameters
+    scharr_threshold: Optional[float] = Field(50, ge=0, description="Scharr threshold")
+
+    # Morphological gradient parameters
+    morph_threshold: Optional[float] = Field(
+        30, ge=0, description="Morphological gradient threshold"
+    )
+    morph_kernel: Optional[int] = Field(3, ge=1, description="Morphological gradient kernel size")
+
+    # Contour filtering parameters
+    min_contour_area: Optional[float] = Field(10, ge=0, description="Minimum contour area")
+    max_contour_area: Optional[float] = Field(100000, ge=0, description="Maximum contour area")
+    min_contour_perimeter: Optional[float] = Field(0, ge=0, description="Minimum contour perimeter")
+    max_contour_perimeter: Optional[float] = Field(
+        float("inf"), description="Maximum contour perimeter"
+    )
+    max_contours: Optional[int] = Field(
+        100, ge=1, description="Maximum number of contours to return"
+    )
+    show_centers: Optional[bool] = Field(True, description="Show contour centers in visualization")
+
+    # Preprocessing options
+    blur_enabled: Optional[bool] = Field(False, description="Enable Gaussian blur preprocessing")
+    blur_kernel: Optional[int] = Field(
+        5, ge=3, description="Gaussian blur kernel size (odd number)"
+    )
+    bilateral_enabled: Optional[bool] = Field(
+        False, description="Enable bilateral filter preprocessing"
+    )
+    bilateral_d: Optional[int] = Field(9, ge=1, description="Bilateral filter diameter")
+    bilateral_sigma_color: Optional[float] = Field(
+        75, ge=0, description="Bilateral filter sigma color"
+    )
+    bilateral_sigma_space: Optional[float] = Field(
+        75, ge=0, description="Bilateral filter sigma space"
+    )
+    morphology_enabled: Optional[bool] = Field(
+        False, description="Enable morphological preprocessing"
+    )
+    morphology_operation: Optional[str] = Field(
+        "close", description="Morphological operation (close/open/gradient)"
+    )
+    morphology_kernel: Optional[int] = Field(3, ge=1, description="Morphological kernel size")
+    equalize_enabled: Optional[bool] = Field(False, description="Enable histogram equalization")
 
 
 class BlobDetectRequest(BaseModel):
@@ -165,7 +221,6 @@ class BlobDetectRequest(BaseModel):
     min_area: Optional[int] = 100
     max_area: Optional[int] = 10000
     circularity: Optional[float] = None
-    roi: Optional[ROI] = None
 
 
 # History models

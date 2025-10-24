@@ -15,7 +15,6 @@ from api.models import (
     TemplateMatchRequest,
     TemplateMatchResponse,
 )
-from core.roi_handler import ROI
 
 logger = logging.getLogger(__name__)
 
@@ -28,20 +27,12 @@ async def template_match(
     request: TemplateMatchRequest, vision_service=Depends(get_vision_service)
 ) -> TemplateMatchResponse:
     """Perform template matching"""
-    # Convert ROI from request to ROI object if provided
-    roi = None
-    if request.roi:
-        roi = ROI(
-            x=request.roi.x, y=request.roi.y, width=request.roi.width, height=request.roi.height
-        )
-
     # Service handles all template matching logic, history recording, and thumbnail creation
     matches, thumbnail_base64, processing_time = vision_service.template_match(
         image_id=request.image_id,
         template_id=request.template_id,
         method=request.method.value,
         threshold=request.threshold,
-        roi=roi,
         record_history=True,
     )
 
@@ -60,37 +51,47 @@ async def edge_detect(
     request: EdgeDetectRequest, vision_service=Depends(get_vision_service)
 ) -> dict:
     """Perform edge detection with multiple methods"""
-    # Prepare ROI if specified
-    roi = None
-    if request.roi:
-        roi = {
-            "x": request.roi.x,
-            "y": request.roi.y,
-            "width": request.roi.width,
-            "height": request.roi.height,
-        }
+    # Build params dict from explicit fields
+    params = {
+        # Method-specific parameters
+        "canny_low": request.canny_low,
+        "canny_high": request.canny_high,
+        "sobel_threshold": request.sobel_threshold,
+        "sobel_kernel": request.sobel_kernel,
+        "laplacian_threshold": request.laplacian_threshold,
+        "laplacian_kernel": request.laplacian_kernel,
+        "prewitt_threshold": request.prewitt_threshold,
+        "scharr_threshold": request.scharr_threshold,
+        "morph_threshold": request.morph_threshold,
+        "morph_kernel": request.morph_kernel,
+        # Filtering parameters
+        "min_contour_area": request.min_contour_area,
+        "max_contour_area": request.max_contour_area,
+        "min_contour_perimeter": request.min_contour_perimeter,
+        "max_contour_perimeter": request.max_contour_perimeter,
+        "max_contours": request.max_contours,
+        "show_centers": request.show_centers,
+    }
 
-    # Prepare parameters
-    params = request.params if hasattr(request, "params") and request.params else {}
-
-    # Add threshold parameters to params if provided
-    if hasattr(request, "threshold1"):
-        params.setdefault("canny_low", request.threshold1)
-    if hasattr(request, "threshold2"):
-        params.setdefault("canny_high", request.threshold2)
-
-    # Get method
-    method = request.method.lower() if hasattr(request, "method") else "canny"
-
-    # Get preprocessing options
-    preprocessing = request.preprocessing if hasattr(request, "preprocessing") else None
+    # Build preprocessing dict from explicit fields
+    preprocessing = {
+        "blur_enabled": request.blur_enabled,
+        "blur_kernel": request.blur_kernel,
+        "bilateral_enabled": request.bilateral_enabled,
+        "bilateral_d": request.bilateral_d,
+        "bilateral_sigma_color": request.bilateral_sigma_color,
+        "bilateral_sigma_space": request.bilateral_sigma_space,
+        "morphology_enabled": request.morphology_enabled,
+        "morphology_operation": request.morphology_operation,
+        "morphology_kernel": request.morphology_kernel,
+        "equalize_enabled": request.equalize_enabled,
+    }
 
     # Service handles all edge detection logic, history recording, and thumbnail creation
     result, thumbnail_base64, processing_time = vision_service.edge_detect(
         image_id=request.image_id,
-        method=method,
+        method=request.method.lower(),
         params=params,
-        roi=roi,
         preprocessing=preprocessing,
         record_history=True,
     )
