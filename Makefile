@@ -31,7 +31,7 @@ help:
 	@echo "  make stop          Stop services"
 	@echo "  make status        Show status"
 	@echo "  make test          Run tests"
-	@echo "  make clean         Clean temp files"
+	@echo "  make clean         Clean runtime files (--all for everything)"
 	@echo ""
 	@echo "  make dev           Dev mode (both services)"
 	@echo "  make dev-python    Dev mode (Python only)"
@@ -63,13 +63,23 @@ logs:
 	fi
 
 clean:
-	@echo "Cleaning up..."
-	@rm -f $(BACKEND_LOG_FILE) $(BACKEND_PID_FILE)
-	@rm -f $(NODE_RED_LOG_FILE) $(NODE_RED_PID_FILE)
-	@rm -f $(PROJECT_ROOT)/*.log $(PROJECT_ROOT)/*.pid
+	@echo "Cleaning runtime files..."
+	@rm -rf $(LOG_DIR) $(RUN_DIR)
 	@find $(BACKEND_DIR) -type d -name "__pycache__" -prune -exec rm -rf {} +
 	@find $(PROJECT_ROOT) -name "*.pyc" -delete
-	@echo "Cleanup complete!"
+ifeq ($(filter --all,$(MAKECMDGOALS)),--all)
+	@echo "Cleaning test coverage, data, and dependencies..."
+	@rm -rf $(BACKEND_DIR)/htmlcov $(BACKEND_DIR)/.coverage $(BACKEND_DIR)/.pytest_cache
+	@find $(BACKEND_DIR)/data -mindepth 1 ! -name 'README.md' -delete 2>/dev/null || true
+	@find $(BACKEND_DIR)/templates -mindepth 1 -delete 2>/dev/null || true
+	@rm -rf $(PROJECT_ROOT)/node-red/node_modules
+	@echo "Complete cleanup done!"
+else
+	@echo "Runtime cleanup complete! (Use 'make clean --all' for full cleanup)"
+endif
+
+--all:
+	@:
 
 dev:
 	@$(SCRIPTS_DIR)/dev.sh $(ARGS)
