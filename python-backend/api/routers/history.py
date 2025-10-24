@@ -20,7 +20,7 @@ router = APIRouter()
 @safe_endpoint
 async def get_recent_history(
     limit: int = Query(10, ge=1, le=100),
-    result_filter: Optional[str] = Query(None, regex="^(PASS|FAIL|ERROR)$"),
+    result_filter: Optional[str] = Query(None, pattern="^(PASS|FAIL|ERROR)$"),
     history_buffer=Depends(get_history_buffer),
 ) -> HistoryResponse:
     """Get recent inspection history"""

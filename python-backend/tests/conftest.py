@@ -47,10 +47,22 @@ def image_manager():
 @pytest.fixture
 def camera_manager():
     """Create CameraManager instance for testing"""
+    import asyncio
+
     manager = CameraManager()
     yield manager
-    # Cleanup
-    manager.cleanup()
+    # Cleanup - run async cleanup in event loop
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If loop is running, create task
+            asyncio.create_task(manager.cleanup())
+        else:
+            # If no loop or not running, run synchronously
+            loop.run_until_complete(manager.cleanup())
+    except RuntimeError:
+        # No event loop, create new one
+        asyncio.run(manager.cleanup())
 
 
 @pytest.fixture

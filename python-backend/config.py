@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 from core.constants import (
@@ -55,9 +55,7 @@ class ImageConfig(BaseSettings):
         description="Memory usage threshold to trigger cleanup",
     )
 
-    class Config:
-        env_prefix = "MV_IMAGE_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="MV_IMAGE_", extra="ignore")
 
 
 class CameraConfig(BaseSettings):
@@ -97,9 +95,7 @@ class CameraConfig(BaseSettings):
         default=CameraConstants.TEST_IMAGE_HEIGHT, ge=100, le=4096, description="Test image height"
     )
 
-    class Config:
-        env_prefix = "MV_CAMERA_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="MV_CAMERA_", extra="ignore")
 
 
 class TemplateConfig(BaseSettings):
@@ -143,9 +139,7 @@ class TemplateConfig(BaseSettings):
                 raise ValueError(f"Cannot create storage path: {e}")
         return str(path.absolute())
 
-    class Config:
-        env_prefix = "MV_TEMPLATE_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="MV_TEMPLATE_", extra="ignore")
 
 
 class VisionConfig(BaseSettings):
@@ -187,9 +181,7 @@ class VisionConfig(BaseSettings):
             return v + 1
         return v
 
-    class Config:
-        env_prefix = "MV_VISION_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="MV_VISION_", extra="ignore")
 
 
 class HistoryConfig(BaseSettings):
@@ -214,9 +206,7 @@ class HistoryConfig(BaseSettings):
         description="Maximum time series duration in hours",
     )
 
-    class Config:
-        env_prefix = "MV_HISTORY_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="MV_HISTORY_", extra="ignore")
 
 
 class APIConfig(BaseSettings):
@@ -247,9 +237,7 @@ class APIConfig(BaseSettings):
         description="Rate limit per minute",
     )
 
-    class Config:
-        env_prefix = "MV_API_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="MV_API_", extra="ignore")
 
 
 class SystemConfig(BaseSettings):
@@ -292,9 +280,7 @@ class SystemConfig(BaseSettings):
         path.mkdir(parents=True, exist_ok=True)
         return str(path.absolute())
 
-    class Config:
-        env_prefix = "MV_SYSTEM_"
-        extra = "ignore"
+    model_config = ConfigDict(env_prefix="MV_SYSTEM_", extra="ignore")
 
 
 class Settings(BaseSettings):
@@ -315,9 +301,7 @@ class Settings(BaseSettings):
     )
 
     # Config file support
-    config_file: Optional[str] = Field(
-        default=None, env="MV_CONFIG_FILE", description="Path to YAML config file"
-    )
+    config_file: Optional[str] = Field(default=None, description="Path to YAML config file")
 
     @model_validator(mode="before")
     @classmethod
@@ -364,11 +348,9 @@ class Settings(BaseSettings):
         with open(path, "w") as f:
             yaml.dump(config_dict, f, default_flow_style=False)
 
-    class Config:
-        env_prefix = "MV_"
-        case_sensitive = False
-        env_nested_delimiter = "__"
-        extra = "ignore"
+    model_config = ConfigDict(
+        env_prefix="MV_", case_sensitive=False, env_nested_delimiter="__", extra="ignore"
+    )
 
 
 @lru_cache()
