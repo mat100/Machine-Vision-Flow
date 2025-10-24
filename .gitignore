@@ -32,11 +32,11 @@ Thumbs.db
 
 # Project specific
 python-backend/venv/
-python-backend/*.log
-python-backend/*.pid
 python-backend/.deps_installed
-*.log
-*.pid
+
+# Runtime files
+var/log/
+var/run/
 
 # Temporary files
 tmp/
@@ -46,3 +46,9 @@ temp/
 # Camera test images (if generated)
 test_images/
 captured_images/
+
+# Test coverage
+.coverage
+htmlcov/
+python-backend/.coverage
+python-backend/htmlcov/

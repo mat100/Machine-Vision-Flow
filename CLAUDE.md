@@ -1,177 +1,177 @@
-# Machine Vision Flow - Project Guide
+# CLAUDE.md
 
-## Overview
-This is a modular Machine Vision system inspired by Keyence and Cognex, built with Node-RED for visual workflow programming and Python backend for computer vision processing.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Quick Start
+# Machine Vision Flow
 
-### 1. Start Python Backend
+Modular machine vision system inspired by Keyence/Cognex industrial vision. Node-RED provides visual workflow programming, Python FastAPI backend handles computer vision processing.
+
+## Common Commands
+
+### Development (most common)
 ```bash
+# Quick start both services
+make start          # Start both services in background
+make status         # Check if services are running
+make logs           # View logs from both services
+make stop           # Stop both services
+
+# Enhanced development mode with auto-reload
+make dev            # Both services with live reload + colored logs
+make dev-python     # Python only with uvicorn hot reload
+make dev-nodered    # Node-RED with file watching
+
+# After code changes (90% of development)
+make reload         # Restart both services (no reinstall)
+make reload-backend # Just Python backend
+make reload-nodered # Just Node-RED
+```
+
+### Installation/Setup
+```bash
+# First time setup
+make install        # Install both backends
+
+# After adding new dependencies
+make reinstall-backend    # Update Python packages
+make reinstall-nodered    # Update Node-RED nodes
+```
+
+### Testing
+```bash
+make test                              # Run all tests
+cd python-backend && python -m pytest  # Direct pytest
+python -m pytest tests/test_specific.py::test_function  # Single test
+```
+
+### Manual Start (without Make)
+```bash
+# Python backend (port 8000)
 cd python-backend
-python3 -m pip install -r requirements.txt  # First time only
+source venv/bin/activate  # or python3 -m venv venv first
 python3 main.py
-```
-The backend runs on http://localhost:8000
 
-### 2. Install Node-RED Nodes
-```bash
-cd ~/.node-red
-npm install /home/cnc/MachineVisionFlow/node-red
-npm install node-red-contrib-image-output  # For image preview
-node-red-restart
+# Node-RED (port 1880)
+node-red
 ```
 
-### 3. Import Example Flow
-1. Open Node-RED UI (http://localhost:1880)
-2. Menu → Import → Clipboard
-3. Paste contents from `node-red/flows/examples/basic-inspection.json`
-4. Deploy
+## Architecture Overview
 
-## Architecture
+### System Design Principles
+- **Node-RED = Orchestration Only**: All CV processing in Python, Node-RED just coordinates workflow
+- **Shared Memory Images**: Full images in shared memory, only UUIDs passed around
+- **Base64 Thumbnails**: Only small previews (320px) sent to Node-RED
+- **Message-Driven**: Manual triggers, not automatic/periodic capture
+- **Parallel Processing**: Multiple detections run simultaneously on same image
 
-### Key Design Decisions
-- **Node-RED as UI Only**: All CV processing happens in Python backend, Node-RED is purely for workflow orchestration
-- **REST API Communication**: FastAPI backend with REST endpoints (not WebSocket)
-- **Shared Memory for Images**: Full images stored in shared memory, only image_id passed between services
-- **Base64 for Thumbnails Only**: Thumbnails (160-640px) encoded in base64 for preview
-- **No Buffer Node**: Node-RED natively splits messages to multiple outputs - no intermediate buffer needed
-- **Manual Triggers**: Detection triggered by message input, not automatic/periodic
+### Core Components
 
-### System Flow
+#### Python Backend (`python-backend/`)
+- **main.py:195** - FastAPI app with global manager instances
+- **core/image_manager.py:307** - Shared memory storage, LRU cache, thumbnails
+- **core/camera_manager.py:341** - USB/IP/test camera abstraction, MJPEG streaming
+- **core/template_manager.py:324** - Template file storage, learning from ROI
+- **core/history_buffer.py:334** - Circular buffer for inspection records
+- **api/routers/camera.py:250+** - Capture, preview, stream endpoints
+- **api/routers/vision.py:300+** - Template match, edge detect endpoints
+- **vision/edge_detection.py:392** - Canny, Sobel, Laplacian methods
+
+#### Node-RED Custom Nodes (`node-red/nodes/`)
+- **camera/mv-camera-capture** - Triggers capture, returns image_id + thumbnail
+- **vision/mv-template-match** - Calls template matching API with ROI/threshold
+- **analysis/mv-result-merger** - Collects parallel results, applies pass/fail logic
+- **output/mv-overlay** - Annotates images with detection results
+
+### Data Flow Pattern
 ```
-[Trigger Message] → [Camera Capture] → [Multiple Parallel Detections] → [Result Merger] → [Decision]
-                           ↓
-                    Returns image_id
-                    + thumbnail_base64
-                           ↓
-                    ┌→ [Template Match 1] →┐
-                    ├→ [Template Match 2] →├→ [Merger waits for all] → [Pass/Fail]
-                    └→ [Template Match 3] →┘
+[Trigger] → [Camera: capture once] → image_id + thumbnail
+                    ↓
+         ┌→ [Detection 1] →┐
+         ├→ [Detection 2] →├→ [Merger: wait & decide] → PASS/FAIL
+         └→ [Detection 3] →┘
+         (parallel processing)
 ```
 
-### Message Structure
-Each detection adds to the message chain:
+### Message Structure Evolution
 ```javascript
+// After camera capture
 msg = {
     image_id: "uuid",
-    thumbnail: "base64...",
-    detections: [
-        { node_id: "tm1", found: true, score: 0.92, ... },
-        { node_id: "tm2", found: false, ... }
-    ]
+    thumbnail: "base64..."
 }
+
+// After each detection (accumulates)
+msg.detections = [
+    { node_id: "tm1", found: true, score: 0.92, position: {x,y} },
+    { node_id: "tm2", found: false }
+]
+
+// After merger
+msg.result = "PASS" // or "FAIL"
+msg.summary = { passed: 2, failed: 1, total: 3 }
 ```
 
-## Components
+## Key Technical Details
 
-### Python Backend (`python-backend/`)
-- **main.py**: FastAPI application entry point
-- **core/image_manager.py**: Shared memory image storage with LRU cache
-- **core/camera_manager.py**: Camera abstraction (USB/IP/test images)
-- **core/template_manager.py**: Template storage and management
-- **core/history_buffer.py**: Circular buffer for inspection history
-- **api/routers/**: REST API endpoints
+### Image Management Strategy
+- **Full Images**: Stored in Python shared memory (max 100 images, 1GB)
+- **Thumbnails**: Base64-encoded 320px width for UI display
+- **Image IDs**: UUIDs reference shared memory locations
+- **Cleanup**: LRU eviction when limits reached
 
-### Node-RED Nodes (`node-red/nodes/`)
-- **mv-camera-capture**: Captures image on trigger message
-- **mv-template-match**: Template matching with ROI support
-- **mv-result-merger**: Waits for multiple detections, applies decision rules
-- **mv-overlay**: Prepares thumbnail for display
-- **mv-image-simulator**: Test image generation
+### Result Merger Logic
+- Waits for N inputs or timeout (1000ms default)
+- Decision rules: all_pass, any_pass, min_count, custom JavaScript
+- Groups results by image_id for correlation
+- Outputs combined result with all detection details
 
-## API Endpoints
+### API Endpoints
+```
+POST /api/camera/capture?camera_id=test     # Returns image_id + thumbnail
+POST /api/vision/template-match             # Template matching with ROI
+POST /api/vision/edge-detect                # Edge detection
+GET  /api/camera/stream/{id}                # MJPEG live stream
+POST /api/templates/learn                   # Learn template from ROI
+```
 
-### Camera
-- `POST /api/camera/capture` - Capture image from camera
-- `GET /api/camera/{camera_id}/preview` - Get live preview
+### Development Ports
+- Python Backend: `http://localhost:8000`
+- Node-RED UI: `http://localhost:1880`
+- API Docs: `http://localhost:8000/docs`
 
-### Vision
-- `POST /api/vision/template-match` - Perform template matching
-- `POST /api/vision/edge-detect` - Edge detection (placeholder)
+### Configuration Files
+- `python-backend/config.yaml` - Production settings
+- `python-backend/config.dev.yaml` - Development settings (debug, auto-reload)
+- `Makefile` - Primary control interface (40+ targets)
 
-### Templates
-- `GET /api/templates` - List all templates
-- `POST /api/templates/upload` - Upload new template
-- `POST /api/templates/learn` - Learn template from image ROI
+## Testing Without Hardware
 
-### History
-- `GET /api/history/recent` - Get recent inspections
-- `GET /api/history/stats` - Get statistics
+Use `camera_id: "test"` to generate synthetic test images:
+```bash
+curl -X POST http://localhost:8000/api/camera/capture?camera_id=test
+```
 
-## Key Features
+## Adding New Features
 
-### Parallel Detection
-- Single image captured once
-- Multiple detection nodes process in parallel
-- Each adds results to message chain
-- Result merger waits for all inputs
+### New Vision Algorithm
+1. Create module in `python-backend/vision/your_algorithm.py`
+2. Add endpoint in `python-backend/api/routers/vision.py`
+3. Create Node-RED node pair in `node-red/nodes/vision/`
+4. Register in `node-red/package.json`
+5. Run `make reload` to apply changes
 
-### Template Matching
-- ROI (Region of Interest) support
-- Multi-scale searching
-- Multiple matching methods (NCC, CCOEFF, etc.)
-- Threshold configuration
+### New Core Manager
+1. Create class in `python-backend/core/your_manager.py`
+2. Initialize in `main.py` lifespan handler
+3. Access via `app.state.your_manager` in routers
 
-### Result Merger
-- Configurable input count with timeout
-- Decision rules:
-  - All must pass
-  - Any must pass
-  - Minimum count
-  - Custom JavaScript
-
-### Efficient Image Handling
-- Shared memory prevents copying
-- Reference counting for cleanup
-- Only thumbnails in base64
-- Image IDs passed between services
-
-## Development Tips
-
-### Adding New Vision Node
-1. Create `.js` and `.html` files in `node-red/nodes/vision/`
-2. Add to `package.json`
-3. Implement API endpoint in `python-backend/api/routers/vision.py`
-4. Restart Node-RED
-
-### Testing Without Camera
-- Use `camera_id: "test"` for test images
-- Image simulator node for patterns
-
-### Debugging
-- Check Python backend logs: `http://localhost:8000/docs`
-- Node-RED debug panel for message inspection
-- Enable debug logging in Node-RED settings
-
-## Common Issues
-
-### Nodes Not Appearing
-- Restart Node-RED after installation
-- Check `npm list node-red-contrib-machine-vision-flow`
-
-### Connection Refused
-- Ensure Python backend is running
-- Check API URL in nodes (default: http://localhost:8000)
-
-### Images Not Displaying
-- Install `node-red-contrib-image-output`
-- Verify `thumbnail` property in message
+## Language Requirement
+**ALL code and documentation must be in English only.** No Czech or other languages in comments, variables, messages, or documentation.
 
 ## Important Notes
-- This system uses manual triggers (message-driven), not automatic capture
-- All CV processing happens in Python, Node-RED is UI only
-- Templates can be files, uploaded, or learned from ROI
-- History is in-memory circular buffer (no database)
+- Manual trigger system (not automatic capture)
+- Parallel detection on single captured image
+- In-memory history buffer (no database)
 - Supports 1-2 cameras simultaneously
-
-## Language Requirements
-- **ALL text in the project MUST be in English**
-- This includes: code comments, documentation, output messages, log messages, user interface, variable and function names, error messages, README files, and configuration files
-- No Czech or other languages allowed in any part of the codebase
-
-## Future Enhancements
-- Edge detection implementation
-- Neural network integration (PyTorch ready)
-- Camera calibration support
-- WebSocket for live preview
-- Database for long-term history
+- Edge detection fully implemented with 6 methods
+- Templates stored as files with JSON metadata

@@ -19,6 +19,7 @@ WATCH_MODE="all"  # all, python, nodered, none
 USE_TMUX=false
 USE_SPLIT=false
 COLOR_LOGS=true
+SETUP_VSCODE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -42,6 +43,10 @@ while [[ $# -gt 0 ]]; do
             COLOR_LOGS=false
             shift
             ;;
+        --vscode)
+            SETUP_VSCODE=true
+            shift
+            ;;
         -h|--help)
             echo "Usage: $0 [options]"
             echo "Options:"
@@ -50,6 +55,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --tmux           Use tmux for split-screen logs"
             echo "  --split          Split terminal for logs (requires tmux)"
             echo "  --no-color       Disable colored logs"
+            echo "  --vscode         Setup VSCode port forwarding"
             echo "  -h, --help       Show this help message"
             exit 0
             ;;
@@ -111,7 +117,35 @@ cleanup() {
 }
 trap cleanup INT TERM
 
+# VSCode port forwarding setup (from setup_vscode_ports.sh)
+setup_vscode_ports() {
+    local is_vscode=false
+
+    if [ -n "${VSCODE_PID:-}" ] || [ -n "${VSCODE_IPC_HOOK:-}" ] || [ -n "${VSCODE_GIT_IPC_HANDLE:-}" ] || [ "${TERM_PROGRAM:-}" = "vscode" ]; then
+        is_vscode=true
+    elif [ -n "${SSH_CLIENT:-}" ] && [ -n "${VSCODE_INJECTION:-}" ]; then
+        is_vscode=true
+    fi
+
+    if [ "$is_vscode" = true ]; then
+        echo
+        log_info "VSCode Auto Port Forwarding enabled"
+        echo "  • Port 8000 - Python Backend API"
+        echo "  • Port 1880 - Node-RED Interface"
+        echo
+
+        if [ -n "${SSH_CLIENT:-}" ]; then
+            log_info "Connected via SSH - VSCode will auto-forward ports"
+        fi
+    fi
+}
+
 print_banner "Machine Vision Flow - Enhanced Development Mode" "$GREEN"
+
+# VSCode port setup if requested
+if [ "$SETUP_VSCODE" = true ]; then
+    setup_vscode_ports
+fi
 
 # Check for required tools
 check_dev_requirements() {
@@ -143,16 +177,16 @@ start_python_dev() {
     # Ensure virtual environment
     ensure_python_backend_env false
 
-    # Check for dev config
-    local config_arg=""
+    # Prepare config environment variable
+    local config_env=""
     if [ -f "$BACKEND_DIR/config.dev.yaml" ]; then
-        export MV_CONFIG_FILE="$BACKEND_DIR/config.dev.yaml"
+        config_env="MV_CONFIG_FILE=$BACKEND_DIR/config.dev.yaml"
         log_info "Using development configuration"
     fi
 
-    # Start with python main.py (no auto-reload)
+    # Start with python main.py (manual restart on changes)
     pushd "$BACKEND_DIR" >/dev/null
-    nohup "$BACKEND_VENV_DIR/bin/python" main.py \
+    nohup env $config_env "$BACKEND_VENV_DIR/bin/python" main.py \
         > "$BACKEND_LOG_FILE" 2>&1 &
     PYTHON_PID=$!
     popd >/dev/null
@@ -210,13 +244,12 @@ start_file_watchers() {
     case "$WATCH_MODE" in
         all)
             log_info "Starting watchers for all services..."
-            # Python backend already has uvicorn reload
-            # Just watch Node-RED nodes
+            # Just watch Node-RED nodes (Python has no auto-reload in production mode)
             watch_files "$PROJECT_ROOT/node-red/nodes" "js,html,json" restart_nodered_callback 2 &
             pids="$! $pids"
             ;;
         python)
-            log_info "Python backend has built-in auto-reload via uvicorn"
+            log_info "Python backend requires manual restart on changes"
             ;;
         nodered)
             log_info "Starting Node-RED file watcher..."
@@ -261,7 +294,7 @@ start_with_tmux() {
     tmux new-session -d -s mvflow-dev -n "MV Flow Dev"
 
     # Split horizontally for Python backend
-    tmux send-keys -t mvflow-dev:0 "cd $BACKEND_DIR && $BACKEND_VENV_DIR/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000" C-m
+    tmux send-keys -t mvflow-dev:0 "cd $BACKEND_DIR && MV_CONFIG_FILE=$BACKEND_DIR/config.dev.yaml $BACKEND_VENV_DIR/bin/python main.py" C-m
 
     # Split vertically for Node-RED
     tmux split-window -v -t mvflow-dev:0
@@ -304,11 +337,6 @@ log_info "Starting services in development mode..."
 start_python_dev
 start_nodered_dev
 
-# Setup VS Code ports if available
-if [ -f "$SCRIPT_DIR/setup_vscode_ports.sh" ]; then
-    "$SCRIPT_DIR/setup_vscode_ports.sh"
-fi
-
 # Start file watchers if enabled
 if [ "$AUTO_RELOAD" = true ] && [ "$WATCH_MODE" != "none" ]; then
     if check_inotify; then
@@ -336,7 +364,7 @@ echo -e "  • Color logs:      ${YELLOW}$([ "$COLOR_LOGS" = true ] && echo "Yes
 echo
 if [ "$AUTO_RELOAD" = true ]; then
     echo -e "${CYAN}File changes will trigger automatic reload:${NC}"
-    echo -e "  • Python: *.py files auto-reload via uvicorn"
+    echo -e "  • Python: Manual restart required (make reload)"
     echo -e "  • Node-RED: *.js/*.html files trigger restart"
 fi
 echo

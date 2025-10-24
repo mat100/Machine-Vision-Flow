@@ -98,8 +98,8 @@ fi
 
 echo
 echo -e "${BLUE}════════════════════════════════════════${NC}"
-echo -e "  ${GREEN}./start.sh${NC}   - Start all services"
-echo -e "  ${RED}./stop.sh${NC}    - Stop all services"
-echo -e "  ${YELLOW}./restart.sh${NC} - Restart all services"
-echo -e "  ${BLUE}./logs.sh${NC}    - View logs"
+echo -e "  ${GREEN}make start${NC}  - Start all services"
+echo -e "  ${RED}make stop${NC}   - Stop all services"
+echo -e "  ${YELLOW}make reload${NC} - Restart all services"
+echo -e "  ${BLUE}make logs${NC}   - View logs"
 echo -e "${BLUE}════════════════════════════════════════${NC}"

@@ -31,6 +31,9 @@ ensure_python_backend_env() {
 start_python_backend() {
     ensure_python_backend_env "${1:-false}"
 
+    # Ensure runtime directories exist
+    mkdir -p "$LOG_DIR" "$RUN_DIR"
+
     pushd "$BACKEND_DIR" >/dev/null || return 1
     nohup "$BACKEND_VENV_DIR/bin/python" main.py > "$BACKEND_LOG_FILE" 2>&1 &
     local pid=$!
@@ -92,6 +95,9 @@ ensure_node_red_dependencies() {
 
 start_node_red() {
     ensure_node_red_dependencies "${1:-false}"
+
+    # Ensure runtime directories exist
+    mkdir -p "$LOG_DIR" "$RUN_DIR"
 
     pushd "$NODE_RED_USER_DIR" >/dev/null || return 1
     nohup node-red > "$NODE_RED_LOG_FILE" 2>&1 &

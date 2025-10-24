@@ -15,7 +15,6 @@ NODERED_STARTED=false
 BACKEND_PID=""
 NODERED_PID=""
 FOLLOW_LOGS=false
-RUN_VSCODE_SETUP=false
 FORCE_DEPS=false
 
 usage() {
@@ -24,7 +23,6 @@ Usage: start.sh [options]
 
 Options:
   --follow, -f     Follow service logs after startup
-  --vscode         Run VSCode port forwarding helper
   --force-deps     Reinstall runtime dependencies before starting
   --help           Show this help and exit
 EOF
@@ -34,9 +32,6 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --follow|-f)
             FOLLOW_LOGS=true
-            ;;
-        --vscode)
-            RUN_VSCODE_SETUP=true
             ;;
         --force-deps)
             FORCE_DEPS=true
@@ -116,11 +111,6 @@ echo -e "API Docs:       ${GREEN}http://localhost:8000/docs${NC}"
 echo -e "Node-RED:       ${GREEN}http://localhost:1880${NC}"
 echo
 echo -e "${YELLOW}To stop the services, run:${NC} ./stop.sh"
-
-if [ "$RUN_VSCODE_SETUP" = true ]; then
-    echo
-    "$SCRIPT_DIR/setup_vscode_ports.sh"
-fi
 
 if [ "$FOLLOW_LOGS" = true ]; then
     echo

@@ -6,6 +6,7 @@ import asyncio
 import logging
 import sys
 import signal
+import os
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -189,6 +190,18 @@ def handle_signal(signum, frame):
     threading.Thread(target=force_exit, daemon=True).start()
 
 if __name__ == "__main__":
+    # Write PID file for process management
+    run_dir = os.getenv("RUN_DIR", os.path.join(Path(__file__).parent.parent, "var", "run"))
+    pid_file = os.path.join(run_dir, "backend.pid")
+
+    # Ensure run directory exists
+    os.makedirs(run_dir, exist_ok=True)
+
+    # Write PID
+    with open(pid_file, "w") as f:
+        f.write(str(os.getpid()))
+    logger.info(f"PID {os.getpid()} written to {pid_file}")
+
     # Register signal handlers
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
@@ -222,4 +235,11 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Server error: {e}")
     finally:
+        # Clean up PID file
+        try:
+            if os.path.exists(pid_file):
+                os.remove(pid_file)
+                logger.info(f"Removed PID file: {pid_file}")
+        except Exception as e:
+            logger.warning(f"Failed to remove PID file: {e}")
         logger.info("Server exiting...")

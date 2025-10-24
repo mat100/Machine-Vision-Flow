@@ -43,10 +43,11 @@ make test          # Run tests
 
 ### Shell scripts (alternative)
 ```bash
-./scripts/start.sh    # Start
-./scripts/stop.sh     # Stop
-./scripts/status.sh   # System status
-./scripts/logs.sh     # View logs
+make start      # Start services
+make stop       # Stop services
+make status     # System status
+make logs       # View logs
+make dev        # Development mode with auto-reload
 ```
 
 ### Systemd services (for production)

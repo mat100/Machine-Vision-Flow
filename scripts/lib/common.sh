@@ -14,13 +14,19 @@ PROJECT_ROOT="$(dirname "$SCRIPTS_DIR")"
 
 # Project paths
 BACKEND_DIR="$PROJECT_ROOT/python-backend"
-BACKEND_LOG_FILE="$BACKEND_DIR/backend.log"
-BACKEND_PID_FILE="$BACKEND_DIR/backend.pid"
 BACKEND_VENV_DIR="$BACKEND_DIR/venv"
 BACKEND_SENTINEL="$BACKEND_DIR/.deps_installed"
 
-NODE_RED_LOG_FILE="$PROJECT_ROOT/node-red.log"
-NODE_RED_PID_FILE="$PROJECT_ROOT/node-red.pid"
+# Runtime directories (fallback to project var/ for development)
+LOG_DIR="${LOG_DIR:-$PROJECT_ROOT/var/log}"
+RUN_DIR="${RUN_DIR:-$PROJECT_ROOT/var/run}"
+
+# Log and PID files
+BACKEND_LOG_FILE="$LOG_DIR/backend.log"
+BACKEND_PID_FILE="$RUN_DIR/backend.pid"
+NODE_RED_LOG_FILE="$LOG_DIR/node-red.log"
+NODE_RED_PID_FILE="$RUN_DIR/node-red.pid"
+
 NODE_RED_USER_DIR="${NODE_RED_USER_DIR:-$HOME/.node-red}"
 
 # Port configuration
