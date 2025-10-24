@@ -3,7 +3,7 @@ Constants and configuration values for Machine Vision Flow system.
 Centralizes all magic numbers and configuration constants.
 """
 
-from enum import Enum, IntEnum
+from enum import Enum
 
 
 # Image Management Constants

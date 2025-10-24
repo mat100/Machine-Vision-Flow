@@ -5,10 +5,6 @@ These tests make real HTTP requests to the FastAPI application
 and verify the complete request-response cycle.
 """
 
-import pytest
-from fastapi.testclient import TestClient
-from main import app
-
 
 class TestCameraAPI:
     """Integration tests for camera API endpoints"""
@@ -33,11 +29,11 @@ class TestCameraAPI:
         assert isinstance(data, list)
 
         # Should at least have test camera
-        test_cam = next((c for c in data if c['id'] == 'test'), None)
+        test_cam = next((c for c in data if c["id"] == "test"), None)
         assert test_cam is not None
-        assert test_cam['name'] == 'Test Image Generator'
-        assert test_cam['type'] == 'test'
-        assert test_cam['connected'] is True
+        assert test_cam["name"] == "Test Image Generator"
+        assert test_cam["type"] == "test"
+        assert test_cam["connected"] is True
 
     def test_capture_image_from_test_camera(self, client):
         """Test capturing image from test camera"""
@@ -63,7 +59,7 @@ class TestCameraAPI:
             "roi_x": 100,
             "roi_y": 100,
             "roi_width": 300,
-            "roi_height": 200
+            "roi_height": 200,
         }
         response = client.post("/api/camera/capture", params=params)
 
@@ -98,10 +94,7 @@ class TestCameraAPI:
 
     def test_connect_camera(self, client):
         """Test connecting to a camera"""
-        request_data = {
-            "camera_id": "test",
-            "camera_type": "test"
-        }
+        request_data = {"camera_id": "test", "camera_type": "test"}
         response = client.post("/api/camera/connect", json=request_data)
 
         # Test camera may fail to connect in test environment
@@ -140,7 +133,7 @@ class TestCameraAPI:
             "roi_x": -100,  # Negative values
             "roi_y": -100,
             "roi_width": 50,
-            "roi_height": 50
+            "roi_height": 50,
         }
         response = client.post("/api/camera/capture", params=params)
 
@@ -150,13 +143,7 @@ class TestCameraAPI:
 
     def test_capture_with_zero_dimensions(self, client):
         """Test capture with zero-dimension ROI"""
-        params = {
-            "camera_id": "test",
-            "roi_x": 100,
-            "roi_y": 100,
-            "roi_width": 0,
-            "roi_height": 0
-        }
+        params = {"camera_id": "test", "roi_x": 100, "roi_y": 100, "roi_width": 0, "roi_height": 0}
         response = client.post("/api/camera/capture", params=params)
 
         # May accept zero dimensions and fall back to full image

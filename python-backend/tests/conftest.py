@@ -2,15 +2,16 @@
 Pytest configuration and fixtures for Machine Vision Flow tests
 """
 
-import pytest
-import numpy as np
+from unittest.mock import MagicMock
+
 import cv2
-from unittest.mock import Mock, MagicMock
+import numpy as np
+import pytest
 
 from core.camera_manager import CameraManager
+from core.history_buffer import HistoryBuffer
 from core.image_manager import ImageManager
 from core.template_manager import TemplateManager
-from core.history_buffer import HistoryBuffer
 from services.camera_service import CameraService
 from services.image_service import ImageService
 from services.vision_service import VisionService
@@ -71,10 +72,7 @@ def history_buffer():
 @pytest.fixture
 def camera_service(camera_manager, image_manager):
     """Create CameraService instance for testing"""
-    return CameraService(
-        camera_manager=camera_manager,
-        image_manager=image_manager
-    )
+    return CameraService(camera_manager=camera_manager, image_manager=image_manager)
 
 
 @pytest.fixture
@@ -89,7 +87,7 @@ def vision_service(image_manager, template_manager, history_buffer):
     return VisionService(
         image_manager=image_manager,
         template_manager=template_manager,
-        history_buffer=history_buffer
+        history_buffer=history_buffer,
     )
 
 
@@ -99,7 +97,7 @@ def mock_camera_manager():
     mock = MagicMock()
     test_image = np.zeros((480, 640, 3), dtype=np.uint8)
     mock.list_available_cameras.return_value = [
-        {'id': 'test', 'name': 'Test Camera', 'type': 'test'}
+        {"id": "test", "name": "Test Camera", "type": "test"}
     ]
     mock.connect_camera.return_value = True
     mock.disconnect_camera.return_value = True
@@ -115,8 +113,8 @@ def mock_image_manager():
     mock = MagicMock()
     test_image = np.zeros((480, 640, 3), dtype=np.uint8)
     mock.get.return_value = test_image
-    mock.store.return_value = 'test-image-id'
-    mock.create_thumbnail.return_value = (test_image, 'base64-thumbnail')
+    mock.store.return_value = "test-image-id"
+    mock.create_thumbnail.return_value = (test_image, "base64-thumbnail")
     mock.delete.return_value = True
     mock.has_image.return_value = True
     mock.list_images.return_value = []
@@ -131,8 +129,8 @@ def mock_template_manager():
     test_template = np.zeros((50, 50, 3), dtype=np.uint8)
     mock.get_template.return_value = test_template
     mock.list_templates.return_value = []
-    mock.learn_template.return_value = 'new-template-id'
-    mock.create_template_thumbnail.return_value = 'base64-template-thumb'
+    mock.learn_template.return_value = "new-template-id"
+    mock.create_template_thumbnail.return_value = "base64-template-thumb"
     return mock
 
 

@@ -3,18 +3,15 @@ System API Router - Status and performance monitoring
 """
 
 import logging
-import psutil
 import time
-from fastapi import APIRouter, Request, Depends
 from datetime import datetime
 
-from api.models import SystemStatus, PerformanceMetrics, DebugSettings
-from api.dependencies import (
-    get_image_manager,
-    get_camera_manager,
-    get_history_buffer
-)
+import psutil
+from fastapi import APIRouter, Depends, Request
+
+from api.dependencies import get_camera_manager, get_history_buffer, get_image_manager
 from api.exceptions import safe_endpoint
+from api.models import DebugSettings, PerformanceMetrics, SystemStatus
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +24,7 @@ START_TIME = time.time()
 @router.get("/status")
 @safe_endpoint
 async def get_status(
-    image_manager = Depends(get_image_manager),
-    camera_manager = Depends(get_camera_manager)
+    image_manager=Depends(get_image_manager), camera_manager=Depends(get_camera_manager)
 ) -> SystemStatus:
     """Get system status"""
     # Get memory usage
@@ -39,10 +35,7 @@ async def get_status(
     virtual_memory = psutil.virtual_memory()
 
     # Count active cameras
-    active_cameras = len([
-        cam for cam_id, cam in camera_manager.cameras.items()
-        if cam.connected
-    ])
+    active_cameras = len([cam for cam_id, cam in camera_manager.cameras.items() if cam.connected])
 
     # Get buffer usage
     buffer_stats = image_manager.get_stats()
@@ -51,48 +44,45 @@ async def get_status(
         status="healthy",
         uptime=time.time() - START_TIME,
         memory_usage={
-            'process_mb': memory_info.rss / 1024 / 1024,
-            'system_percent': virtual_memory.percent,
-            'available_mb': virtual_memory.available / 1024 / 1024
+            "process_mb": memory_info.rss / 1024 / 1024,
+            "system_percent": virtual_memory.percent,
+            "available_mb": virtual_memory.available / 1024 / 1024,
         },
         active_cameras=active_cameras,
-        buffer_usage=buffer_stats
+        buffer_usage=buffer_stats,
     )
 
 
 @router.get("/performance")
 @safe_endpoint
-async def get_performance(history_buffer = Depends(get_history_buffer)) -> PerformanceMetrics:
+async def get_performance(history_buffer=Depends(get_history_buffer)) -> PerformanceMetrics:
     """Get performance metrics"""
     # Get statistics from history
     stats = history_buffer.get_statistics()
 
     # Calculate operations per minute
     uptime_minutes = (time.time() - START_TIME) / 60
-    ops_per_minute = stats['total'] / uptime_minutes if uptime_minutes > 0 else 0
+    ops_per_minute = stats["total"] / uptime_minutes if uptime_minutes > 0 else 0
 
     return PerformanceMetrics(
-        avg_processing_time=stats['avg_time_ms'],
-        total_inspections=stats['total'],
-        success_rate=stats['success_rate'],
-        operations_per_minute=round(ops_per_minute, 2)
+        avg_processing_time=stats["avg_time_ms"],
+        total_inspections=stats["total"],
+        success_rate=stats["success_rate"],
+        operations_per_minute=round(ops_per_minute, 2),
     )
 
 
 @router.post("/debug/{enable}")
 @safe_endpoint
-async def set_debug_mode(
-    enable: bool,
-    request: Request
-) -> DebugSettings:
+async def set_debug_mode(enable: bool, request: Request) -> DebugSettings:
     """Enable or disable debug mode"""
     # Access config from app state
     config = request.app.state.config
 
     # Update debug settings if available
-    if 'debug' in config:
-        config['debug']['save_debug_images'] = enable
-        config['debug']['show_overlays'] = enable
+    if "debug" in config:
+        config["debug"]["save_debug_images"] = enable
+        config["debug"]["show_overlays"] = enable
 
     # Configure logging level
     log_level = logging.DEBUG if enable else logging.INFO
@@ -102,9 +92,9 @@ async def set_debug_mode(
 
     return DebugSettings(
         enabled=enable,
-        save_images=config.get('debug', {}).get('save_debug_images', enable),
-        show_overlays=config.get('debug', {}).get('show_overlays', enable),
-        verbose_logging=enable
+        save_images=config.get("debug", {}).get("save_debug_images", enable),
+        show_overlays=config.get("debug", {}).get("show_overlays", enable),
+        verbose_logging=enable,
     )
 
 
@@ -118,7 +108,4 @@ async def get_config(request: Request) -> dict:
 @router.get("/health")
 async def health_check() -> dict:
     """Simple health check"""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat()
-    }
+    return {"status": "healthy", "timestamp": datetime.now().isoformat()}

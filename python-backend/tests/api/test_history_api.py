@@ -3,8 +3,6 @@ API Integration Tests for History Endpoints
 """
 
 import pytest
-from fastapi.testclient import TestClient
-from main import app
 
 
 class TestHistoryAPI:
@@ -21,17 +19,13 @@ class TestHistoryAPI:
         learn_data = {
             "image_id": image_id,
             "name": "History Test Template",
-            "roi": {"x": 100, "y": 100, "width": 100, "height": 100}
+            "roi": {"x": 100, "y": 100, "width": 100, "height": 100},
         }
         learn_response = client.post("/api/template/learn", json=learn_data)
         template_id = learn_response.json()["template_id"]
 
         # Perform template match (creates history entry)
-        match_data = {
-            "image_id": image_id,
-            "template_id": template_id,
-            "threshold": 0.5
-        }
+        match_data = {"image_id": image_id, "template_id": template_id, "threshold": 0.5}
         client.post("/api/vision/template-match", json=match_data)
 
         return image_id, template_id
@@ -107,10 +101,7 @@ class TestHistoryAPI:
             image_id = capture_response.json()["image_id"]
 
             # Edge detect (creates history entry)
-            edge_data = {
-                "image_id": image_id,
-                "method": "canny"
-            }
+            edge_data = {"image_id": image_id, "method": "canny"}
             client.post("/api/vision/edge-detect", json=edge_data)
 
         # Check history count

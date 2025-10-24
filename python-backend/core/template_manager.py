@@ -2,16 +2,16 @@
 Template Manager - Handles template storage and management
 """
 
-import os
-import uuid
 import json
 import logging
-from typing import Dict, List, Optional, Tuple
-from pathlib import Path
+import uuid
 from datetime import datetime
+from pathlib import Path
+from threading import Lock
+from typing import Dict, List, Optional
+
 import cv2
 import numpy as np
-from threading import Lock
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +47,12 @@ class TemplateManager:
 
         if metadata_file.exists():
             try:
-                with open(metadata_file, 'r') as f:
+                with open(metadata_file, "r") as f:
                     self.templates = json.load(f)
 
                 # Load template images
                 for template_id, info in self.templates.items():
-                    image_path = self.storage_path / info['filename']
+                    image_path = self.storage_path / info["filename"]
                     if image_path.exists():
                         img = cv2.imread(str(image_path))
                         if img is not None:
@@ -71,16 +71,13 @@ class TemplateManager:
         metadata_file = self.storage_path / "templates.json"
 
         try:
-            with open(metadata_file, 'w') as f:
+            with open(metadata_file, "w") as f:
                 json.dump(self.templates, f, indent=2, default=str)
         except Exception as e:
             logger.error(f"Failed to save template metadata: {e}")
 
     def upload_template(
-        self,
-        name: str,
-        image: np.ndarray,
-        description: Optional[str] = None
+        self, name: str, image: np.ndarray, description: Optional[str] = None
     ) -> str:
         """
         Upload a new template
@@ -107,15 +104,12 @@ class TemplateManager:
 
                 # Store metadata
                 self.templates[template_id] = {
-                    'id': template_id,
-                    'name': name,
-                    'description': description,
-                    'filename': filename,
-                    'size': {
-                        'width': image.shape[1],
-                        'height': image.shape[0]
-                    },
-                    'created_at': datetime.now().isoformat()
+                    "id": template_id,
+                    "name": name,
+                    "description": description,
+                    "filename": filename,
+                    "size": {"width": image.shape[1], "height": image.shape[0]},
+                    "created_at": datetime.now().isoformat(),
                 }
 
                 # Cache image
@@ -138,7 +132,7 @@ class TemplateManager:
         name: str,
         source_image: np.ndarray,
         roi: Dict[str, int],
-        description: Optional[str] = None
+        description: Optional[str] = None,
     ) -> str:
         """
         Learn template from a region of an image
@@ -153,10 +147,10 @@ class TemplateManager:
             Template ID
         """
         # Extract ROI
-        x = roi['x']
-        y = roi['y']
-        width = roi['width']
-        height = roi['height']
+        x = roi["x"]
+        y = roi["y"]
+        width = roi["width"]
+        height = roi["height"]
 
         # Validate ROI
         if x < 0 or y < 0:
@@ -166,7 +160,7 @@ class TemplateManager:
             raise ValueError("ROI exceeds image bounds")
 
         # Extract template
-        template = source_image[y:y+height, x:x+width].copy()
+        template = source_image[y : y + height, x : x + width].copy()
 
         # Upload as new template
         return self.upload_template(name, template, description)
@@ -187,7 +181,7 @@ class TemplateManager:
 
             # Try to load from file
             if template_id in self.templates:
-                file_path = self.storage_path / self.templates[template_id]['filename']
+                file_path = self.storage_path / self.templates[template_id]["filename"]
                 if file_path.exists():
                     img = cv2.imread(str(file_path))
                     if img is not None:
@@ -225,7 +219,7 @@ class TemplateManager:
 
             try:
                 # Delete file
-                file_path = self.storage_path / self.templates[template_id]['filename']
+                file_path = self.storage_path / self.templates[template_id]["filename"]
                 if file_path.exists():
                     file_path.unlink()
 
@@ -247,10 +241,7 @@ class TemplateManager:
                 return False
 
     def update_template(
-        self,
-        template_id: str,
-        name: Optional[str] = None,
-        description: Optional[str] = None
+        self, template_id: str, name: Optional[str] = None, description: Optional[str] = None
     ) -> bool:
         """Update template metadata"""
         with self.lock:
@@ -258,23 +249,19 @@ class TemplateManager:
                 return False
 
             if name is not None:
-                self.templates[template_id]['name'] = name
+                self.templates[template_id]["name"] = name
 
             if description is not None:
-                self.templates[template_id]['description'] = description
+                self.templates[template_id]["description"] = description
 
-            self.templates[template_id]['updated_at'] = datetime.now().isoformat()
+            self.templates[template_id]["updated_at"] = datetime.now().isoformat()
 
             # Save metadata
             self._save_metadata()
 
             return True
 
-    def create_template_thumbnail(
-        self,
-        template_id: str,
-        max_width: int = 100
-    ) -> Optional[str]:
+    def create_template_thumbnail(self, template_id: str, max_width: int = 100) -> Optional[str]:
         """
         Create thumbnail for template
 
@@ -291,6 +278,7 @@ class TemplateManager:
 
         import base64
         from io import BytesIO
+
         from PIL import Image
 
         # Calculate size
@@ -312,10 +300,10 @@ class TemplateManager:
 
         # Encode
         buffer = BytesIO()
-        pil_image.save(buffer, format='PNG')
+        pil_image.save(buffer, format="PNG")
         buffer.seek(0)
 
-        base64_str = base64.b64encode(buffer.read()).decode('utf-8')
+        base64_str = base64.b64encode(buffer.read()).decode("utf-8")
         return f"data:image/png;base64,{base64_str}"
 
     def clear_cache(self):

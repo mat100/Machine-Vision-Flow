@@ -1,16 +1,18 @@
 """
 Edge detection algorithms for machine vision.
 """
+
+import base64
+from enum import Enum
+from typing import Any, Dict, Optional
+
 import cv2
 import numpy as np
-from typing import Optional, Dict, Any, Tuple
-from enum import Enum
-import base64
-from io import BytesIO
-from PIL import Image
+
 
 class EdgeMethod(str, Enum):
     """Available edge detection methods."""
+
     CANNY = "canny"
     SOBEL = "sobel"
     LAPLACIAN = "laplacian"
@@ -18,12 +20,12 @@ class EdgeMethod(str, Enum):
     SCHARR = "scharr"
     MORPHOLOGICAL_GRADIENT = "morphological_gradient"
 
+
 class EdgeDetector:
     """Edge detection processor."""
 
     def __init__(self):
         """Initialize edge detector."""
-        pass
 
     def detect(
         self,
@@ -31,7 +33,7 @@ class EdgeDetector:
         method: EdgeMethod = EdgeMethod.CANNY,
         params: Optional[Dict[str, Any]] = None,
         roi: Optional[Dict[str, int]] = None,
-        preprocessing: Optional[Dict[str, Any]] = None
+        preprocessing: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Perform edge detection on image.
@@ -51,13 +53,13 @@ class EdgeDetector:
 
         # Apply ROI if specified
         if roi:
-            x, y, w, h = roi['x'], roi['y'], roi['width'], roi['height']
+            x, y, w, h = roi["x"], roi["y"], roi["width"], roi["height"]
             # Validate ROI
             x = max(0, min(x, image.shape[1] - 1))
             y = max(0, min(y, image.shape[0] - 1))
             w = min(w, image.shape[1] - x)
             h = min(h, image.shape[0] - y)
-            roi_image = image[y:y+h, x:x+w]
+            roi_image = image[y : y + h, x : x + w]
         else:
             roi_image = image
             x, y = 0, 0
@@ -88,47 +90,37 @@ class EdgeDetector:
             raise ValueError(f"Unknown edge detection method: {method}")
 
         # Find contours on the edge image
-        contours, hierarchy = cv2.findContours(
-            edges,
-            cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, hierarchy = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         # Filter and analyze contours
         filtered_contours = self._filter_contours(contours, params)
 
         # Create visualization
-        visualization = self._create_visualization(
-            roi_image, edges, filtered_contours, params
-        )
+        visualization = self._create_visualization(roi_image, edges, filtered_contours, params)
 
         # Adjust contour coordinates if ROI was used
         if roi:
             for contour_info in filtered_contours:
-                contour_info['contour'] += [x, y]
-                contour_info['bounding_box']['x'] += x
-                contour_info['bounding_box']['y'] += y
-                if 'center' in contour_info:
-                    contour_info['center']['x'] += x
-                    contour_info['center']['y'] += y
+                contour_info["contour"] += [x, y]
+                contour_info["bounding_box"]["x"] += x
+                contour_info["bounding_box"]["y"] += y
+                if "center" in contour_info:
+                    contour_info["center"]["x"] += x
+                    contour_info["center"]["y"] += y
 
         return {
-            'success': True,
-            'method': method,
-            'edges_found': len(filtered_contours) > 0,
-            'contour_count': len(filtered_contours),
-            'contours': filtered_contours,
-            'edge_pixels': int(np.sum(edges > 0)),
-            'edge_ratio': float(np.sum(edges > 0) / (edges.shape[0] * edges.shape[1])),
-            'visualization': visualization,
-            'params_used': params
+            "success": True,
+            "method": method,
+            "edges_found": len(filtered_contours) > 0,
+            "contour_count": len(filtered_contours),
+            "contours": filtered_contours,
+            "edge_pixels": int(np.sum(edges > 0)),
+            "edge_ratio": float(np.sum(edges > 0) / (edges.shape[0] * edges.shape[1])),
+            "visualization": visualization,
+            "params_used": params,
         }
 
-    def _preprocess(
-        self,
-        image: np.ndarray,
-        preprocessing: Optional[Dict[str, Any]]
-    ) -> np.ndarray:
+    def _preprocess(self, image: np.ndarray, preprocessing: Optional[Dict[str, Any]]) -> np.ndarray:
         """Apply preprocessing to image."""
         if not preprocessing:
             return image
@@ -136,40 +128,40 @@ class EdgeDetector:
         result = image.copy()
 
         # Gaussian blur
-        if preprocessing.get('blur_enabled', False):
-            kernel_size = preprocessing.get('blur_kernel', 5)
+        if preprocessing.get("blur_enabled", False):
+            kernel_size = preprocessing.get("blur_kernel", 5)
             if kernel_size % 2 == 0:
                 kernel_size += 1  # Ensure odd kernel size
             result = cv2.GaussianBlur(result, (kernel_size, kernel_size), 0)
 
         # Bilateral filter (edge-preserving blur)
-        if preprocessing.get('bilateral_enabled', False):
-            d = preprocessing.get('bilateral_d', 9)
-            sigma_color = preprocessing.get('bilateral_sigma_color', 75)
-            sigma_space = preprocessing.get('bilateral_sigma_space', 75)
+        if preprocessing.get("bilateral_enabled", False):
+            d = preprocessing.get("bilateral_d", 9)
+            sigma_color = preprocessing.get("bilateral_sigma_color", 75)
+            sigma_space = preprocessing.get("bilateral_sigma_space", 75)
             result = cv2.bilateralFilter(result, d, sigma_color, sigma_space)
 
         # Morphological operations
-        if preprocessing.get('morphology_enabled', False):
-            operation = preprocessing.get('morphology_operation', 'close')
-            kernel_size = preprocessing.get('morphology_kernel', 3)
+        if preprocessing.get("morphology_enabled", False):
+            operation = preprocessing.get("morphology_operation", "close")
+            kernel_size = preprocessing.get("morphology_kernel", 3)
             kernel = np.ones((kernel_size, kernel_size), np.uint8)
 
-            if operation == 'close':
+            if operation == "close":
                 result = cv2.morphologyEx(result, cv2.MORPH_CLOSE, kernel)
-            elif operation == 'open':
+            elif operation == "open":
                 result = cv2.morphologyEx(result, cv2.MORPH_OPEN, kernel)
-            elif operation == 'gradient':
+            elif operation == "gradient":
                 result = cv2.morphologyEx(result, cv2.MORPH_GRADIENT, kernel)
 
         # Histogram equalization
-        if preprocessing.get('equalize_enabled', False):
+        if preprocessing.get("equalize_enabled", False):
             if len(result.shape) == 3:
                 # Convert to LAB and equalize L channel
                 lab = cv2.cvtColor(result, cv2.COLOR_BGR2LAB)
-                l, a, b = cv2.split(lab)
-                l = cv2.equalizeHist(l)
-                result = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
+                lightness, a, b = cv2.split(lab)
+                lightness = cv2.equalizeHist(lightness)
+                result = cv2.cvtColor(cv2.merge([lightness, a, b]), cv2.COLOR_LAB2BGR)
             else:
                 result = cv2.equalizeHist(result)
 
@@ -177,53 +169,46 @@ class EdgeDetector:
 
     def _detect_canny(self, gray: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
         """Apply Canny edge detection."""
-        low_threshold = params.get('canny_low', 50)
-        high_threshold = params.get('canny_high', 150)
-        aperture_size = params.get('canny_aperture', 3)
-        l2_gradient = params.get('canny_l2_gradient', False)
+        low_threshold = params.get("canny_low", 50)
+        high_threshold = params.get("canny_high", 150)
+        aperture_size = params.get("canny_aperture", 3)
+        l2_gradient = params.get("canny_l2_gradient", False)
 
         return cv2.Canny(
-            gray,
-            low_threshold,
-            high_threshold,
-            apertureSize=aperture_size,
-            L2gradient=l2_gradient
+            gray, low_threshold, high_threshold, apertureSize=aperture_size, L2gradient=l2_gradient
         )
 
     def _detect_sobel(self, gray: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
         """Apply Sobel edge detection."""
-        kernel_size = params.get('sobel_kernel', 3)
-        scale = params.get('sobel_scale', 1)
-        delta = params.get('sobel_delta', 0)
+        kernel_size = params.get("sobel_kernel", 3)
+        scale = params.get("sobel_scale", 1)
+        delta = params.get("sobel_delta", 0)
 
         # Compute gradients
-        grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=kernel_size,
-                          scale=scale, delta=delta)
-        grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=kernel_size,
-                          scale=scale, delta=delta)
+        grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=kernel_size, scale=scale, delta=delta)
+        grad_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=kernel_size, scale=scale, delta=delta)
 
         # Combine gradients
         magnitude = np.sqrt(grad_x**2 + grad_y**2)
 
         # Threshold
-        threshold = params.get('sobel_threshold', 50)
+        threshold = params.get("sobel_threshold", 50)
         edges = np.uint8(magnitude > threshold) * 255
 
         return edges
 
     def _detect_laplacian(self, gray: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
         """Apply Laplacian edge detection."""
-        kernel_size = params.get('laplacian_kernel', 3)
-        scale = params.get('laplacian_scale', 1)
-        delta = params.get('laplacian_delta', 0)
+        kernel_size = params.get("laplacian_kernel", 3)
+        scale = params.get("laplacian_scale", 1)
+        delta = params.get("laplacian_delta", 0)
 
         # Apply Laplacian
-        laplacian = cv2.Laplacian(gray, cv2.CV_64F, ksize=kernel_size,
-                                  scale=scale, delta=delta)
+        laplacian = cv2.Laplacian(gray, cv2.CV_64F, ksize=kernel_size, scale=scale, delta=delta)
 
         # Convert to absolute values and threshold
         laplacian = np.abs(laplacian)
-        threshold = params.get('laplacian_threshold', 30)
+        threshold = params.get("laplacian_threshold", 30)
         edges = np.uint8(laplacian > threshold) * 255
 
         return edges
@@ -231,12 +216,8 @@ class EdgeDetector:
     def _detect_prewitt(self, gray: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
         """Apply Prewitt edge detection."""
         # Prewitt kernels
-        kernel_x = np.array([[-1, 0, 1],
-                            [-1, 0, 1],
-                            [-1, 0, 1]], dtype=np.float32)
-        kernel_y = np.array([[-1, -1, -1],
-                            [ 0,  0,  0],
-                            [ 1,  1,  1]], dtype=np.float32)
+        kernel_x = np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]], dtype=np.float32)
+        kernel_y = np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]], dtype=np.float32)
 
         # Apply filters
         grad_x = cv2.filter2D(gray, cv2.CV_32F, kernel_x)
@@ -246,15 +227,15 @@ class EdgeDetector:
         magnitude = np.sqrt(grad_x**2 + grad_y**2)
 
         # Threshold
-        threshold = params.get('prewitt_threshold', 50)
+        threshold = params.get("prewitt_threshold", 50)
         edges = np.uint8(magnitude > threshold) * 255
 
         return edges
 
     def _detect_scharr(self, gray: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
         """Apply Scharr edge detection."""
-        scale = params.get('scharr_scale', 1)
-        delta = params.get('scharr_delta', 0)
+        scale = params.get("scharr_scale", 1)
+        delta = params.get("scharr_delta", 0)
 
         # Compute gradients using Scharr operator
         grad_x = cv2.Scharr(gray, cv2.CV_64F, 1, 0, scale=scale, delta=delta)
@@ -264,39 +245,33 @@ class EdgeDetector:
         magnitude = np.sqrt(grad_x**2 + grad_y**2)
 
         # Threshold
-        threshold = params.get('scharr_threshold', 50)
+        threshold = params.get("scharr_threshold", 50)
         edges = np.uint8(magnitude > threshold) * 255
 
         return edges
 
     def _detect_morphological_gradient(
-        self,
-        gray: np.ndarray,
-        params: Dict[str, Any]
+        self, gray: np.ndarray, params: Dict[str, Any]
     ) -> np.ndarray:
         """Apply morphological gradient edge detection."""
-        kernel_size = params.get('morph_kernel', 3)
+        kernel_size = params.get("morph_kernel", 3)
         kernel = np.ones((kernel_size, kernel_size), np.uint8)
 
         # Morphological gradient
         gradient = cv2.morphologyEx(gray, cv2.MORPH_GRADIENT, kernel)
 
         # Threshold
-        threshold = params.get('morph_threshold', 30)
+        threshold = params.get("morph_threshold", 30)
         edges = np.uint8(gradient > threshold) * 255
 
         return edges
 
-    def _filter_contours(
-        self,
-        contours: list,
-        params: Dict[str, Any]
-    ) -> list:
+    def _filter_contours(self, contours: list, params: Dict[str, Any]) -> list:
         """Filter contours based on parameters."""
-        min_area = params.get('min_contour_area', 10)
-        max_area = params.get('max_contour_area', float('inf'))
-        min_perimeter = params.get('min_contour_perimeter', 0)
-        max_perimeter = params.get('max_contour_perimeter', float('inf'))
+        min_area = params.get("min_contour_area", 10)
+        max_area = params.get("max_contour_area", float("inf"))
+        min_perimeter = params.get("min_contour_perimeter", 0)
+        max_perimeter = params.get("max_contour_perimeter", float("inf"))
 
         filtered = []
         for contour in contours:
@@ -324,37 +299,35 @@ class EdgeDetector:
             epsilon = 0.02 * perimeter
             approx = cv2.approxPolyDP(contour, epsilon, True)
 
-            filtered.append({
-                'contour': contour.tolist(),
-                'area': float(area),
-                'perimeter': float(perimeter),
-                'center': {'x': cx, 'y': cy},
-                'bounding_box': {'x': x, 'y': y, 'width': w, 'height': h},
-                'vertex_count': len(approx),
-                'is_closed': True
-            })
+            filtered.append(
+                {
+                    "contour": contour.tolist(),
+                    "area": float(area),
+                    "perimeter": float(perimeter),
+                    "center": {"x": cx, "y": cy},
+                    "bounding_box": {"x": x, "y": y, "width": w, "height": h},
+                    "vertex_count": len(approx),
+                    "is_closed": True,
+                }
+            )
 
         # Sort by area (largest first)
-        filtered.sort(key=lambda x: x['area'], reverse=True)
+        filtered.sort(key=lambda x: x["area"], reverse=True)
 
         # Limit number of contours
-        max_contours = params.get('max_contours', 100)
+        max_contours = params.get("max_contours", 100)
         return filtered[:max_contours]
 
     def _create_visualization(
-        self,
-        original: np.ndarray,
-        edges: np.ndarray,
-        contours: list,
-        params: Dict[str, Any]
+        self, original: np.ndarray, edges: np.ndarray, contours: list, params: Dict[str, Any]
     ) -> Dict[str, str]:
         """Create visualization images."""
         visualization = {}
 
         # Edge image
         edge_colored = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
-        _, buffer = cv2.imencode('.png', edge_colored)
-        visualization['edges'] = base64.b64encode(buffer).decode('utf-8')
+        _, buffer = cv2.imencode(".png", edge_colored)
+        visualization["edges"] = base64.b64encode(buffer).decode("utf-8")
 
         # Overlay on original
         if len(original.shape) == 2:
@@ -364,30 +337,30 @@ class EdgeDetector:
 
         # Draw contours
         for i, contour_info in enumerate(contours):
-            contour = np.array(contour_info['contour'], dtype=np.int32)
+            contour = np.array(contour_info["contour"], dtype=np.int32)
             color = (0, 255, 0) if i == 0 else (0, 255, 255)  # Green for largest, yellow for others
             cv2.drawContours(overlay, [contour], -1, color, 2)
 
             # Draw bounding box
-            bbox = contour_info['bounding_box']
+            bbox = contour_info["bounding_box"]
             cv2.rectangle(
                 overlay,
-                (bbox['x'], bbox['y']),
-                (bbox['x'] + bbox['width'], bbox['y'] + bbox['height']),
-                (255, 0, 0), 1
+                (bbox["x"], bbox["y"]),
+                (bbox["x"] + bbox["width"], bbox["y"] + bbox["height"]),
+                (255, 0, 0),
+                1,
             )
 
             # Draw center point
-            if params.get('show_centers', True):
-                center = contour_info['center']
-                cv2.circle(overlay, (center['x'], center['y']), 3, (0, 0, 255), -1)
+            if params.get("show_centers", True):
+                center = contour_info["center"]
+                cv2.circle(overlay, (center["x"], center["y"]), 3, (0, 0, 255), -1)
 
         # Add text info
         text = f"Contours: {len(contours)}"
-        cv2.putText(overlay, text, (10, 30),
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(overlay, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-        _, buffer = cv2.imencode('.png', overlay)
-        visualization['overlay'] = base64.b64encode(buffer).decode('utf-8')
+        _, buffer = cv2.imencode(".png", overlay)
+        visualization["overlay"] = base64.b64encode(buffer).decode("utf-8")
 
         return visualization

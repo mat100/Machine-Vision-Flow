@@ -7,9 +7,10 @@ import base64
 import io
 import logging
 from typing import Optional, Tuple, Union
+
+import cv2
 import numpy as np
 from PIL import Image
-import cv2
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +59,7 @@ class ImageUtils:
 
     @staticmethod
     def to_base64(
-        image: Union[np.ndarray, Image.Image, bytes],
-        format: str = 'JPEG',
-        quality: int = 85
+        image: Union[np.ndarray, Image.Image, bytes], format: str = "JPEG", quality: int = 85
     ) -> str:
         """
         Convert image to base64 string.
@@ -76,7 +75,7 @@ class ImageUtils:
         try:
             # If already bytes, directly encode
             if isinstance(image, bytes):
-                return base64.b64encode(image).decode('utf-8')
+                return base64.b64encode(image).decode("utf-8")
 
             # Convert numpy to PIL if needed
             if isinstance(image, np.ndarray):
@@ -84,16 +83,16 @@ class ImageUtils:
 
             # Convert PIL Image to bytes
             buffer = io.BytesIO()
-            save_kwargs = {'format': format}
+            save_kwargs = {"format": format}
 
-            if format.upper() == 'JPEG':
-                save_kwargs['quality'] = quality
-                save_kwargs['optimize'] = True
+            if format.upper() == "JPEG":
+                save_kwargs["quality"] = quality
+                save_kwargs["optimize"] = True
 
             image.save(buffer, **save_kwargs)
             image_bytes = buffer.getvalue()
 
-            return base64.b64encode(image_bytes).decode('utf-8')
+            return base64.b64encode(image_bytes).decode("utf-8")
 
         except Exception as e:
             logger.error(f"Failed to convert image to base64: {e}")
@@ -126,9 +125,7 @@ class ImageUtils:
 
     @staticmethod
     def create_thumbnail(
-        image: Union[np.ndarray, Image.Image],
-        width: int = 320,
-        maintain_aspect: bool = True
+        image: Union[np.ndarray, Image.Image], width: int = 320, maintain_aspect: bool = True
     ) -> Tuple[np.ndarray, str]:
         """
         Create thumbnail from image.
@@ -162,7 +159,7 @@ class ImageUtils:
             thumb_array = ImageUtils.pil_to_numpy(pil_image)
 
             # Convert to base64
-            thumb_base64 = ImageUtils.to_base64(pil_image, format='JPEG', quality=70)
+            thumb_base64 = ImageUtils.to_base64(pil_image, format="JPEG", quality=70)
 
             return thumb_array, thumb_base64
 
@@ -175,7 +172,7 @@ class ImageUtils:
         image: np.ndarray,
         width: Optional[int] = None,
         height: Optional[int] = None,
-        max_dimension: Optional[int] = None
+        max_dimension: Optional[int] = None,
     ) -> np.ndarray:
         """
         Resize image with various options.
@@ -214,11 +211,7 @@ class ImageUtils:
         return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
 
     @staticmethod
-    def draw_overlay(
-        image: np.ndarray,
-        overlays: list,
-        copy: bool = True
-    ) -> np.ndarray:
+    def draw_overlay(image: np.ndarray, overlays: list, copy: bool = True) -> np.ndarray:
         """
         Draw overlays (rectangles, text, etc.) on image.
 
@@ -234,56 +227,51 @@ class ImageUtils:
             image = image.copy()
 
         for overlay in overlays:
-            overlay_type = overlay.get('type')
+            overlay_type = overlay.get("type")
 
-            if overlay_type == 'rectangle':
+            if overlay_type == "rectangle":
                 cv2.rectangle(
                     image,
-                    (overlay['x'], overlay['y']),
-                    (overlay['x'] + overlay['width'], overlay['y'] + overlay['height']),
-                    overlay.get('color', (0, 255, 0)),
-                    overlay.get('thickness', 2)
+                    (overlay["x"], overlay["y"]),
+                    (overlay["x"] + overlay["width"], overlay["y"] + overlay["height"]),
+                    overlay.get("color", (0, 255, 0)),
+                    overlay.get("thickness", 2),
                 )
 
-            elif overlay_type == 'text':
+            elif overlay_type == "text":
                 cv2.putText(
                     image,
-                    overlay['text'],
-                    (overlay['x'], overlay['y']),
+                    overlay["text"],
+                    (overlay["x"], overlay["y"]),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    overlay.get('scale', 1.0),
-                    overlay.get('color', (0, 255, 0)),
-                    overlay.get('thickness', 2)
+                    overlay.get("scale", 1.0),
+                    overlay.get("color", (0, 255, 0)),
+                    overlay.get("thickness", 2),
                 )
 
-            elif overlay_type == 'circle':
+            elif overlay_type == "circle":
                 cv2.circle(
                     image,
-                    (overlay['x'], overlay['y']),
-                    overlay['radius'],
-                    overlay.get('color', (0, 255, 0)),
-                    overlay.get('thickness', 2)
+                    (overlay["x"], overlay["y"]),
+                    overlay["radius"],
+                    overlay.get("color", (0, 255, 0)),
+                    overlay.get("thickness", 2),
                 )
 
-            elif overlay_type == 'line':
+            elif overlay_type == "line":
                 cv2.line(
                     image,
-                    (overlay['x1'], overlay['y1']),
-                    (overlay['x2'], overlay['y2']),
-                    overlay.get('color', (0, 255, 0)),
-                    overlay.get('thickness', 2)
+                    (overlay["x1"], overlay["y1"]),
+                    (overlay["x2"], overlay["y2"]),
+                    overlay.get("color", (0, 255, 0)),
+                    overlay.get("thickness", 2),
                 )
 
         return image
 
     @staticmethod
     def extract_roi(
-        image: np.ndarray,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
-        safe: bool = True
+        image: np.ndarray, x: int, y: int, width: int, height: int, safe: bool = True
     ) -> Optional[np.ndarray]:
         """
         Extract Region of Interest from image.
@@ -316,7 +304,10 @@ class ImageUtils:
         else:
             # Strict bounds checking
             if x < 0 or y < 0 or x + width > img_width or y + height > img_height:
-                logger.warning(f"ROI out of bounds: {x},{y},{width},{height} for image {img_width}x{img_height}")
+                logger.warning(
+                    f"ROI out of bounds: {x},{y},{width},{height} "
+                    f"for image {img_width}x{img_height}"
+                )
                 return None
 
-            return image[y:y+height, x:x+width].copy()
+            return image[y : y + height, x : x + width].copy()

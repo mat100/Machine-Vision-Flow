@@ -2,17 +2,17 @@
 Core modules for Machine Vision Flow
 """
 
-from .image_manager import ImageManager
-from .camera_manager import CameraManager, CameraType, CameraConfig
-from .template_manager import TemplateManager
+from .camera_manager import CameraConfig, CameraManager, CameraType
 from .history_buffer import HistoryBuffer, InspectionRecord
+from .image_manager import ImageManager
+from .template_manager import TemplateManager
 
 __all__ = [
-    'ImageManager',
-    'CameraManager',
-    'CameraType',
-    'CameraConfig',
-    'TemplateManager',
-    'HistoryBuffer',
-    'InspectionRecord'
+    "ImageManager",
+    "CameraManager",
+    "CameraType",
+    "CameraConfig",
+    "TemplateManager",
+    "HistoryBuffer",
+    "InspectionRecord",
 ]

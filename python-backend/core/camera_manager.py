@@ -4,14 +4,15 @@ Camera Manager - Handles multiple camera types (USB, IP, etc.)
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any
+import time
 from dataclasses import dataclass
 from enum import Enum
+from queue import Queue
+from threading import Lock, Thread
+from typing import Any, Dict, List, Optional
+
 import cv2
 import numpy as np
-from threading import Lock, Thread
-from queue import Queue
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class CameraType(Enum):
 @dataclass
 class CameraConfig:
     """Camera configuration"""
+
     id: str
     name: str
     type: CameraType
@@ -127,7 +129,7 @@ class CameraManager:
         self.cameras: Dict[str, Camera] = {}
         self.lock = Lock()
         self.default_resolution = (
-            (default_resolution['width'], default_resolution['height'])
+            (default_resolution["width"], default_resolution["height"])
             if default_resolution
             else (1920, 1080)
         )
@@ -144,16 +146,15 @@ class CameraManager:
         cameras = []
 
         # Always add test camera option
-        cameras.append({
-            'id': 'test',
-            'name': 'Test Image Generator',
-            'type': 'test',
-            'connected': True,
-            'resolution': {
-                'width': 1920,
-                'height': 1080
+        cameras.append(
+            {
+                "id": "test",
+                "name": "Test Image Generator",
+                "type": "test",
+                "connected": True,
+                "resolution": {"width": 1920, "height": 1080},
             }
-        })
+        )
 
         # Check USB cameras (typically 0-4 for better performance)
         for i in range(5):
@@ -164,17 +165,19 @@ class CameraManager:
                     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-                    cameras.append({
-                        'id': f'usb_{i}',
-                        'name': f'USB Camera {i}',
-                        'type': 'usb',
-                        'source': i,
-                        'connected': False,  # Not yet connected (just available)
-                        'resolution': {
-                            'width': width if width > 0 else 1920,
-                            'height': height if height > 0 else 1080
+                    cameras.append(
+                        {
+                            "id": f"usb_{i}",
+                            "name": f"USB Camera {i}",
+                            "type": "usb",
+                            "source": i,
+                            "connected": False,  # Not yet connected (just available)
+                            "resolution": {
+                                "width": width if width > 0 else 1920,
+                                "height": height if height > 0 else 1080,
+                            },
                         }
-                    })
+                    )
                     # Properly release the camera
                     cap.release()
                     # Explicitly delete to free resources
@@ -187,22 +190,24 @@ class CameraManager:
         with self.lock:
             for cam_id, camera in self.cameras.items():
                 # Skip if already in list (e.g., USB cameras)
-                if not any(c['id'] == cam_id for c in cameras):
-                    cameras.append({
-                        'id': cam_id,
-                        'name': camera.config.name,
-                        'type': camera.config.type.value,
-                        'connected': camera.connected,
-                        'resolution': {
-                            'width': camera.config.resolution[0],
-                            'height': camera.config.resolution[1]
+                if not any(c["id"] == cam_id for c in cameras):
+                    cameras.append(
+                        {
+                            "id": cam_id,
+                            "name": camera.config.name,
+                            "type": camera.config.type.value,
+                            "connected": camera.connected,
+                            "resolution": {
+                                "width": camera.config.resolution[0],
+                                "height": camera.config.resolution[1],
+                            },
                         }
-                    })
+                    )
                 else:
                     # Update connection status for existing camera
                     for c in cameras:
-                        if c['id'] == cam_id:
-                            c['connected'] = camera.connected
+                        if c["id"] == cam_id:
+                            c["connected"] = camera.connected
                             break
 
         return cameras
@@ -213,7 +218,7 @@ class CameraManager:
         camera_type: str = "usb",
         source: Any = 0,
         name: Optional[str] = None,
-        resolution: Optional[tuple] = None
+        resolution: Optional[tuple] = None,
     ) -> bool:
         """Connect to a camera"""
         with self.lock:
@@ -228,7 +233,7 @@ class CameraManager:
                 name=name or camera_id,
                 type=CameraType(camera_type),
                 source=source,
-                resolution=resolution or self.default_resolution
+                resolution=resolution or self.default_resolution,
             )
 
             # Create and connect camera
@@ -272,9 +277,7 @@ class CameraManager:
 
         self.preview_running = True
         self.preview_thread = Thread(
-            target=self._preview_worker,
-            args=(camera_id, interval_ms),
-            daemon=True
+            target=self._preview_worker, args=(camera_id, interval_ms), daemon=True
         )
         self.preview_thread.start()
         logger.info(f"Preview stream started for camera {camera_id}")
@@ -303,15 +306,15 @@ class CameraManager:
             if camera_id in self.cameras:
                 camera = self.cameras[camera_id]
                 return {
-                    'id': camera.config.id,
-                    'name': camera.config.name,
-                    'type': camera.config.type.value,
-                    'resolution': {
-                        'width': camera.config.resolution[0],
-                        'height': camera.config.resolution[1]
+                    "id": camera.config.id,
+                    "name": camera.config.name,
+                    "type": camera.config.type.value,
+                    "resolution": {
+                        "width": camera.config.resolution[0],
+                        "height": camera.config.resolution[1],
                     },
-                    'fps': camera.config.fps,
-                    'connected': camera.connected
+                    "fps": camera.config.fps,
+                    "connected": camera.connected,
                 }
 
         return None
@@ -346,6 +349,7 @@ class CameraManager:
 
         # Force garbage collection to ensure resources are freed
         import gc
+
         gc.collect()
 
         logger.info("Camera Manager cleanup complete")

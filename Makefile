@@ -20,7 +20,7 @@ PORT_NODERED := 1880
 
 ARGS ?=
 
-.PHONY: help install start stop status test clean dev dev-python dev-nodered reload logs
+.PHONY: help install start stop status test clean dev dev-python dev-nodered reload logs format lint setup-hooks
 
 help:
 	@echo "Machine Vision Flow - Core Commands"
@@ -38,6 +38,11 @@ help:
 	@echo "  make dev-nodered   Dev mode (Node-RED only)"
 	@echo "  make reload        Reload services"
 	@echo "  make logs          View logs"
+	@echo ""
+	@echo "Development:"
+	@echo "  make setup-hooks   Install pre-commit hooks"
+	@echo "  make format        Format Python code (black, isort)"
+	@echo "  make lint          Lint Python code (flake8)"
 
 install:
 	@echo "Installing dependencies..."
@@ -104,3 +109,21 @@ test:
 	else \
 		echo "No backend tests found in $(BACKEND_DIR)/tests"; \
 	fi
+
+setup-hooks:
+	@echo "Installing pre-commit hooks..."
+	@$(SHELL) -lc "source \"$(SCRIPTS_DIR)/lib/services.sh\"; ensure_python_backend_env false"
+	@cd $(BACKEND_DIR) && $(BACKEND_PYTHON) -m pip install -q pre-commit black isort flake8
+	@cd $(PROJECT_ROOT) && $(BACKEND_PYTHON) -m pre_commit install
+	@echo "Pre-commit hooks installed! Run 'git commit' to trigger hooks."
+
+format:
+	@echo "Formatting Python code..."
+	@cd $(BACKEND_DIR) && $(BACKEND_PYTHON) -m black . --exclude venv
+	@cd $(BACKEND_DIR) && $(BACKEND_PYTHON) -m isort . --profile black --skip venv
+	@echo "Code formatted!"
+
+lint:
+	@echo "Linting Python code..."
+	@cd $(BACKEND_DIR) && $(BACKEND_PYTHON) -m flake8 . --exclude=venv --max-line-length=100 --extend-ignore=E203,W503
+	@echo "Linting complete!"

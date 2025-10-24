@@ -3,14 +3,15 @@ Custom exceptions and error handlers for the Machine Vision Flow API.
 Provides consistent error handling across all endpoints.
 """
 
+import asyncio
 import logging
 import traceback
-from typing import Any, Optional, Dict
 from functools import wraps
+from typing import Dict, Optional
 
 from fastapi import HTTPException, Request, status
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -20,12 +21,7 @@ logger = logging.getLogger(__name__)
 class MVException(Exception):
     """Base exception for Machine Vision Flow."""
 
-    def __init__(
-        self,
-        message: str,
-        status_code: int = 500,
-        details: Optional[Dict] = None
-    ):
+    def __init__(self, message: str, status_code: int = 500, details: Optional[Dict] = None):
         self.message = message
         self.status_code = status_code
         self.details = details or {}
@@ -37,9 +33,7 @@ class ImageNotFoundException(MVException):
 
     def __init__(self, image_id: str):
         super().__init__(
-            message=f"Image not found: {image_id}",
-            status_code=404,
-            details={"image_id": image_id}
+            message=f"Image not found: {image_id}", status_code=404, details={"image_id": image_id}
         )
 
 
@@ -50,7 +44,7 @@ class CameraNotFoundException(MVException):
         super().__init__(
             message=f"Camera not found: {camera_id}",
             status_code=404,
-            details={"camera_id": camera_id}
+            details={"camera_id": camera_id},
         )
 
 
@@ -61,7 +55,7 @@ class CameraConnectionException(MVException):
         super().__init__(
             message=f"Failed to connect to camera {camera_id}: {reason}",
             status_code=503,
-            details={"camera_id": camera_id, "reason": reason}
+            details={"camera_id": camera_id, "reason": reason},
         )
 
 
@@ -72,7 +66,7 @@ class TemplateNotFoundException(MVException):
         super().__init__(
             message=f"Template not found: {template_id}",
             status_code=404,
-            details={"template_id": template_id}
+            details={"template_id": template_id},
         )
 
 
@@ -83,7 +77,7 @@ class InvalidROIException(MVException):
         super().__init__(
             message=f"Invalid ROI: {reason}",
             status_code=400,
-            details={"roi": roi, "reason": reason}
+            details={"roi": roi, "reason": reason},
         )
 
 
@@ -94,7 +88,7 @@ class ProcessingException(MVException):
         super().__init__(
             message=f"Processing failed for {operation}: {reason}",
             status_code=500,
-            details={"operation": operation, "reason": reason}
+            details={"operation": operation, "reason": reason},
         )
 
 
@@ -105,7 +99,7 @@ class StorageException(MVException):
         super().__init__(
             message=f"Storage operation failed: {operation} - {reason}",
             status_code=507,  # Insufficient Storage
-            details={"operation": operation, "reason": reason}
+            details={"operation": operation, "reason": reason},
         )
 
 
@@ -116,7 +110,7 @@ class ConfigurationException(MVException):
         super().__init__(
             message=f"Invalid configuration for {config_key}: {reason}",
             status_code=500,
-            details={"config_key": config_key, "reason": reason}
+            details={"config_key": config_key, "reason": reason},
         )
 
 
@@ -136,17 +130,12 @@ async def mv_exception_handler(request: Request, exc: MVException) -> JSONRespon
 
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error": exc.message,
-            "details": exc.details,
-            "type": exc.__class__.__name__
-        }
+        content={"error": exc.message, "details": exc.details, "type": exc.__class__.__name__},
     )
 
 
 async def validation_exception_handler(
-    request: Request,
-    exc: RequestValidationError
+    request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """
     Handler for request validation errors.
@@ -160,21 +149,19 @@ async def validation_exception_handler(
     """
     errors = []
     for error in exc.errors():
-        errors.append({
-            "field": ".".join(str(loc) for loc in error["loc"][1:]),
-            "message": error["msg"],
-            "type": error["type"]
-        })
+        errors.append(
+            {
+                "field": ".".join(str(loc) for loc in error["loc"][1:]),
+                "message": error["msg"],
+                "type": error["type"],
+            }
+        )
 
     logger.warning(f"Validation error: {errors}")
 
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={
-            "error": "Validation failed",
-            "details": errors,
-            "type": "ValidationError"
-        }
+        content={"error": "Validation failed", "details": errors, "type": "ValidationError"},
     )
 
 
@@ -194,7 +181,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 
     # Don't expose internal details in production
     # Check if we're in debug mode
-    debug_mode = getattr(request.app.state, 'debug', False)
+    debug_mode = getattr(request.app.state, "debug", False)
 
     if debug_mode:
         return JSONResponse(
@@ -204,19 +191,15 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
                 "details": {
                     "exception": str(exc),
                     "type": exc.__class__.__name__,
-                    "traceback": traceback.format_exc()
+                    "traceback": traceback.format_exc(),
                 },
-                "type": "InternalError"
-            }
+                "type": "InternalError",
+            },
         )
     else:
         return JSONResponse(
             status_code=500,
-            content={
-                "error": "Internal server error",
-                "details": {},
-                "type": "InternalError"
-            }
+            content={"error": "Internal server error", "details": {}, "type": "InternalError"},
         )
 
 
@@ -227,6 +210,7 @@ def safe_endpoint(func):
 
     Automatically catches and handles common exceptions.
     """
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
@@ -248,77 +232,49 @@ def safe_endpoint(func):
             # Convert pydantic validation errors
             logger.warning(f"Validation error in {func.__name__}: {e}")
             raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Validation failed",
-                    "details": e.errors()
-                }
+                status_code=400, detail={"error": "Validation failed", "details": e.errors()}
             )
 
         except KeyError as e:
             # Handle missing keys
             logger.error(f"KeyError in {func.__name__}: {e}")
             raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Missing required field",
-                    "field": str(e)
-                }
+                status_code=400, detail={"error": "Missing required field", "field": str(e)}
             )
 
         except ValueError as e:
             # Handle value errors
             logger.error(f"ValueError in {func.__name__}: {e}")
             raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "Invalid value",
-                    "details": str(e)
-                }
+                status_code=400, detail={"error": "Invalid value", "details": str(e)}
             )
 
         except FileNotFoundError as e:
             # Handle file not found
             logger.error(f"FileNotFoundError in {func.__name__}: {e}")
             raise HTTPException(
-                status_code=404,
-                detail={
-                    "error": "File not found",
-                    "details": str(e)
-                }
+                status_code=404, detail={"error": "File not found", "details": str(e)}
             )
 
         except PermissionError as e:
             # Handle permission errors
             logger.error(f"PermissionError in {func.__name__}: {e}")
             raise HTTPException(
-                status_code=403,
-                detail={
-                    "error": "Permission denied",
-                    "details": str(e)
-                }
+                status_code=403, detail={"error": "Permission denied", "details": str(e)}
             )
 
         except TimeoutError as e:
             # Handle timeouts
             logger.error(f"TimeoutError in {func.__name__}: {e}")
             raise HTTPException(
-                status_code=504,
-                detail={
-                    "error": "Operation timed out",
-                    "details": str(e)
-                }
+                status_code=504, detail={"error": "Operation timed out", "details": str(e)}
             )
 
         except Exception as e:
             # Catch all other exceptions
             logger.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
             raise HTTPException(
-                status_code=500,
-                detail={
-                    "error": "Internal server error",
-                    "details": str(e)
-                }
+                status_code=500, detail={"error": "Internal server error", "details": str(e)}
             )
 
     return wrapper
@@ -337,6 +293,3 @@ def register_exception_handlers(app):
     app.add_exception_handler(Exception, generic_exception_handler)
 
     logger.info("Exception handlers registered")
-
-
-import asyncio  # Add missing import at the top

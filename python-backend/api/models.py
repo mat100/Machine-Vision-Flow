@@ -2,10 +2,11 @@
 Pydantic models for API requests and responses
 """
 
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 
 # Enums
@@ -27,6 +28,7 @@ class InspectionResult(str, Enum):
 # Common models
 class ROI(BaseModel):
     """Region of Interest"""
+
     x: int = Field(..., ge=0, description="X coordinate")
     y: int = Field(..., ge=0, description="Y coordinate")
     width: int = Field(..., gt=0, description="Width")
@@ -35,18 +37,21 @@ class ROI(BaseModel):
 
 class Point(BaseModel):
     """2D Point"""
+
     x: float
     y: float
 
 
 class Size(BaseModel):
     """Image size"""
+
     width: int
     height: int
 
 
 class BoundingBox(BaseModel):
     """Bounding box for detected objects"""
+
     top_left: Point
     bottom_right: Point
 
@@ -54,6 +59,7 @@ class BoundingBox(BaseModel):
 # Camera models
 class CameraInfo(BaseModel):
     """Camera information"""
+
     id: str
     name: str
     type: str
@@ -63,12 +69,14 @@ class CameraInfo(BaseModel):
 
 class CameraConnectRequest(BaseModel):
     """Request to connect to camera"""
+
     camera_id: str
     resolution: Optional[Size] = None
 
 
 class CameraCaptureResponse(BaseModel):
     """Response from camera capture"""
+
     success: bool
     image_id: str
     timestamp: datetime
@@ -79,6 +87,7 @@ class CameraCaptureResponse(BaseModel):
 # Template models
 class TemplateInfo(BaseModel):
     """Template information"""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -88,6 +97,7 @@ class TemplateInfo(BaseModel):
 
 class TemplateUploadResponse(BaseModel):
     """Response from template upload"""
+
     success: bool
     template_id: str
     name: str
@@ -96,6 +106,7 @@ class TemplateUploadResponse(BaseModel):
 
 class TemplateLearnRequest(BaseModel):
     """Request to learn template from image"""
+
     image_id: str
     name: str
     roi: ROI
@@ -105,6 +116,7 @@ class TemplateLearnRequest(BaseModel):
 # Vision processing models
 class TemplateMatchRequest(BaseModel):
     """Request for template matching"""
+
     image_id: str
     template_id: str
     method: TemplateMethod = TemplateMethod.TM_CCOEFF_NORMED
@@ -118,6 +130,7 @@ class TemplateMatchRequest(BaseModel):
 
 class TemplateMatchResult(BaseModel):
     """Single template match result"""
+
     position: Point
     score: float
     scale: float = 1.0
@@ -127,6 +140,7 @@ class TemplateMatchResult(BaseModel):
 
 class TemplateMatchResponse(BaseModel):
     """Response from template matching"""
+
     success: bool
     found: bool
     matches: List[TemplateMatchResult]
@@ -136,6 +150,7 @@ class TemplateMatchResponse(BaseModel):
 
 class EdgeDetectRequest(BaseModel):
     """Request for edge detection"""
+
     image_id: str
     method: str = "canny"
     threshold1: float = 100
@@ -145,6 +160,7 @@ class EdgeDetectRequest(BaseModel):
 
 class BlobDetectRequest(BaseModel):
     """Request for blob detection"""
+
     image_id: str
     min_area: Optional[int] = 100
     max_area: Optional[int] = 10000
@@ -155,6 +171,7 @@ class BlobDetectRequest(BaseModel):
 # History models
 class InspectionRecord(BaseModel):
     """Single inspection record"""
+
     id: str
     timestamp: datetime
     image_id: str
@@ -167,6 +184,7 @@ class InspectionRecord(BaseModel):
 
 class HistoryResponse(BaseModel):
     """Response with inspection history"""
+
     inspections: List[InspectionRecord]
     statistics: Dict[str, Any]
 
@@ -174,6 +192,7 @@ class HistoryResponse(BaseModel):
 # System models
 class SystemStatus(BaseModel):
     """System status information"""
+
     status: str
     uptime: float
     memory_usage: Dict[str, float]
@@ -183,6 +202,7 @@ class SystemStatus(BaseModel):
 
 class PerformanceMetrics(BaseModel):
     """Performance metrics"""
+
     avg_processing_time: float
     total_inspections: int
     success_rate: float
@@ -191,6 +211,7 @@ class PerformanceMetrics(BaseModel):
 
 class DebugSettings(BaseModel):
     """Debug settings"""
+
     enabled: bool
     save_images: bool
     show_overlays: bool
@@ -200,6 +221,7 @@ class DebugSettings(BaseModel):
 # Result merger models
 class DetectionResult(BaseModel):
     """Single detection result for merger"""
+
     node_id: str
     name: str
     type: str
@@ -210,6 +232,7 @@ class DetectionResult(BaseModel):
 
 class MergedResults(BaseModel):
     """Merged results from multiple detections"""
+
     image_id: str
     all_detections: List[DetectionResult]
     summary: Dict[str, Any]

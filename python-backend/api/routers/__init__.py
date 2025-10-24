@@ -2,16 +2,6 @@
 API Routers for Machine Vision Flow
 """
 
-from . import camera
-from . import vision
-from . import template
-from . import history
-from . import system
+from . import camera, history, system, template, vision
 
-__all__ = [
-    'camera',
-    'vision',
-    'template',
-    'history',
-    'system'
-]
+__all__ = ["camera", "vision", "template", "history", "system"]

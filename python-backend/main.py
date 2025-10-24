@@ -4,32 +4,33 @@ Machine Vision Flow - Main FastAPI Application
 
 import asyncio
 import logging
-import sys
-import signal
 import os
-from pathlib import Path
+import signal
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import uvicorn
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent))
 
-# Import routers
-from api.routers import camera, vision, template, history, system
+from api.exceptions import register_exception_handlers  # noqa: E402
 
-# Import core components
-from core.image_manager import ImageManager
-from core.camera_manager import CameraManager
-from core.template_manager import TemplateManager
-from core.history_buffer import HistoryBuffer
+# Import routers  # noqa: E402
+from api.routers import camera, history, system, template, vision  # noqa: E402
 
-# Import configuration and exception handlers
-from config import get_settings, Settings
-from api.exceptions import register_exception_handlers
+# Import configuration and exception handlers  # noqa: E402
+from config import get_settings  # noqa: E402
+from core.camera_manager import CameraManager  # noqa: E402
+from core.history_buffer import HistoryBuffer  # noqa: E402
+
+# Import core components  # noqa: E402
+from core.image_manager import ImageManager  # noqa: E402
+from core.template_manager import TemplateManager  # noqa: E402
 
 # Get configuration
 settings = get_settings()
@@ -37,7 +38,7 @@ settings = get_settings()
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.system.log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ template_manager = None
 history_buffer = None
 shutdown_event = asyncio.Event()
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle"""
@@ -63,19 +65,14 @@ async def lifespan(app: FastAPI):
 
     # Initialize managers with Pydantic config
     image_manager = ImageManager(
-        max_size_mb=settings.image.max_memory_mb,
-        max_images=settings.image.max_images
+        max_size_mb=settings.image.max_memory_mb, max_images=settings.image.max_images
     )
 
     camera_manager = CameraManager()
 
-    template_manager = TemplateManager(
-        storage_path=settings.template.storage_path
-    )
+    template_manager = TemplateManager(storage_path=settings.template.storage_path)
 
-    history_buffer = HistoryBuffer(
-        max_size=settings.history.buffer_size
-    )
+    history_buffer = HistoryBuffer(max_size=settings.history.buffer_size)
 
     logger.info("All managers initialized successfully")
 
@@ -107,12 +104,13 @@ async def lifespan(app: FastAPI):
 
     logger.info("Server shutdown complete")
 
+
 # Create FastAPI app
 app = FastAPI(
     title="Machine Vision Flow",
     description="Modular Machine Vision System inspired by Keyence and Cognex",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Configure CORS for Node-RED
@@ -135,6 +133,7 @@ app.include_router(template.router, prefix="/api/template", tags=["Template"])
 app.include_router(history.router, prefix="/api/history", tags=["History"])
 app.include_router(system.router, prefix="/api/system", tags=["System"])
 
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -148,9 +147,10 @@ async def root():
             "template": "/api/template",
             "history": "/api/history",
             "system": "/api/system",
-            "docs": "/docs"
-        }
+            "docs": "/docs",
+        },
     }
+
 
 # Health check endpoint
 @app.get("/health")
@@ -158,23 +158,27 @@ async def health_check():
     return {
         "status": "healthy",
         "services": {
-            "image_manager": hasattr(app.state, 'image_manager') and app.state.image_manager is not None,
-            "camera_manager": hasattr(app.state, 'camera_manager') and app.state.camera_manager is not None,
-            "template_manager": hasattr(app.state, 'template_manager') and app.state.template_manager is not None,
-            "history_buffer": hasattr(app.state, 'history_buffer') and app.state.history_buffer is not None
-        }
+            "image_manager": hasattr(app.state, "image_manager")
+            and app.state.image_manager is not None,
+            "camera_manager": hasattr(app.state, "camera_manager")
+            and app.state.camera_manager is not None,
+            "template_manager": hasattr(app.state, "template_manager")
+            and app.state.template_manager is not None,
+            "history_buffer": hasattr(app.state, "history_buffer")
+            and app.state.history_buffer is not None,
+        },
     }
+
 
 # Error handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     logger.error(f"Global exception: {exc}", exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": f"Internal server error: {str(exc)}"}
-    )
+    return JSONResponse(status_code=500, content={"detail": f"Internal server error: {str(exc)}"})
+
 
 # Note: Managers are set in lifespan handler above
+
 
 def handle_signal(signum, frame):
     """Handle shutdown signals gracefully"""
@@ -182,12 +186,16 @@ def handle_signal(signum, frame):
     shutdown_event.set()
     # Force exit after timeout
     import threading
+
     def force_exit():
         import time
+
         time.sleep(10)  # Give 10 seconds for graceful shutdown
         logger.warning("Forcing exit after timeout")
         sys.exit(1)
+
     threading.Thread(target=force_exit, daemon=True).start()
+
 
 if __name__ == "__main__":
     # Write PID file for process management
@@ -205,14 +213,11 @@ if __name__ == "__main__":
     # Register signal handlers
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
-    reload_excludes = [
-        "*.log",
-        "*.pyc",
-        "__pycache__",
-        ".git",
-        ".venv",
-        "venv"
-    ] if settings.system.debug else None
+    reload_excludes = (
+        ["*.log", "*.pyc", "__pycache__", ".git", ".venv", "venv"]
+        if settings.system.debug
+        else None
+    )
 
     # Configure server with proper shutdown handling
     server_config = uvicorn.Config(
@@ -222,7 +227,7 @@ if __name__ == "__main__":
         reload=settings.system.debug,
         reload_excludes=reload_excludes,
         log_level="info",
-        loop="asyncio"
+        loop="asyncio",
     )
 
     server = uvicorn.Server(server_config)

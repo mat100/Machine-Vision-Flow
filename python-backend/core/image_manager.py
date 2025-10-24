@@ -2,18 +2,18 @@
 Image Manager - Handles image storage with shared memory and LRU cache
 """
 
-import uuid
-import time
 import logging
-from typing import Optional, Dict, Tuple
+import time
+import uuid
 from collections import OrderedDict
 from multiprocessing import shared_memory
-import numpy as np
-import cv2
 from threading import Lock
+from typing import Dict, Optional, Tuple
 
-from core.image_utils import ImageUtils
+import numpy as np
+
 from core.constants import ImageConstants
+from core.image_utils import ImageUtils
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +24,11 @@ class ImageManager:
     and LRU cache for memory management
     """
 
-    def __init__(self, max_size_mb: int = ImageConstants.DEFAULT_MAX_MEMORY_MB,
-                 max_images: int = ImageConstants.DEFAULT_MAX_IMAGES):
+    def __init__(
+        self,
+        max_size_mb: int = ImageConstants.DEFAULT_MAX_MEMORY_MB,
+        max_images: int = ImageConstants.DEFAULT_MAX_IMAGES,
+    ):
         """
         Initialize Image Manager
 
@@ -74,27 +77,20 @@ class ImageManager:
 
             try:
                 # Create shared memory
-                shm = shared_memory.SharedMemory(
-                    create=True,
-                    size=image_size
-                )
+                shm = shared_memory.SharedMemory(create=True, size=image_size)
 
                 # Copy image to shared memory
-                shared_array = np.ndarray(
-                    image.shape,
-                    dtype=image.dtype,
-                    buffer=shm.buf
-                )
+                shared_array = np.ndarray(image.shape, dtype=image.dtype, buffer=shm.buf)
                 shared_array[:] = image[:]
 
                 # Store in cache
                 self.cache[image_id] = {
-                    'shape': image.shape,
-                    'dtype': image.dtype,
-                    'size': image_size,
-                    'shm_name': shm.name,
-                    'timestamp': time.time(),
-                    'metadata': metadata or {}
+                    "shape": image.shape,
+                    "dtype": image.dtype,
+                    "size": image_size,
+                    "shm_name": shm.name,
+                    "timestamp": time.time(),
+                    "metadata": metadata or {},
                 }
 
                 # Store shared memory reference
@@ -143,13 +139,11 @@ class ImageManager:
 
                 # Create array view
                 image = np.ndarray(
-                    info['shape'],
-                    dtype=info['dtype'],
-                    buffer=shm.buf
+                    info["shape"], dtype=info["dtype"], buffer=shm.buf
                 ).copy()  # Copy to avoid issues when shm is released
 
                 # Update access time and move to end
-                info['last_access'] = time.time()
+                info["last_access"] = time.time()
                 self.cache.move_to_end(image_id)
 
                 # Increment reference count
@@ -204,7 +198,7 @@ class ImageManager:
                 del self.shared_memories[image_id]
 
             # Update size
-            self.current_size -= info['size']
+            self.current_size -= info["size"]
 
             # Remove from cache
             del self.cache[image_id]
@@ -246,11 +240,11 @@ class ImageManager:
         """Get cache statistics"""
         with self.lock:
             return {
-                'total_images': len(self.cache),
-                'total_size_mb': self.current_size / (1024 * 1024),
-                'max_size_mb': self.max_size_bytes / (1024 * 1024),
-                'usage_percent': (self.current_size / self.max_size_bytes) * 100,
-                'referenced_images': sum(1 for c in self.ref_counts.values() if c > 0)
+                "total_images": len(self.cache),
+                "total_size_mb": self.current_size / (1024 * 1024),
+                "max_size_mb": self.max_size_bytes / (1024 * 1024),
+                "usage_percent": (self.current_size / self.max_size_bytes) * 100,
+                "referenced_images": sum(1 for c in self.ref_counts.values() if c > 0),
             }
 
     def cleanup(self):
@@ -268,7 +262,9 @@ class ImageManager:
 
             logger.info("Image Manager cleanup complete")
 
-    def create_thumbnail(self, image: np.ndarray, width: int = ImageConstants.DEFAULT_THUMBNAIL_WIDTH) -> Tuple[np.ndarray, str]:
+    def create_thumbnail(
+        self, image: np.ndarray, width: int = ImageConstants.DEFAULT_THUMBNAIL_WIDTH
+    ) -> Tuple[np.ndarray, str]:
         """
         Create thumbnail from image
 
@@ -281,9 +277,7 @@ class ImageManager:
         """
         # Use centralized ImageUtils for thumbnail creation
         thumbnail_array, thumbnail_base64 = ImageUtils.create_thumbnail(
-            image=image,
-            width=width,
-            maintain_aspect=True
+            image=image, width=width, maintain_aspect=True
         )
 
         # Add data URI prefix for compatibility

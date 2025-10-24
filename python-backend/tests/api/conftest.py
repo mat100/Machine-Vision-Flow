@@ -4,7 +4,6 @@ Pytest configuration for API integration tests
 
 import pytest
 from fastapi.testclient import TestClient
-from contextlib import asynccontextmanager
 
 
 @pytest.fixture(scope="function")
@@ -13,13 +12,14 @@ def client():
     Create a test client with properly initialized app state.
     Each test gets a fresh client to avoid state contamination.
     """
-    from main import app
-    from core.image_manager import ImageManager
-    from core.camera_manager import CameraManager
-    from core.template_manager import TemplateManager
-    from core.history_buffer import HistoryBuffer
-    import tempfile
     import shutil
+    import tempfile
+
+    from core.camera_manager import CameraManager
+    from core.history_buffer import HistoryBuffer
+    from core.image_manager import ImageManager
+    from core.template_manager import TemplateManager
+    from main import app
 
     # Create temporary template directory
     temp_dir = tempfile.mkdtemp()
@@ -45,7 +45,7 @@ def client():
     try:
         image_manager.cleanup()
         shutil.rmtree(temp_dir, ignore_errors=True)
-    except:
+    except Exception:  # noqa: E722
         pass
 
 
@@ -54,7 +54,7 @@ def clear_history_before_test(client):
     """Clear history before each test to avoid interference"""
     try:
         client.post("/api/history/clear")
-    except:
+    except Exception:  # noqa: E722
         pass  # Ignore errors if endpoint doesn't exist or fails
 
     yield

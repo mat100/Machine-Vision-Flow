@@ -3,11 +3,6 @@ API Integration Tests for Vision Endpoints
 """
 
 import pytest
-from fastapi.testclient import TestClient
-from main import app
-import base64
-import numpy as np
-import cv2
 
 
 class TestVisionAPI:
@@ -26,12 +21,7 @@ class TestVisionAPI:
             "image_id": captured_image_id,
             "name": "Test Template",
             "description": "Template for integration tests",
-            "roi": {
-                "x": 100,
-                "y": 100,
-                "width": 100,
-                "height": 100
-            }
+            "roi": {"x": 100, "y": 100, "width": 100, "height": 100},
         }
         response = client.post("/api/template/learn", json=request_data)
         return response.json()["template_id"]
@@ -42,7 +32,7 @@ class TestVisionAPI:
             "image_id": captured_image_id,
             "template_id": template_id,
             "method": "TM_CCOEFF_NORMED",
-            "threshold": 0.5
+            "threshold": 0.5,
         }
         response = client.post("/api/vision/template-match", json=request_data)
 
@@ -64,12 +54,7 @@ class TestVisionAPI:
             "template_id": template_id,
             "method": "TM_CCOEFF_NORMED",
             "threshold": 0.7,
-            "roi": {
-                "x": 50,
-                "y": 50,
-                "width": 400,
-                "height": 300
-            }
+            "roi": {"x": 50, "y": 50, "width": 400, "height": 300},
         }
         response = client.post("/api/vision/template-match", json=request_data)
 
@@ -83,7 +68,7 @@ class TestVisionAPI:
             "image_id": captured_image_id,
             "template_id": template_id,
             "method": "TM_CCOEFF_NORMED",
-            "threshold": 0.99  # Very high threshold
+            "threshold": 0.99,  # Very high threshold
         }
         response = client.post("/api/vision/template-match", json=request_data)
 
@@ -95,11 +80,7 @@ class TestVisionAPI:
 
     def test_template_match_invalid_image(self, client, template_id):
         """Test template matching with non-existent image"""
-        request_data = {
-            "image_id": "non-existent-id",
-            "template_id": template_id,
-            "threshold": 0.8
-        }
+        request_data = {"image_id": "non-existent-id", "template_id": template_id, "threshold": 0.8}
         response = client.post("/api/vision/template-match", json=request_data)
 
         assert response.status_code == 404
@@ -111,7 +92,7 @@ class TestVisionAPI:
         request_data = {
             "image_id": captured_image_id,
             "template_id": "non-existent-template",
-            "threshold": 0.8
+            "threshold": 0.8,
         }
         response = client.post("/api/vision/template-match", json=request_data)
 
@@ -121,18 +102,14 @@ class TestVisionAPI:
 
     def test_template_match_different_methods(self, client, captured_image_id, template_id):
         """Test different template matching methods"""
-        methods = [
-            "TM_CCOEFF_NORMED",
-            "TM_CCORR_NORMED",
-            "TM_SQDIFF_NORMED"
-        ]
+        methods = ["TM_CCOEFF_NORMED", "TM_CCORR_NORMED", "TM_SQDIFF_NORMED"]
 
         for method in methods:
             request_data = {
                 "image_id": captured_image_id,
                 "template_id": template_id,
                 "method": method,
-                "threshold": 0.5
+                "threshold": 0.5,
             }
             response = client.post("/api/vision/template-match", json=request_data)
 
@@ -142,10 +119,7 @@ class TestVisionAPI:
 
     def test_edge_detect_canny(self, client, captured_image_id):
         """Test Canny edge detection"""
-        request_data = {
-            "image_id": captured_image_id,
-            "method": "canny"
-        }
+        request_data = {"image_id": captured_image_id, "method": "canny"}
         response = client.post("/api/vision/edge-detect", json=request_data)
 
         assert response.status_code == 200
@@ -165,10 +139,7 @@ class TestVisionAPI:
         methods = ["canny", "sobel", "laplacian", "scharr", "prewitt", "roberts"]
 
         for method in methods:
-            request_data = {
-                "image_id": captured_image_id,
-                "method": method
-            }
+            request_data = {"image_id": captured_image_id, "method": method}
             response = client.post("/api/vision/edge-detect", json=request_data)
 
             assert response.status_code == 200
@@ -181,11 +152,7 @@ class TestVisionAPI:
         request_data = {
             "image_id": captured_image_id,
             "method": "canny",
-            "params": {
-                "canny_low": 50,
-                "canny_high": 150,
-                "blur_size": 5
-            }
+            "params": {"canny_low": 50, "canny_high": 150, "blur_size": 5},
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -198,12 +165,7 @@ class TestVisionAPI:
         request_data = {
             "image_id": captured_image_id,
             "method": "canny",
-            "roi": {
-                "x": 100,
-                "y": 100,
-                "width": 200,
-                "height": 200
-            }
+            "roi": {"x": 100, "y": 100, "width": 200, "height": 200},
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -213,10 +175,7 @@ class TestVisionAPI:
 
     def test_edge_detect_invalid_image(self, client):
         """Test edge detection with non-existent image"""
-        request_data = {
-            "image_id": "non-existent-id",
-            "method": "canny"
-        }
+        request_data = {"image_id": "non-existent-id", "method": "canny"}
         response = client.post("/api/vision/edge-detect", json=request_data)
 
         assert response.status_code == 404
@@ -226,10 +185,7 @@ class TestVisionAPI:
         request_data = {
             "image_id": captured_image_id,
             "method": "canny",
-            "preprocessing": {
-                "denoise": True,
-                "enhance_contrast": True
-            }
+            "preprocessing": {"denoise": True, "enhance_contrast": True},
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -239,9 +195,7 @@ class TestVisionAPI:
 
     def test_blob_detect_placeholder(self, client, captured_image_id):
         """Test blob detection endpoint (placeholder)"""
-        request_data = {
-            "image_id": captured_image_id
-        }
+        request_data = {"image_id": captured_image_id}
         response = client.post("/api/vision/blob-detect", json=request_data)
 
         assert response.status_code == 200

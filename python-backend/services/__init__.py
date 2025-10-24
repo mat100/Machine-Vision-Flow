@@ -9,8 +9,4 @@ from .camera_service import CameraService
 from .image_service import ImageService
 from .vision_service import VisionService
 
-__all__ = [
-    'CameraService',
-    'ImageService',
-    'VisionService'
-]
+__all__ = ["CameraService", "ImageService", "VisionService"]

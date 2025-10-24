@@ -2,6 +2,8 @@
 
 Modular Machine Vision system inspired by Keyence and Cognex, built on Node-RED (UI/orchestration) and Python backend (CV processing).
 
+> **Contributing:** See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines, code style, and how to submit pull requests.
+
 ## 🚀 Quick Start
 
 ### Fastest way - Makefile
@@ -51,15 +53,20 @@ make dev        # Development mode with auto-reload
 ```
 
 ### Systemd services (for production)
+See [`systemd/README.md`](systemd/README.md) for detailed instructions.
+
+Quick start:
 ```bash
-# Install services
-sudo ./services/install.sh
+# Copy service files
+sudo cp systemd/*.service /etc/systemd/system/
+sudo systemctl daemon-reload
 
-# Start
-sudo systemctl start machinevision-backend machinevision-nodered
+# Enable and start services
+sudo systemctl enable machinevisionflow-backend machinevisionflow-nodered
+sudo systemctl start machinevisionflow-backend machinevisionflow-nodered
 
-# Auto-start on boot
-sudo systemctl enable machinevision-backend machinevision-nodered
+# Check status
+sudo systemctl status machinevisionflow-backend
 ```
 
 ## 🏗️ Architecture

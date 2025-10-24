@@ -2,14 +2,13 @@
 History Buffer - Circular buffer for inspection history
 """
 
-import uuid
 import logging
-from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+import uuid
 from collections import deque
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from threading import Lock
-import json
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class InspectionRecord:
     """Single inspection record"""
+
     id: str
     timestamp: datetime
     image_id: str
@@ -60,7 +60,7 @@ class HistoryBuffer:
         detections: List[Dict[str, Any]],
         processing_time_ms: int,
         thumbnail_base64: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Add inspection record to history
@@ -81,7 +81,7 @@ class HistoryBuffer:
             inspection_id = f"hist_{uuid.uuid4().hex[:8]}"
 
             # Create summary
-            passed = sum(1 for d in detections if d.get('found', False))
+            passed = sum(1 for d in detections if d.get("found", False))
             total = len(detections)
             summary = f"{passed}/{total} checks passed"
 
@@ -95,7 +95,7 @@ class HistoryBuffer:
                 thumbnail_base64=thumbnail_base64,
                 processing_time_ms=processing_time_ms,
                 detections=detections,
-                metadata=metadata or {}
+                metadata=metadata or {},
             )
 
             # Add to buffer
@@ -124,9 +124,7 @@ class HistoryBuffer:
         return None
 
     def get_recent(
-        self,
-        limit: int = 10,
-        result_filter: Optional[str] = None
+        self, limit: int = 10, result_filter: Optional[str] = None
     ) -> List[InspectionRecord]:
         """
         Get recent inspections
@@ -156,13 +154,13 @@ class HistoryBuffer:
         with self.lock:
             if self.total_inspections == 0:
                 return {
-                    'total': 0,
-                    'passed': 0,
-                    'failed': 0,
-                    'errors': 0,
-                    'success_rate': 0.0,
-                    'avg_time_ms': 0,
-                    'buffer_usage': 0
+                    "total": 0,
+                    "passed": 0,
+                    "failed": 0,
+                    "errors": 0,
+                    "success_rate": 0.0,
+                    "avg_time_ms": 0,
+                    "buffer_usage": 0,
                 }
 
             success_rate = (self.pass_count / self.total_inspections) * 100
@@ -173,27 +171,25 @@ class HistoryBuffer:
             recent_records = [r for r in self.buffer if r.timestamp > recent_cutoff]
 
             recent_stats = {
-                'total': len(recent_records),
-                'passed': sum(1 for r in recent_records if r.result == "PASS"),
-                'failed': sum(1 for r in recent_records if r.result == "FAIL")
+                "total": len(recent_records),
+                "passed": sum(1 for r in recent_records if r.result == "PASS"),
+                "failed": sum(1 for r in recent_records if r.result == "FAIL"),
             }
 
             return {
-                'total': self.total_inspections,
-                'passed': self.pass_count,
-                'failed': self.fail_count,
-                'errors': self.error_count,
-                'success_rate': round(success_rate, 2),
-                'avg_time_ms': round(avg_time, 2),
-                'buffer_usage': len(self.buffer),
-                'buffer_max': self.max_size,
-                'recent_hour': recent_stats
+                "total": self.total_inspections,
+                "passed": self.pass_count,
+                "failed": self.fail_count,
+                "errors": self.error_count,
+                "success_rate": round(success_rate, 2),
+                "avg_time_ms": round(avg_time, 2),
+                "buffer_usage": len(self.buffer),
+                "buffer_max": self.max_size,
+                "recent_hour": recent_stats,
             }
 
     def get_time_series(
-        self,
-        interval_minutes: int = 5,
-        duration_hours: int = 1
+        self, interval_minutes: int = 5, duration_hours: int = 1
     ) -> List[Dict[str, Any]]:
         """
         Get time series data for charting
@@ -218,16 +214,17 @@ class HistoryBuffer:
 
                 # Count inspections in this bucket
                 bucket_records = [
-                    r for r in self.buffer
-                    if current_time <= r.timestamp < bucket_end
+                    r for r in self.buffer if current_time <= r.timestamp < bucket_end
                 ]
 
-                buckets.append({
-                    'timestamp': current_time.isoformat(),
-                    'total': len(bucket_records),
-                    'passed': sum(1 for r in bucket_records if r.result == "PASS"),
-                    'failed': sum(1 for r in bucket_records if r.result == "FAIL")
-                })
+                buckets.append(
+                    {
+                        "timestamp": current_time.isoformat(),
+                        "total": len(bucket_records),
+                        "passed": sum(1 for r in bucket_records if r.result == "PASS"),
+                        "failed": sum(1 for r in bucket_records if r.result == "FAIL"),
+                    }
+                )
 
                 current_time = bucket_end
 
@@ -249,20 +246,20 @@ class HistoryBuffer:
         """Export history to dictionary"""
         with self.lock:
             return {
-                'inspections': [
+                "inspections": [
                     {
-                        'id': r.id,
-                        'timestamp': r.timestamp.isoformat(),
-                        'image_id': r.image_id,
-                        'result': r.result,
-                        'summary': r.summary,
-                        'processing_time_ms': r.processing_time_ms,
-                        'detections': r.detections,
-                        'metadata': r.metadata
+                        "id": r.id,
+                        "timestamp": r.timestamp.isoformat(),
+                        "image_id": r.image_id,
+                        "result": r.result,
+                        "summary": r.summary,
+                        "processing_time_ms": r.processing_time_ms,
+                        "detections": r.detections,
+                        "metadata": r.metadata,
                     }
                     for r in self.buffer
                 ],
-                'statistics': self.get_statistics()
+                "statistics": self.get_statistics(),
             }
 
     def import_from_dict(self, data: Dict[str, Any]):
@@ -270,17 +267,17 @@ class HistoryBuffer:
         with self.lock:
             self.clear()
 
-            for record_data in data.get('inspections', []):
+            for record_data in data.get("inspections", []):
                 record = InspectionRecord(
-                    id=record_data['id'],
-                    timestamp=datetime.fromisoformat(record_data['timestamp']),
-                    image_id=record_data['image_id'],
-                    result=record_data['result'],
-                    summary=record_data['summary'],
-                    thumbnail_base64=record_data.get('thumbnail_base64'),
-                    processing_time_ms=record_data['processing_time_ms'],
-                    detections=record_data['detections'],
-                    metadata=record_data.get('metadata', {})
+                    id=record_data["id"],
+                    timestamp=datetime.fromisoformat(record_data["timestamp"]),
+                    image_id=record_data["image_id"],
+                    result=record_data["result"],
+                    summary=record_data["summary"],
+                    thumbnail_base64=record_data.get("thumbnail_base64"),
+                    processing_time_ms=record_data["processing_time_ms"],
+                    detections=record_data["detections"],
+                    metadata=record_data.get("metadata", {}),
                 )
 
                 self.buffer.append(record)
@@ -302,34 +299,24 @@ class HistoryBuffer:
             failures = [r for r in self.buffer if r.result == "FAIL"]
 
             if not failures:
-                return {
-                    'total_failures': 0,
-                    'common_failures': [],
-                    'failure_rate': 0.0
-                }
+                return {"total_failures": 0, "common_failures": [], "failure_rate": 0.0}
 
             # Analyze which detections fail most often
             failure_counts = {}
 
             for record in failures:
                 for detection in record.detections:
-                    if not detection.get('found', True):
-                        name = detection.get('name', 'Unknown')
+                    if not detection.get("found", True):
+                        name = detection.get("name", "Unknown")
                         failure_counts[name] = failure_counts.get(name, 0) + 1
 
             # Sort by frequency
-            common_failures = sorted(
-                failure_counts.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:5]
+            common_failures = sorted(failure_counts.items(), key=lambda x: x[1], reverse=True)[:5]
 
             return {
-                'total_failures': len(failures),
-                'common_failures': [
-                    {'name': name, 'count': count}
-                    for name, count in common_failures
+                "total_failures": len(failures),
+                "common_failures": [
+                    {"name": name, "count": count} for name, count in common_failures
                 ],
-                'failure_rate': (len(failures) / len(self.buffer)) * 100
-                if self.buffer else 0.0
+                "failure_rate": (len(failures) / len(self.buffer)) * 100 if self.buffer else 0.0,
             }

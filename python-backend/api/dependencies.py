@@ -4,15 +4,16 @@ Centralizes common dependencies to eliminate code duplication.
 """
 
 import logging
-from typing import Tuple, Optional, Dict, Any
 from functools import lru_cache
-from fastapi import Depends, HTTPException, Request, Query, Path
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Any, Dict, Optional
 
-from core.image_manager import ImageManager
+from fastapi import Depends, HTTPException, Path, Query, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from core.camera_manager import CameraManager
-from core.template_manager import TemplateManager
 from core.history_buffer import HistoryBuffer
+from core.image_manager import ImageManager
+from core.template_manager import TemplateManager
 
 # Import services
 from services.camera_service import CameraService
@@ -33,7 +34,7 @@ class Managers:
         image_manager: ImageManager,
         camera_manager: CameraManager,
         template_manager: TemplateManager,
-        history_buffer: HistoryBuffer
+        history_buffer: HistoryBuffer,
     ):
         self.image_manager = image_manager
         self.camera_manager = camera_manager
@@ -59,13 +60,12 @@ def get_managers(request: Request) -> Managers:
             image_manager=request.app.state.image_manager,
             camera_manager=request.app.state.camera_manager,
             template_manager=request.app.state.template_manager,
-            history_buffer=request.app.state.history_buffer
+            history_buffer=request.app.state.history_buffer,
         )
     except AttributeError as e:
         logger.error(f"Managers not initialized in app state: {e}")
         raise HTTPException(
-            status_code=500,
-            detail="Internal server error: Managers not initialized"
+            status_code=500, detail="Internal server error: Managers not initialized"
         )
 
 
@@ -92,22 +92,18 @@ def get_history_buffer(managers: Managers = Depends(get_managers)) -> HistoryBuf
 # Common query parameters
 def common_pagination(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Number of items to return")
+    limit: int = Query(100, ge=1, le=1000, description="Number of items to return"),
 ) -> Dict[str, int]:
     """Common pagination parameters."""
     return {"offset": offset, "limit": limit}
 
 
-def image_id_param(
-    image_id: str = Path(..., description="Unique image identifier")
-) -> str:
+def image_id_param(image_id: str = Path(..., description="Unique image identifier")) -> str:
     """Common image ID path parameter."""
     return image_id
 
 
-def camera_id_param(
-    camera_id: str = Query("test", description="Camera identifier")
-) -> str:
+def camera_id_param(camera_id: str = Query("test", description="Camera identifier")) -> str:
     """Common camera ID query parameter."""
     return camera_id
 
@@ -116,7 +112,7 @@ def optional_roi_params(
     x: Optional[int] = Query(None, ge=0, description="ROI x coordinate"),
     y: Optional[int] = Query(None, ge=0, description="ROI y coordinate"),
     width: Optional[int] = Query(None, ge=1, description="ROI width"),
-    height: Optional[int] = Query(None, ge=1, description="ROI height")
+    height: Optional[int] = Query(None, ge=1, description="ROI height"),
 ) -> Optional[Dict[str, int]]:
     """Optional ROI query parameters."""
     if all(v is not None for v in [x, y, width, height]):
@@ -124,15 +120,14 @@ def optional_roi_params(
     elif any(v is not None for v in [x, y, width, height]):
         # Partial ROI parameters - invalid
         raise HTTPException(
-            status_code=400,
-            detail="ROI requires all parameters (x, y, width, height) or none"
+            status_code=400, detail="ROI requires all parameters (x, y, width, height) or none"
         )
     return None
 
 
 def validate_template_exists(
     template_id: str = Path(..., description="Template identifier"),
-    template_manager: TemplateManager = Depends(get_template_manager)
+    template_manager: TemplateManager = Depends(get_template_manager),
 ) -> str:
     """
     Validate that template exists.
@@ -148,17 +143,14 @@ def validate_template_exists(
         HTTPException: If template not found
     """
     templates = template_manager.list_templates()
-    if not any(t['id'] == template_id for t in templates):
-        raise HTTPException(
-            status_code=404,
-            detail=f"Template {template_id} not found"
-        )
+    if not any(t["id"] == template_id for t in templates):
+        raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
     return template_id
 
 
 # Authentication dependency (placeholder for future implementation)
 def optional_auth(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> Optional[str]:
     """
     Optional authentication check.
@@ -175,8 +167,7 @@ def optional_auth(
 
 # Rate limiting dependency (placeholder)
 def check_rate_limit(
-    user_id: Optional[str] = Depends(optional_auth),
-    request: Request = None
+    user_id: Optional[str] = Depends(optional_auth), request: Request = None
 ) -> None:
     """
     Check rate limits for the request.
@@ -190,7 +181,6 @@ def check_rate_limit(
     """
     # TODO: Implement actual rate limiting
     # Could use Redis or in-memory store to track request counts
-    pass
 
 
 # Configuration access
@@ -213,11 +203,7 @@ def get_config(request: Request) -> Dict[str, Any]:
 
 
 # Error response helper
-def error_response(
-    status_code: int,
-    message: str,
-    details: Optional[Dict] = None
-) -> HTTPException:
+def error_response(status_code: int, message: str, details: Optional[Dict] = None) -> HTTPException:
     """
     Create standardized error response.
 
@@ -239,7 +225,7 @@ def error_response(
 # Service layer dependencies
 def get_camera_service(
     camera_manager: CameraManager = Depends(get_camera_manager),
-    image_manager: ImageManager = Depends(get_image_manager)
+    image_manager: ImageManager = Depends(get_image_manager),
 ) -> CameraService:
     """
     Get camera service instance.
@@ -251,15 +237,10 @@ def get_camera_service(
     Returns:
         CameraService instance
     """
-    return CameraService(
-        camera_manager=camera_manager,
-        image_manager=image_manager
-    )
+    return CameraService(camera_manager=camera_manager, image_manager=image_manager)
 
 
-def get_image_service(
-    image_manager: ImageManager = Depends(get_image_manager)
-) -> ImageService:
+def get_image_service(image_manager: ImageManager = Depends(get_image_manager)) -> ImageService:
     """
     Get image service instance.
 
@@ -275,7 +256,7 @@ def get_image_service(
 def get_vision_service(
     image_manager: ImageManager = Depends(get_image_manager),
     template_manager: TemplateManager = Depends(get_template_manager),
-    history_buffer: HistoryBuffer = Depends(get_history_buffer)
+    history_buffer: HistoryBuffer = Depends(get_history_buffer),
 ) -> VisionService:
     """
     Get vision service instance.
@@ -291,5 +272,5 @@ def get_vision_service(
     return VisionService(
         image_manager=image_manager,
         template_manager=template_manager,
-        history_buffer=history_buffer
+        history_buffer=history_buffer,
     )

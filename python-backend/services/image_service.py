@@ -6,14 +6,14 @@ retrieval, processing, and metadata management.
 """
 
 import logging
-from typing import Optional, Dict, Tuple
+from typing import Dict, Optional, Tuple
+
 import numpy as np
 
-from core.image_manager import ImageManager
-from core.image_utils import ImageUtils
-from core.roi_handler import ROI, ROIHandler
-from core.constants import ImageConstants
 from api.exceptions import ImageNotFoundException
+from core.constants import ImageConstants
+from core.image_manager import ImageManager
+from core.roi_handler import ROI, ROIHandler
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +52,7 @@ class ImageService:
             raise ImageNotFoundException(image_id)
         return image
 
-    def store_image(
-        self,
-        image: np.ndarray,
-        metadata: Optional[Dict] = None
-    ) -> str:
+    def store_image(self, image: np.ndarray, metadata: Optional[Dict] = None) -> str:
         """
         Store image with optional metadata.
 
@@ -72,9 +68,7 @@ class ImageService:
         return image_id
 
     def get_image_with_thumbnail(
-        self,
-        image_id: str,
-        thumbnail_width: int = ImageConstants.DEFAULT_THUMBNAIL_WIDTH
+        self, image_id: str, thumbnail_width: int = ImageConstants.DEFAULT_THUMBNAIL_WIDTH
     ) -> Tuple[np.ndarray, str]:
         """
         Get image and its thumbnail.
@@ -91,19 +85,11 @@ class ImageService:
         """
         image = self.get_image(image_id)
 
-        _, thumbnail_base64 = self.image_manager.create_thumbnail(
-            image,
-            thumbnail_width
-        )
+        _, thumbnail_base64 = self.image_manager.create_thumbnail(image, thumbnail_width)
 
         return image, thumbnail_base64
 
-    def get_image_with_roi(
-        self,
-        image_id: str,
-        roi: ROI,
-        safe_mode: bool = True
-    ) -> np.ndarray:
+    def get_image_with_roi(self, image_id: str, roi: ROI, safe_mode: bool = True) -> np.ndarray:
         """
         Get image with ROI extracted.
 
@@ -128,9 +114,7 @@ class ImageService:
         return roi_image
 
     def create_thumbnail(
-        self,
-        image_id: str,
-        width: int = ImageConstants.DEFAULT_THUMBNAIL_WIDTH
+        self, image_id: str, width: int = ImageConstants.DEFAULT_THUMBNAIL_WIDTH
     ) -> str:
         """
         Create thumbnail for an image.
@@ -184,12 +168,12 @@ class ImageService:
             Number of images removed
         """
         stats_before = self.get_stats()
-        total_before = stats_before['total_images']
+        total_before = stats_before["total_images"]
 
         self.image_manager.cleanup()
 
         stats_after = self.get_stats()
-        total_after = stats_after['total_images']
+        total_after = stats_after["total_images"]
 
         removed = total_before - total_after
         if removed > 0:

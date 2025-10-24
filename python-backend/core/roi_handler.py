@@ -4,8 +4,9 @@ Centralizes ROI validation, extraction, and manipulation.
 """
 
 import logging
-from typing import Optional, Dict, Tuple, Union
 from dataclasses import dataclass
+from typing import Dict, Optional, Tuple, Union
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ROI:
     """Region of Interest data class."""
+
     x: int
     y: int
     width: int
@@ -21,32 +23,22 @@ class ROI:
 
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
-        return {
-            'x': self.x,
-            'y': self.y,
-            'width': self.width,
-            'height': self.height
-        }
+        return {"x": self.x, "y": self.y, "width": self.width, "height": self.height}
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'ROI':
+    def from_dict(cls, data: Dict) -> "ROI":
         """Create ROI from dictionary."""
         return cls(
-            x=int(data.get('x', 0)),
-            y=int(data.get('y', 0)),
-            width=int(data.get('width', 0)),
-            height=int(data.get('height', 0))
+            x=int(data.get("x", 0)),
+            y=int(data.get("y", 0)),
+            width=int(data.get("width", 0)),
+            height=int(data.get("height", 0)),
         )
 
     @classmethod
-    def from_points(cls, x1: int, y1: int, x2: int, y2: int) -> 'ROI':
+    def from_points(cls, x1: int, y1: int, x2: int, y2: int) -> "ROI":
         """Create ROI from two corner points."""
-        return cls(
-            x=min(x1, x2),
-            y=min(y1, y2),
-            width=abs(x2 - x1),
-            height=abs(y2 - y1)
-        )
+        return cls(x=min(x1, x2), y=min(y1, y2), width=abs(x2 - x1), height=abs(y2 - y1))
 
     @property
     def x2(self) -> int:
@@ -72,16 +64,13 @@ class ROI:
         """Check if point is inside ROI."""
         return self.x <= x < self.x2 and self.y <= y < self.y2
 
-    def intersects(self, other: 'ROI') -> bool:
+    def intersects(self, other: "ROI") -> bool:
         """Check if this ROI intersects with another."""
         return not (
-            self.x2 <= other.x or
-            other.x2 <= self.x or
-            self.y2 <= other.y or
-            other.y2 <= self.y
+            self.x2 <= other.x or other.x2 <= self.x or self.y2 <= other.y or other.y2 <= self.y
         )
 
-    def intersection(self, other: 'ROI') -> Optional['ROI']:
+    def intersection(self, other: "ROI") -> Optional["ROI"]:
         """Get intersection with another ROI."""
         if not self.intersects(other):
             return None
@@ -93,7 +82,7 @@ class ROI:
 
         return ROI.from_points(x1, y1, x2, y2)
 
-    def union(self, other: 'ROI') -> 'ROI':
+    def union(self, other: "ROI") -> "ROI":
         """Get union with another ROI."""
         x1 = min(self.x, other.x)
         y1 = min(self.y, other.y)
@@ -102,7 +91,7 @@ class ROI:
 
         return ROI.from_points(x1, y1, x2, y2)
 
-    def scale(self, factor: float, center: bool = False) -> 'ROI':
+    def scale(self, factor: float, center: bool = False) -> "ROI":
         """Scale ROI by factor."""
         new_width = int(self.width * factor)
         new_height = int(self.height * factor)
@@ -119,16 +108,13 @@ class ROI:
 
         return ROI(new_x, new_y, new_width, new_height)
 
-    def expand(self, pixels: int) -> 'ROI':
+    def expand(self, pixels: int) -> "ROI":
         """Expand ROI by pixels in all directions."""
         return ROI(
-            self.x - pixels,
-            self.y - pixels,
-            self.width + 2 * pixels,
-            self.height + 2 * pixels
+            self.x - pixels, self.y - pixels, self.width + 2 * pixels, self.height + 2 * pixels
         )
 
-    def clip(self, image_width: int, image_height: int) -> 'ROI':
+    def clip(self, image_width: int, image_height: int) -> "ROI":
         """Clip ROI to image bounds."""
         x = max(0, min(self.x, image_width))
         y = max(0, min(self.y, image_height))
@@ -137,7 +123,9 @@ class ROI:
 
         return ROI.from_points(x, y, x2, y2)
 
-    def is_valid(self, image_width: Optional[int] = None, image_height: Optional[int] = None) -> bool:
+    def is_valid(
+        self, image_width: Optional[int] = None, image_height: Optional[int] = None
+    ) -> bool:
         """
         Check if ROI is valid.
 
@@ -173,7 +161,7 @@ class ROIHandler:
         roi: Union[ROI, Dict],
         image_shape: Optional[Tuple[int, ...]] = None,
         min_size: int = 1,
-        max_size: Optional[int] = None
+        max_size: Optional[int] = None,
     ) -> Tuple[bool, Optional[str]]:
         """
         Validate ROI parameters.
@@ -216,10 +204,7 @@ class ROIHandler:
 
     @staticmethod
     def extract_roi(
-        image: np.ndarray,
-        roi: Union[ROI, Dict],
-        safe_mode: bool = True,
-        padding_value: int = 0
+        image: np.ndarray, roi: Union[ROI, Dict], safe_mode: bool = True, padding_value: int = 0
     ) -> Optional[np.ndarray]:
         """
         Extract ROI from image.
@@ -247,7 +232,7 @@ class ROIHandler:
                 logger.warning(f"ROI becomes empty after clipping: {roi.to_dict()}")
                 return None
 
-            return image[roi.y:roi.y2, roi.x:roi.x2].copy()
+            return image[roi.y : roi.y2, roi.x : roi.x2].copy()
 
         else:
             # Strict mode - check bounds
@@ -256,14 +241,10 @@ class ROIHandler:
                 logger.warning(f"Invalid ROI: {error_msg}")
                 return None
 
-            return image[roi.y:roi.y2, roi.x:roi.x2].copy()
+            return image[roi.y : roi.y2, roi.x : roi.x2].copy()
 
     @staticmethod
-    def extract_multiple_rois(
-        image: np.ndarray,
-        rois: list,
-        safe_mode: bool = True
-    ) -> list:
+    def extract_multiple_rois(image: np.ndarray, rois: list, safe_mode: bool = True) -> list:
         """
         Extract multiple ROIs from image.
 
@@ -287,10 +268,7 @@ class ROIHandler:
 
     @staticmethod
     def apply_roi_mask(
-        image: np.ndarray,
-        roi: Union[ROI, Dict],
-        mask_value: int = 0,
-        invert: bool = False
+        image: np.ndarray, roi: Union[ROI, Dict], mask_value: int = 0, invert: bool = False
     ) -> np.ndarray:
         """
         Apply ROI as mask to image.
@@ -312,7 +290,7 @@ class ROIHandler:
         mask = np.ones(image.shape[:2], dtype=bool)
 
         # Create mask
-        mask[roi.y:roi.y2, roi.x:roi.x2] = False
+        mask[roi.y : roi.y2, roi.x : roi.x2] = False
 
         if invert:
             mask = ~mask
@@ -326,10 +304,7 @@ class ROIHandler:
         return masked
 
     @staticmethod
-    def merge_overlapping_rois(
-        rois: list,
-        overlap_threshold: float = 0.5
-    ) -> list:
+    def merge_overlapping_rois(rois: list, overlap_threshold: float = 0.5) -> list:
         """
         Merge overlapping ROIs.
 

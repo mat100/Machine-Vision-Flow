@@ -2,12 +2,11 @@
 API Integration Tests for Template Endpoints
 """
 
-import pytest
-from fastapi.testclient import TestClient
-from main import app
 import io
-import numpy as np
+
 import cv2
+import numpy as np
+import pytest
 
 
 class TestTemplateAPI:
@@ -33,12 +32,7 @@ class TestTemplateAPI:
             "image_id": captured_image_id,
             "name": "Test Template",
             "description": "Template learned during integration test",
-            "roi": {
-                "x": 100,
-                "y": 100,
-                "width": 100,
-                "height": 100
-            }
+            "roi": {"x": 100, "y": 100, "width": 100, "height": 100},
         }
         response = client.post("/api/template/learn", json=request_data)
 
@@ -56,12 +50,7 @@ class TestTemplateAPI:
         request_data = {
             "image_id": captured_image_id,
             "name": "Full Image Template",
-            "roi": {
-                "x": 0,
-                "y": 0,
-                "width": 1920,
-                "height": 1080
-            }
+            "roi": {"x": 0, "y": 0, "width": 1920, "height": 1080},
         }
         response = client.post("/api/template/learn", json=request_data)
 
@@ -74,12 +63,7 @@ class TestTemplateAPI:
         request_data = {
             "image_id": "non-existent-id",
             "name": "Invalid Template",
-            "roi": {
-                "x": 100,
-                "y": 100,
-                "width": 100,
-                "height": 100
-            }
+            "roi": {"x": 100, "y": 100, "width": 100, "height": 100},
         }
         response = client.post("/api/template/learn", json=request_data)
 
@@ -90,12 +74,7 @@ class TestTemplateAPI:
         request_data = {
             "image_id": captured_image_id,
             "name": "Invalid ROI Template",
-            "roi": {
-                "x": 5000,  # Out of bounds
-                "y": 5000,
-                "width": 100,
-                "height": 100
-            }
+            "roi": {"x": 5000, "y": 5000, "width": 100, "height": 100},  # Out of bounds
         }
         response = client.post("/api/template/learn", json=request_data)
 
@@ -109,17 +88,12 @@ class TestTemplateAPI:
         test_image[25:75, 25:75] = 255  # White square in center
 
         # Encode as PNG
-        success, encoded = cv2.imencode('.png', test_image)
+        success, encoded = cv2.imencode(".png", test_image)
         assert success
 
         # Create file-like object
-        files = {
-            'file': ('test_template.png', io.BytesIO(encoded.tobytes()), 'image/png')
-        }
-        data = {
-            'name': 'Uploaded Template',
-            'description': 'Template uploaded via API'
-        }
+        files = {"file": ("test_template.png", io.BytesIO(encoded.tobytes()), "image/png")}
+        data = {"name": "Uploaded Template", "description": "Template uploaded via API"}
 
         response = client.post("/api/template/upload", files=files, data=data)
 
@@ -140,12 +114,7 @@ class TestTemplateAPI:
             request_data = {
                 "image_id": captured_image_id,
                 "name": f"Template {i+1}",
-                "roi": {
-                    "x": 100 + i * 50,
-                    "y": 100,
-                    "width": 100,
-                    "height": 100
-                }
+                "roi": {"x": 100 + i * 50, "y": 100, "width": 100, "height": 100},
             }
             client.post("/api/template/learn", json=request_data)
 
@@ -169,12 +138,7 @@ class TestTemplateAPI:
         request_data = {
             "image_id": captured_image_id,
             "name": "Template for Image Test",
-            "roi": {
-                "x": 100,
-                "y": 100,
-                "width": 100,
-                "height": 100
-            }
+            "roi": {"x": 100, "y": 100, "width": 100, "height": 100},
         }
         create_response = client.post("/api/template/learn", json=request_data)
         template_id = create_response.json()["template_id"]
@@ -202,12 +166,7 @@ class TestTemplateAPI:
         request_data = {
             "image_id": captured_image_id,
             "name": "Template to Delete",
-            "roi": {
-                "x": 100,
-                "y": 100,
-                "width": 100,
-                "height": 100
-            }
+            "roi": {"x": 100, "y": 100, "width": 100, "height": 100},
         }
         create_response = client.post("/api/template/learn", json=request_data)
         template_id = create_response.json()["template_id"]
@@ -242,7 +201,7 @@ class TestTemplateAPI:
         learn_data = {
             "image_id": image_id,
             "name": "Workflow Template",
-            "roi": {"x": 100, "y": 100, "width": 100, "height": 100}
+            "roi": {"x": 100, "y": 100, "width": 100, "height": 100},
         }
         learn_response = client.post("/api/template/learn", json=learn_data)
         template_id = learn_response.json()["template_id"]
@@ -250,11 +209,7 @@ class TestTemplateAPI:
         assert learn_response.status_code == 200
 
         # 3. Match template
-        match_data = {
-            "image_id": image_id,
-            "template_id": template_id,
-            "threshold": 0.5
-        }
+        match_data = {"image_id": image_id, "template_id": template_id, "threshold": 0.5}
         match_response = client.post("/api/vision/template-match", json=match_data)
 
         assert match_response.status_code == 200
@@ -268,12 +223,8 @@ class TestTemplateAPI:
     def test_upload_invalid_image_format(self, client):
         """Test uploading invalid file format"""
         # Create invalid file content
-        files = {
-            'file': ('invalid.txt', io.BytesIO(b'not an image'), 'text/plain')
-        }
-        data = {
-            'name': 'Invalid Upload'
-        }
+        files = {"file": ("invalid.txt", io.BytesIO(b"not an image"), "text/plain")}
+        data = {"name": "Invalid Upload"}
 
         response = client.post("/api/template/upload", files=files, data=data)
 

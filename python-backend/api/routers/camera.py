@@ -2,28 +2,20 @@
 Camera API Router
 """
 
+import asyncio
 import logging
-from typing import List, Optional
+import time
 from datetime import datetime
+from typing import List, Optional
+
+import cv2
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
-import cv2
-import asyncio
-import time
 
-from api.models import (
-    CameraInfo,
-    CameraConnectRequest,
-    CameraCaptureResponse,
-    Size
-)
-from api.dependencies import (
-    get_camera_service,
-    get_camera_manager,  # Still needed for stream endpoint
-    camera_id_param,
-    optional_roi_params
-)
+from api.dependencies import get_camera_manager  # Still needed for stream endpoint
+from api.dependencies import camera_id_param, get_camera_service, optional_roi_params
 from api.exceptions import safe_endpoint
+from api.models import CameraCaptureResponse, CameraConnectRequest, CameraInfo, Size
 from core.roi_handler import ROI
 
 logger = logging.getLogger(__name__)
@@ -33,20 +25,20 @@ router = APIRouter()
 
 @router.post("/list")
 @safe_endpoint
-async def list_cameras(camera_service = Depends(get_camera_service)) -> List[CameraInfo]:
+async def list_cameras(camera_service=Depends(get_camera_service)) -> List[CameraInfo]:
     """List available cameras"""
     cameras = camera_service.list_available_cameras()
 
     return [
         CameraInfo(
-            id=cam['id'],
-            name=cam['name'],
-            type=cam['type'],
+            id=cam["id"],
+            name=cam["name"],
+            type=cam["type"],
             resolution=Size(
-                width=cam.get('resolution', {}).get('width', 1920),
-                height=cam.get('resolution', {}).get('height', 1080)
+                width=cam.get("resolution", {}).get("width", 1920),
+                height=cam.get("resolution", {}).get("height", 1080),
             ),
-            connected=cam.get('connected', False)
+            connected=cam.get("connected", False),
         )
         for cam in cameras
     ]
@@ -55,8 +47,7 @@ async def list_cameras(camera_service = Depends(get_camera_service)) -> List[Cam
 @router.post("/connect")
 @safe_endpoint
 async def connect_camera(
-    request: CameraConnectRequest,
-    camera_service = Depends(get_camera_service)
+    request: CameraConnectRequest, camera_service=Depends(get_camera_service)
 ) -> dict:
     """Connect to a camera"""
     # Parse camera ID to get type and source
@@ -73,16 +64,10 @@ async def connect_camera(
 
     # Service handles connection and raises exception on failure
     camera_service.connect_camera(
-        camera_id=request.camera_id,
-        camera_type=camera_type,
-        source=source,
-        resolution=resolution
+        camera_id=request.camera_id, camera_type=camera_type, source=source, resolution=resolution
     )
 
-    return {
-        "success": True,
-        "message": f"Camera {request.camera_id} connected"
-    }
+    return {"success": True, "message": f"Camera {request.camera_id} connected"}
 
 
 @router.post("/capture")
@@ -90,7 +75,7 @@ async def connect_camera(
 async def capture_image(
     camera_id: str = Depends(camera_id_param),
     roi: Optional[dict] = Depends(optional_roi_params),
-    camera_service = Depends(get_camera_service)
+    camera_service=Depends(get_camera_service),
 ) -> CameraCaptureResponse:
     """Capture image from camera"""
     # Convert ROI dict to ROI object if provided
@@ -98,8 +83,7 @@ async def capture_image(
 
     # Service handles capture, ROI extraction, storage, and thumbnail creation
     image_id, thumbnail_base64, metadata = camera_service.capture_and_store(
-        camera_id=camera_id,
-        roi=roi_obj
+        camera_id=camera_id, roi=roi_obj
     )
 
     return CameraCaptureResponse(
@@ -107,44 +91,32 @@ async def capture_image(
         image_id=image_id,
         timestamp=datetime.now(),
         thumbnail_base64=thumbnail_base64,
-        metadata=metadata
+        metadata=metadata,
     )
 
 
 @router.get("/preview/{camera_id}")
 @safe_endpoint
-async def get_preview(
-    camera_id: str,
-    camera_service = Depends(get_camera_service)
-) -> dict:
+async def get_preview(camera_id: str, camera_service=Depends(get_camera_service)) -> dict:
     """Get preview image from camera"""
     # Service handles preview and thumbnail creation
-    _, thumbnail_base64 = camera_service.get_preview(
-        camera_id=camera_id,
-        create_thumbnail=True
-    )
+    _, thumbnail_base64 = camera_service.get_preview(camera_id=camera_id, create_thumbnail=True)
 
     return {
         "success": True,
         "thumbnail_base64": thumbnail_base64,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
 
 
 @router.delete("/disconnect/{camera_id}")
 @safe_endpoint
-async def disconnect_camera(
-    camera_id: str,
-    camera_service = Depends(get_camera_service)
-) -> dict:
+async def disconnect_camera(camera_id: str, camera_service=Depends(get_camera_service)) -> dict:
     """Disconnect camera"""
     # Service handles disconnection and raises exception on failure
     camera_service.disconnect_camera(camera_id)
 
-    return {
-        "success": True,
-        "message": f"Camera {camera_id} disconnected"
-    }
+    return {"success": True, "message": f"Camera {camera_id} disconnected"}
 
 
 # Store active streams to limit concurrent connections
@@ -153,9 +125,7 @@ active_streams = {}
 
 @router.get("/stream/{camera_id}")
 async def stream_mjpeg(
-    camera_id: str,
-    camera_manager = Depends(get_camera_manager),
-    request: Request = None
+    camera_id: str, camera_manager=Depends(get_camera_manager), request: Request = None
 ):
     """
     Stream MJPEG video from camera for live preview.
@@ -177,9 +147,9 @@ async def stream_mjpeg(
     active_streams[camera_id] = True
 
     # Get preview settings from config or use defaults
-    preview_resolution = config.get('preview', {}).get('resolution', [1280, 720])
-    preview_fps = config.get('preview', {}).get('fps', 15)
-    preview_quality = config.get('preview', {}).get('quality', 85)
+    preview_resolution = config.get("preview", {}).get("resolution", [1280, 720])
+    preview_fps = config.get("preview", {}).get("fps", 15)
+    preview_quality = config.get("preview", {}).get("quality", 85)
 
     frame_interval = 1.0 / preview_fps  # Time between frames
 
@@ -210,13 +180,12 @@ async def stream_mjpeg(
 
                 # Encode frame as JPEG
                 encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), preview_quality]
-                _, buffer = cv2.imencode('.jpg', frame, encode_param)
+                _, buffer = cv2.imencode(".jpg", frame, encode_param)
 
                 # Yield frame in MJPEG format
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' +
-                       buffer.tobytes() +
-                       b'\r\n')
+                yield (
+                    b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
+                )
 
                 last_frame_time = time.time()
 
@@ -233,11 +202,11 @@ async def stream_mjpeg(
         generate(),
         media_type="multipart/x-mixed-replace; boundary=frame",
         headers={
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            'Connection': 'close',
-        }
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "Connection": "close",
+        },
     )
 
 
