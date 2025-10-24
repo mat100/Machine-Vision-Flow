@@ -19,13 +19,8 @@ from api.dependencies import (
     get_vision_service,
     get_template_manager  # Still needed for upload, list, delete operations
 )
-from api.exceptions import (
-    ImageNotFoundException,
-    TemplateNotFoundException,
-    safe_endpoint
-)
-from core.constants import TemplateConstants, ErrorMessages
-from core.roi_handler import ROIHandler, ROI
+from api.exceptions import safe_endpoint, TemplateNotFoundException
+from core.roi_handler import ROI
 
 logger = logging.getLogger(__name__)
 

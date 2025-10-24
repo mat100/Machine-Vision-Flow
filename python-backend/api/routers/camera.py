@@ -4,10 +4,9 @@ Camera API Router
 
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Request, Depends, Query
-from fastapi.responses import StreamingResponse
 from datetime import datetime
-import numpy as np
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 import cv2
 import asyncio
 import time
@@ -22,15 +21,9 @@ from api.dependencies import (
     get_camera_service,
     get_camera_manager,  # Still needed for stream endpoint
     camera_id_param,
-    optional_roi_params,
-    validate_camera_exists
+    optional_roi_params
 )
-from api.exceptions import (
-    CameraNotFoundException,
-    CameraConnectionException,
-    safe_endpoint
-)
-from core.constants import CameraConstants, ImageConstants
+from api.exceptions import safe_endpoint
 from core.roi_handler import ROI
 
 logger = logging.getLogger(__name__)

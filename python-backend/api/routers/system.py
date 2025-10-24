@@ -10,7 +10,6 @@ from datetime import datetime
 
 from api.models import SystemStatus, PerformanceMetrics, DebugSettings
 from api.dependencies import (
-    get_managers,
     get_image_manager,
     get_camera_manager,
     get_history_buffer

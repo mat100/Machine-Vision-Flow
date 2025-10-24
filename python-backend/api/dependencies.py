@@ -130,56 +130,6 @@ def optional_roi_params(
     return None
 
 
-def validate_image_exists(
-    image_id: str = Depends(image_id_param),
-    image_manager: ImageManager = Depends(get_image_manager)
-) -> str:
-    """
-    Validate that image exists in storage.
-
-    Args:
-        image_id: Image identifier
-        image_manager: ImageManager instance
-
-    Returns:
-        Validated image_id
-
-    Raises:
-        HTTPException: If image not found
-    """
-    if image_id not in image_manager.cache:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Image {image_id} not found"
-        )
-    return image_id
-
-
-def validate_camera_exists(
-    camera_id: str = Depends(camera_id_param),
-    camera_manager: CameraManager = Depends(get_camera_manager)
-) -> str:
-    """
-    Validate that camera exists.
-
-    Args:
-        camera_id: Camera identifier
-        camera_manager: CameraManager instance
-
-    Returns:
-        Validated camera_id
-
-    Raises:
-        HTTPException: If camera not found
-    """
-    if camera_id not in camera_manager.cameras:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Camera {camera_id} not found"
-        )
-    return camera_id
-
-
 def validate_template_exists(
     template_id: str = Path(..., description="Template identifier"),
     template_manager: TemplateManager = Depends(get_template_manager)

@@ -8,21 +8,14 @@ from fastapi import APIRouter, Depends
 from api.models import (
     TemplateMatchRequest,
     TemplateMatchResponse,
-    TemplateMatchResult,
     EdgeDetectRequest,
-    BlobDetectRequest,
-    Point,
-    BoundingBox
+    BlobDetectRequest
 )
 from api.dependencies import (
     get_vision_service,
     get_image_manager  # Still needed for blob detection (placeholder)
 )
-from api.exceptions import (
-    ImageNotFoundException,
-    TemplateNotFoundException,
-    safe_endpoint
-)
+from api.exceptions import safe_endpoint
 from core.roi_handler import ROI
 
 logger = logging.getLogger(__name__)

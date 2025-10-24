@@ -4,12 +4,11 @@ History API Router - Inspection history management
 
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Request, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query
 
 from api.models import HistoryResponse, InspectionRecord
 from api.dependencies import get_history_buffer
 from api.exceptions import safe_endpoint
-from core.constants import HistoryConstants
 
 logger = logging.getLogger(__name__)
 
