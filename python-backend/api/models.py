@@ -25,6 +25,15 @@ class InspectionResult(str, Enum):
     ERROR = "ERROR"
 
 
+class VisionObjectType(str, Enum):
+    """Types of vision objects"""
+
+    CAMERA_CAPTURE = "camera_capture"
+    EDGE_CONTOUR = "edge_contour"
+    TEMPLATE_MATCH = "template_match"
+    COLOR_REGION = "color_region"
+
+
 # Common models
 class ROI(BaseModel):
     """Region of Interest"""
@@ -234,15 +243,6 @@ class EdgeDetectRequest(BaseModel):
     )
     morphology_kernel: Optional[int] = Field(3, ge=1, description="Morphological kernel size")
     equalize_enabled: Optional[bool] = Field(False, description="Enable histogram equalization")
-
-
-class BlobDetectRequest(BaseModel):
-    """Request for blob detection"""
-
-    image_id: str
-    min_area: Optional[int] = 100
-    max_area: Optional[int] = 10000
-    circularity: Optional[float] = None
 
 
 class ColorDetectRequest(BaseModel):

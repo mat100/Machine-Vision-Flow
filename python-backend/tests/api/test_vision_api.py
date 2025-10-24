@@ -342,17 +342,6 @@ class TestVisionAPI:
             for obj in data["objects"]:
                 assert 50 <= obj["perimeter"] <= 1000
 
-    def test_blob_detect_placeholder(self, client, captured_image_id):
-        """Test blob detection endpoint (placeholder)"""
-        request_data = {"image_id": captured_image_id}
-        response = client.post("/api/vision/blob-detect", json=request_data)
-
-        assert response.status_code == 200
-        data = response.json()
-        # success removed from response
-        # Currently returns placeholder message
-        assert "message" in data or "blob_count" in data
-
     def test_color_detect_with_roi(self, client, captured_image_id):
         """Test color detection with ROI (bounding_box from edge detection)"""
         # First run edge detection to get a bounding box

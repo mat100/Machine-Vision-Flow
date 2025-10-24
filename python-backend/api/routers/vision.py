@@ -6,16 +6,9 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from api.dependencies import get_image_manager  # Still needed for blob detection (placeholder)
 from api.dependencies import get_vision_service
 from api.exceptions import safe_endpoint
-from api.models import (
-    BlobDetectRequest,
-    ColorDetectRequest,
-    EdgeDetectRequest,
-    TemplateMatchRequest,
-    VisionResponse,
-)
+from api.models import ColorDetectRequest, EdgeDetectRequest, TemplateMatchRequest, VisionResponse
 
 logger = logging.getLogger(__name__)
 
@@ -100,20 +93,6 @@ async def edge_detect(
         thumbnail_base64=thumbnail_base64,
         processing_time_ms=processing_time,
     )
-
-
-@router.post("/blob-detect")
-@safe_endpoint
-async def blob_detect(request: BlobDetectRequest, image_manager=Depends(get_image_manager)) -> dict:
-    """Perform blob detection"""
-    # Placeholder implementation
-    return {
-        "success": True,
-        "blob_count": 0,
-        "blobs": [],
-        "processing_time_ms": 0,
-        "message": "Blob detection not yet implemented",
-    }
 
 
 @router.post("/color-detect")

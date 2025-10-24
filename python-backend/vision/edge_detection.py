@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 import cv2
 import numpy as np
 
-from api.models import ROI, Point, VisionObject
+from api.models import ROI, Point, VisionObject, VisionObjectType
 
 
 class EdgeMethod(str, Enum):
@@ -301,7 +301,7 @@ class EdgeDetector:
         for i, contour_dict in enumerate(contours):
             obj = VisionObject(
                 object_id=f"contour_{i}",
-                object_type="edge_contour",
+                object_type=VisionObjectType.EDGE_CONTOUR.value,
                 bounding_box=ROI(**contour_dict["bounding_box"]),
                 center=Point(**contour_dict["center"]),
                 confidence=1.0,  # Contours are binary (found/not found)
