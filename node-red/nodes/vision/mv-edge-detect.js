@@ -94,61 +94,53 @@ module.exports = function(RED) {
 
                 const result = response.data;
 
-                // Update status
-                if (result.edges_found) {
-                    node.status({
-                        fill: "green",
-                        shape: "dot",
-                        text: `${result.contour_count} contours found`
-                    });
-                } else {
+                // 0 objects = send nothing
+                if (!result.objects || result.objects.length === 0) {
                     node.status({
                         fill: "yellow",
                         shape: "ring",
                         text: "no edges found"
                     });
+                    done();
+                    return;
                 }
 
-                // Build detection object
-                const detection = {
-                    node_id: node.id,
-                    name: node.name || "Edge Detection",
-                    type: "edge_detection",
-                    method: node.method,
-                    params: {
-                        method: node.method,
-                        min_contour_area: requestData.min_contour_area,
-                        max_contour_area: requestData.max_contour_area
-                    },
-                    duration_ms: result.processing_time_ms,
-                    result: {
-                        found: result.edges_found,
-                        contour_count: result.contour_count,
-                        edge_pixels: result.edge_pixels,
-                        edge_ratio: result.edge_ratio,
-                        contours: result.contours || []
-                    }
-                };
+                // Send N messages for N objects
+                const timestamp = msg.payload?.timestamp || new Date().toISOString();
 
-                // Add detection to message chain
-                if (!msg.detections) {
-                    msg.detections = [];
-                }
-                msg.detections.push(detection);
+                for (let i = 0; i < result.objects.length; i++) {
+                    const obj = result.objects[i];
+                    const outputMsg = RED.util.cloneMessage(msg);
 
-                // Update message
-                msg.payload = {
-                    image_id: imageId,
-                    detection: detection,
-                    thumbnail_base64: result.thumbnail_base64
-                };
+                    // Build VisionObject in payload
+                    outputMsg.payload = {
+                        object_id: obj.object_id,
+                        object_type: obj.object_type,
+                        image_id: imageId,
+                        timestamp: timestamp,
+                        bounding_box: obj.bounding_box,
+                        center: obj.center,
+                        confidence: obj.confidence,
+                        area: obj.area,
+                        perimeter: obj.perimeter,
+                        thumbnail: result.thumbnail_base64,  // MVP: same for all
+                        properties: obj.properties
+                    };
 
-                // Add thumbnail for display
-                if (result.thumbnail_base64) {
-                    msg.thumbnail = result.thumbnail_base64;
+                    // Metadata in root
+                    outputMsg.success = true;
+                    outputMsg.processing_time_ms = result.processing_time_ms;
+                    outputMsg.node_name = node.name || "Edge Detection";
+
+                    send(outputMsg);
                 }
 
-                send(msg);
+                node.status({
+                    fill: "green",
+                    shape: "dot",
+                    text: `sent ${result.objects.length} messages`
+                });
+
                 done();
 
             } catch (error) {

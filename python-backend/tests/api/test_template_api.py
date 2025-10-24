@@ -213,7 +213,9 @@ class TestTemplateAPI:
         match_response = client.post("/api/vision/template-match", json=match_data)
 
         assert match_response.status_code == 200
-        assert match_response.json()["success"] is True
+        data = match_response.json()
+        assert "objects" in data
+        assert "thumbnail_base64" in data
 
         # 4. Delete template
         delete_response = client.delete(f"/api/template/{template_id}")

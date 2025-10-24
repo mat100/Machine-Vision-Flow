@@ -61,22 +61,42 @@ module.exports = function(RED) {
                 );
 
                 if (response.data.success) {
-                    // Build output message
+                    const metadata = response.data.metadata;
+                    const imageId = response.data.image_id;
+
+                    // Build VisionObject in payload
                     msg.payload = {
-                        image_id: response.data.image_id,
+                        object_id: `img_${imageId.substring(0, 8)}`,
+                        object_type: "camera_capture",
+                        image_id: imageId,
                         timestamp: response.data.timestamp,
-                        thumbnail_base64: response.data.thumbnail_base64,
-                        metadata: response.data.metadata
+                        bounding_box: {
+                            x: 0,
+                            y: 0,
+                            width: metadata.width,
+                            height: metadata.height
+                        },
+                        center: {
+                            x: metadata.width / 2,
+                            y: metadata.height / 2
+                        },
+                        confidence: 1.0,
+                        thumbnail: response.data.thumbnail_base64,
+                        properties: {
+                            camera_id: node.cameraId,
+                            resolution: [metadata.width, metadata.height]
+                        }
                     };
 
-                    // Store image_id for downstream nodes
-                    msg.image_id = response.data.image_id;
-                    msg.thumbnail = response.data.thumbnail_base64;
+                    // Metadata in root
+                    msg.success = true;
+                    msg.processing_time_ms = 0;
+                    msg.node_name = node.name || "Camera Capture";
 
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: `captured: ${response.data.image_id.substring(0, 8)}...`
+                        text: `captured: ${imageId.substring(0, 8)}...`
                     });
 
                     send(msg);

@@ -65,7 +65,7 @@ class TestVisionService:
     def test_template_match_with_roi(
         self, mock_image_manager, mock_template_manager, mock_history_buffer
     ):
-        """Test template matching with ROI"""
+        """Test template matching without ROI (ROI removed from API)"""
         service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
 
         test_image = np.zeros((480, 640, 3), dtype=np.uint8)
@@ -75,9 +75,9 @@ class TestVisionService:
         mock_template_manager.get_template.return_value = test_template
         mock_image_manager.create_thumbnail.return_value = (test_image, "base64-thumb")
 
-        roi = ROI(x=100, y=100, width=300, height=200)
+        # ROI functionality removed - use full image
         matches, thumbnail, processing_time = service.template_match(
-            image_id="test-img", template_id="test-tmpl", threshold=0.8, roi=roi
+            image_id="test-img", template_id="test-tmpl", threshold=0.8
         )
 
         assert thumbnail is not None
@@ -154,8 +154,8 @@ class TestVisionService:
         )
 
         assert result["success"] is True
-        assert "edges_found" in result
-        assert "contour_count" in result
+        assert "objects" in result
+        assert isinstance(result["objects"], list)
         assert thumbnail == "base64-thumb"
         assert processing_time > 0
         mock_history_buffer.add_inspection.assert_called_once()
@@ -257,7 +257,7 @@ class TestVisionServiceIntegration:
         assert result["success"] is True
         assert thumbnail is not None
         assert processing_time > 0
-        assert result["contour_count"] >= 0
+        assert len(result["objects"]) >= 0
 
     def test_learn_template_integration(self, vision_service, test_image, image_manager):
         """Test learning template with real managers"""

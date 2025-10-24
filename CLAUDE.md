@@ -65,7 +65,8 @@ node-red
 - **Shared Memory Images**: Full images in shared memory, only UUIDs passed around
 - **Base64 Thumbnails**: Only small previews (320px) sent to Node-RED
 - **Message-Driven**: Manual triggers, not automatic/periodic capture
-- **Parallel Processing**: Multiple detections run simultaneously on same image
+- **One Object Per Message**: Detection nodes send N messages for N detected objects
+- **Unified Message Format**: All nodes use VisionObject in msg.payload
 
 ### Core Components
 
@@ -75,44 +76,90 @@ node-red
 - **core/camera_manager.py:341** - USB/IP/test camera abstraction, MJPEG streaming
 - **core/template_manager.py:324** - Template file storage, learning from ROI
 - **core/history_buffer.py:334** - Circular buffer for inspection records
+- **api/models.py:60** - VisionObject and VisionResponse (standard interface)
 - **api/routers/camera.py:250+** - Capture, preview, stream endpoints
-- **api/routers/vision.py:300+** - Template match, edge detect endpoints
+- **api/routers/vision.py:300+** - Template match, edge detect, color detect endpoints
 - **vision/edge_detection.py:392** - Canny, Sobel, Laplacian methods
+- **vision/color_detection.py** - Histogram and K-means dominant color detection
+- **vision/color_definitions.py** - Standard HSV color ranges (10 colors)
+- **services/vision_service.py** - Business logic for all vision operations
 
 #### Node-RED Custom Nodes (`node-red/nodes/`)
-- **camera/mv-camera-capture** - Triggers capture, returns image_id + thumbnail
-- **vision/mv-template-match** - Calls template matching API with ROI/threshold
-- **analysis/mv-result-merger** - Collects parallel results, applies pass/fail logic
+- **camera/mv-camera-capture** - Triggers capture, returns VisionObject with image_id
+- **vision/mv-template-match** - Template matching, sends N messages for N matches
+- **vision/mv-edge-detect** - Edge detection with 6 methods, sends N messages for N contours
+- **vision/mv-color-detect** - Dominant color detection, auto-uses msg.payload.bounding_box if present
+- **vision/mv-roi-extract** - Extracts ROI from full image for focused processing
 - **output/mv-overlay** - Annotates images with detection results
 
-### Data Flow Pattern
+### Data Flow Patterns
+
+**Pattern 1: Simple Sequential Processing**
 ```
-[Trigger] → [Camera: capture once] → image_id + thumbnail
+[Trigger] → [Camera Capture] → VisionObject with image_id
                     ↓
-         ┌→ [Detection 1] →┐
-         ├→ [Detection 2] →├→ [Merger: wait & decide] → PASS/FAIL
-         └→ [Detection 3] →┘
-         (parallel processing)
+            [Template Match] → sends N messages (one per match)
+                    ↓
+            [Application Logic] → decides PASS/FAIL based on objects
 ```
 
-### Message Structure Evolution
+**Pattern 2: Parallel Detection Branches**
+```
+[Camera Capture] → VisionObject
+         ↓
+         ├→ [Edge Detect] → N messages (contours)
+         ├→ [Template Match] → N messages (matches)
+         └→ [Color Detect] → 1 message (if found)
+              ↓ ↓ ↓
+         [Application aggregates results]
+```
+
+**Pattern 3: ROI-based Color Analysis**
+```
+[Camera Capture] → full image
+       ↓
+[Edge Detect] → finds 3 contours, sends 3 messages (each with bounding_box)
+       ↓ ↓ ↓
+  [Color Detect] → automatically analyzes bounding_box area from each message
+       ↓ ↓ ↓
+  [Application Logic] → counts red regions, decides PASS/FAIL
+
+Note: Color Detect automatically uses msg.payload.bounding_box if present,
+      otherwise analyzes full image. No ROI Extract node needed.
+```
+
+### Unified Message Format
+
+**ALL vision nodes use this standard format:**
+
 ```javascript
-// After camera capture
-msg = {
-    image_id: "uuid",
-    thumbnail: "base64..."
+// msg.payload = VisionObject (always)
+msg.payload = {
+    object_id: "contour_0",           // Unique ID for this object
+    object_type: "edge_contour",      // Type: camera_capture | edge_contour | template_match | color_region
+    image_id: "uuid-of-full-image",   // Reference to shared memory image
+    timestamp: "2025-10-24T10:30:00", // ISO format
+    bounding_box: {x, y, width, height},
+    center: {x, y},
+    confidence: 0.95,                 // 0.0-1.0
+    area: 30000.0,                    // Optional
+    perimeter: 700.0,                 // Optional
+    thumbnail: "base64...",           // 320px preview with overlays
+    properties: {}                    // Node-specific data
 }
 
-// After each detection (accumulates)
-msg.detections = [
-    { node_id: "tm1", found: true, score: 0.92, position: {x,y} },
-    { node_id: "tm2", found: false }
-]
-
-// After merger
-msg.result = "PASS" // or "FAIL"
-msg.summary = { passed: 2, failed: 1, total: 3 }
+// Metadata in message root
+msg.success = true;
+msg.processing_time_ms = 45;
+msg.node_name = "Edge Detection";
 ```
+
+**Important Rules:**
+- **1 object = 1 message**: Detection nodes send multiple messages if they find multiple objects
+- **0 objects = send nothing**: No message is sent if nothing is detected
+- **No arrays**: No `msg.objects[]` or `msg.detections[]` arrays
+- **Data in payload**: All vision data goes in `msg.payload` as VisionObject
+- **Metadata in root**: Processing info (success, time, node name) in `msg.*`
 
 ## Key Technical Details
 
@@ -122,20 +169,60 @@ msg.summary = { passed: 2, failed: 1, total: 3 }
 - **Image IDs**: UUIDs reference shared memory locations
 - **Cleanup**: LRU eviction when limits reached
 
-### Result Merger Logic
-- Waits for N inputs or timeout (1000ms default)
-- Decision rules: all_pass, any_pass, min_count, custom JavaScript
-- Groups results by image_id for correlation
-- Outputs combined result with all detection details
+### Standard Object Interface
+
+All vision detection APIs use a unified format:
+
+**VisionObject** - Universal object representation (Python model):
+```python
+{
+    "object_id": "contour_0",
+    "object_type": "edge_contour" | "template_match" | "color_region" | "camera_capture",
+    "image_id": "uuid",  # Optional, added by Node-RED
+    "timestamp": "2025-10-24T10:30:00",  # Optional, added by Node-RED
+    "bounding_box": {"x": 100, "y": 50, "width": 200, "height": 150},
+    "center": {"x": 200, "y": 125},
+    "confidence": 0.85,  # 0.0-1.0
+    "area": 30000.0,     # Optional
+    "perimeter": 700.0,  # Optional
+    "rotation": 0.0,     # Optional
+    "properties": {},    # Type-specific data
+    "raw_contour": []    # Optional, for edge detection
+}
+```
+
+**VisionResponse** - Standard API response (Python model):
+```python
+{
+    "objects": [VisionObject, ...],  # List of detected objects (can be empty)
+    "thumbnail_base64": "...",       # 320px preview with overlays
+    "processing_time_ms": 45
+}
+```
 
 ### API Endpoints
 ```
 POST /api/camera/capture?camera_id=test     # Returns image_id + thumbnail
 POST /api/vision/template-match             # Template matching with ROI
-POST /api/vision/edge-detect                # Edge detection
+POST /api/vision/edge-detect                # Edge detection (6 methods)
+POST /api/vision/color-detect               # Dominant color detection (auto)
 GET  /api/camera/stream/{id}                # MJPEG live stream
 POST /api/templates/learn                   # Learn template from ROI
 ```
+
+### Color Detection
+
+**Available Colors** (predefined HSV ranges):
+- Chromatic: red, orange, yellow, green, cyan, blue, purple
+- Achromatic: white, black, gray
+
+**Detection Methods**:
+- `histogram` - Fast histogram peak detection
+- `kmeans` - K-means clustering (more accurate, slower)
+
+**Two Modes**:
+1. **Detection only**: Returns dominant color found (no expected color)
+2. **Color matching**: Checks if dominant color matches expected color + min percentage
 
 ### Development Ports
 - Python Backend: `http://localhost:8000`

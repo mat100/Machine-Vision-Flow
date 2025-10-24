@@ -58,70 +58,59 @@ module.exports = function(RED) {
                     request
                 );
 
-                if (response.data.success) {
-                    // Add detection result to message
-                    const detection = {
-                        node_id: node.id,
-                        name: config.name || "Template Match",
-                        type: "template_match",
-                        template_id: templateId,
-                        found: response.data.found,
-                        matches: response.data.matches,
-                        processing_time_ms: response.data.processing_time_ms
-                    };
+                const result = response.data;
 
-                    // Build output message
-                    msg.payload = {
-                        image_id: imageId,
-                        thumbnail_base64: response.data.thumbnail_base64,
-                        detection: detection
-                    };
-
-                    // Add to detection chain
-                    if (!msg.detections) {
-                        msg.detections = [];
-                    }
-                    msg.detections.push(detection);
-
-                    // Update thumbnail with overlay
-                    msg.thumbnail = response.data.thumbnail_base64;
-
-                    // Set status
-                    const statusText = response.data.found
-                        ? `found: ${response.data.matches.length} match(es)`
-                        : "not found";
-                    const statusColor = response.data.found ? "green" : "yellow";
-
+                // 0 objects = send nothing
+                if (!result.objects || result.objects.length === 0) {
                     node.status({
-                        fill: statusColor,
-                        shape: "dot",
-                        text: statusText
+                        fill: "yellow",
+                        shape: "ring",
+                        text: "not found"
                     });
-
-                    send(msg);
                     done();
-                } else {
-                    throw new Error('Template matching failed');
+                    return;
                 }
+
+                // Send N messages for N objects
+                const timestamp = msg.payload?.timestamp || new Date().toISOString();
+
+                for (let i = 0; i < result.objects.length; i++) {
+                    const obj = result.objects[i];
+                    const outputMsg = RED.util.cloneMessage(msg);
+
+                    // Build VisionObject in payload
+                    outputMsg.payload = {
+                        object_id: obj.object_id,
+                        object_type: obj.object_type,
+                        image_id: imageId,
+                        timestamp: timestamp,
+                        bounding_box: obj.bounding_box,
+                        center: obj.center,
+                        confidence: obj.confidence,
+                        thumbnail: result.thumbnail_base64,  // MVP: same for all
+                        properties: obj.properties
+                    };
+
+                    // Metadata in root
+                    outputMsg.success = true;
+                    outputMsg.processing_time_ms = result.processing_time_ms;
+                    outputMsg.node_name = node.name || "Template Match";
+
+                    send(outputMsg);
+                }
+
+                node.status({
+                    fill: "green",
+                    shape: "dot",
+                    text: `sent ${result.objects.length} messages`
+                });
+
+                done();
 
             } catch (error) {
                 const errorMsg = error.response?.data?.detail || error.message;
                 node.error(`Template matching failed: ${errorMsg}`, msg);
-                node.status({fill: "red", shape: "dot", text: "matching failed"});
-
-                // Still pass the message but mark as failed
-                if (!msg.detections) {
-                    msg.detections = [];
-                }
-                msg.detections.push({
-                    node_id: node.id,
-                    name: config.name || "Template Match",
-                    type: "template_match",
-                    found: false,
-                    error: errorMsg
-                });
-
-                send(msg);
+                node.status({fill: "red", shape: "ring", text: "error"});
                 done(error);
             }
         });

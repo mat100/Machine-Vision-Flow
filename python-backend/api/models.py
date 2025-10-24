@@ -56,6 +56,48 @@ class BoundingBox(BaseModel):
     bottom_right: Point
 
 
+# Standard vision detection models
+class VisionObject(BaseModel):
+    """
+    Universal interface for any vision processing object.
+    (camera capture, contour, template, color region, etc.)
+    Provides standardized location, geometry, and quality information.
+    """
+
+    # Identification
+    object_id: str = Field(..., description="Unique ID of this object")
+    object_type: str = Field(
+        ...,
+        description="Type: camera_capture, edge_contour, template_match, etc.",
+    )
+
+    # Position & Geometry (standardized ROI)
+    bounding_box: ROI = Field(..., description="Bounding box in {x, y, width, height} format")
+    center: Point = Field(..., description="Center point of the object")
+
+    # Quality
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0.0 - 1.0)")
+
+    # Optional geometry
+    area: Optional[float] = Field(None, description="Area in pixels")
+    perimeter: Optional[float] = Field(None, description="Perimeter in pixels")
+    rotation: Optional[float] = Field(None, description="Rotation in degrees (0-360)")
+
+    # Type-specific properties
+    properties: Dict[str, Any] = Field(default_factory=dict, description="Type-specific properties")
+
+    # Raw data (optional)
+    raw_contour: Optional[List] = Field(None, description="Raw contour points for edge detection")
+
+
+class VisionResponse(BaseModel):
+    """Simplified response for all vision processing APIs"""
+
+    objects: List[VisionObject] = Field(default_factory=list, description="List of vision objects")
+    thumbnail_base64: str = Field(..., description="Base64-encoded thumbnail with visualization")
+    processing_time_ms: int = Field(..., description="Processing time in milliseconds")
+
+
 # Camera models
 class CameraInfo(BaseModel):
     """Camera information"""
@@ -125,26 +167,6 @@ class TemplateMatchRequest(BaseModel):
     scale_range: Optional[List[float]] = [0.8, 1.2]
     rotation: bool = False
     rotation_range: Optional[List[float]] = [-10, 10]
-
-
-class TemplateMatchResult(BaseModel):
-    """Single template match result"""
-
-    position: Point
-    score: float
-    scale: float = 1.0
-    rotation: float = 0.0
-    bounding_box: BoundingBox
-
-
-class TemplateMatchResponse(BaseModel):
-    """Response from template matching"""
-
-    success: bool
-    found: bool
-    matches: List[TemplateMatchResult]
-    processing_time_ms: int
-    thumbnail_base64: str
 
 
 class EdgeDetectRequest(BaseModel):
@@ -223,6 +245,22 @@ class BlobDetectRequest(BaseModel):
     circularity: Optional[float] = None
 
 
+class ColorDetectRequest(BaseModel):
+    """Request for color detection"""
+
+    image_id: str = Field(..., description="ID of the image to analyze")
+    roi: Optional[ROI] = Field(None, description="Region of interest (if None, analyze full image)")
+    expected_color: Optional[str] = Field(
+        None, description="Expected color name (red, blue, green, etc.) or None to just detect"
+    )
+    min_percentage: float = Field(
+        50.0, ge=0.0, le=100.0, description="Minimum percentage for match"
+    )
+    method: str = Field(
+        "histogram", description="Detection method: histogram (fast) or kmeans (accurate)"
+    )
+
+
 # History models
 class InspectionRecord(BaseModel):
     """Single inspection record"""
@@ -271,28 +309,6 @@ class DebugSettings(BaseModel):
     save_images: bool
     show_overlays: bool
     verbose_logging: bool
-
-
-# Result merger models
-class DetectionResult(BaseModel):
-    """Single detection result for merger"""
-
-    node_id: str
-    name: str
-    type: str
-    found: bool
-    score: Optional[float] = None
-    details: Optional[Dict[str, Any]] = None
-
-
-class MergedResults(BaseModel):
-    """Merged results from multiple detections"""
-
-    image_id: str
-    all_detections: List[DetectionResult]
-    summary: Dict[str, Any]
-    result: InspectionResult
-    failed_checks: List[str]
 
 
 # Image processing models

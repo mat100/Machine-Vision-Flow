@@ -11,9 +11,10 @@ from api.dependencies import get_vision_service
 from api.exceptions import safe_endpoint
 from api.models import (
     BlobDetectRequest,
+    ColorDetectRequest,
     EdgeDetectRequest,
     TemplateMatchRequest,
-    TemplateMatchResponse,
+    VisionResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,10 +26,10 @@ router = APIRouter()
 @safe_endpoint
 async def template_match(
     request: TemplateMatchRequest, vision_service=Depends(get_vision_service)
-) -> TemplateMatchResponse:
+) -> VisionResponse:
     """Perform template matching"""
     # Service handles all template matching logic, history recording, and thumbnail creation
-    matches, thumbnail_base64, processing_time = vision_service.template_match(
+    detected_objects, thumbnail_base64, processing_time = vision_service.template_match(
         image_id=request.image_id,
         template_id=request.template_id,
         method=request.method.value,
@@ -36,12 +37,10 @@ async def template_match(
         record_history=True,
     )
 
-    return TemplateMatchResponse(
-        success=True,
-        found=len(matches) > 0,
-        matches=matches,
-        processing_time_ms=processing_time,
+    return VisionResponse(
+        objects=detected_objects,
         thumbnail_base64=thumbnail_base64,
+        processing_time_ms=processing_time,
     )
 
 
@@ -49,7 +48,7 @@ async def template_match(
 @safe_endpoint
 async def edge_detect(
     request: EdgeDetectRequest, vision_service=Depends(get_vision_service)
-) -> dict:
+) -> VisionResponse:
     """Perform edge detection with multiple methods"""
     # Build params dict from explicit fields
     params = {
@@ -96,19 +95,11 @@ async def edge_detect(
         record_history=True,
     )
 
-    return {
-        "success": result["success"],
-        "edges_found": result["edges_found"],
-        "contour_count": result["contour_count"],
-        "contours": result["contours"][:10],  # Limit to first 10 for response size
-        "edge_pixels": result["edge_pixels"],
-        "edge_ratio": result["edge_ratio"],
-        "processing_time_ms": processing_time,
-        "thumbnail_base64": thumbnail_base64,
-        "visualization": (
-            result["visualization"] if params.get("include_visualization", False) else None
-        ),
-    }
+    return VisionResponse(
+        objects=result["objects"],
+        thumbnail_base64=thumbnail_base64,
+        processing_time_ms=processing_time,
+    )
 
 
 @router.post("/blob-detect")
@@ -123,3 +114,41 @@ async def blob_detect(request: BlobDetectRequest, image_manager=Depends(get_imag
         "processing_time_ms": 0,
         "message": "Blob detection not yet implemented",
     }
+
+
+@router.post("/color-detect")
+@safe_endpoint
+async def color_detect(
+    request: ColorDetectRequest, vision_service=Depends(get_vision_service)
+) -> VisionResponse:
+    """Perform color detection with automatic dominant color recognition"""
+    # Convert ROI model to dict if provided
+    roi_dict = None
+    if request.roi is not None:
+        roi_dict = {
+            "x": request.roi.x,
+            "y": request.roi.y,
+            "width": request.roi.width,
+            "height": request.roi.height,
+        }
+
+    # Call vision service
+    detected_object, thumbnail_base64, processing_time = vision_service.color_detect(
+        image_id=request.image_id,
+        roi=roi_dict,
+        expected_color=request.expected_color,
+        min_percentage=request.min_percentage,
+        method=request.method,
+        record_history=True,
+    )
+
+    # Return object only if match or no expected color
+    objects = []
+    if detected_object.properties["match"] or request.expected_color is None:
+        objects = [detected_object]
+
+    return VisionResponse(
+        objects=objects,
+        thumbnail_base64=thumbnail_base64,
+        processing_time_ms=processing_time,
+    )

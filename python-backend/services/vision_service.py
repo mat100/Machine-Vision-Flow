@@ -13,11 +13,12 @@ import cv2
 import numpy as np
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
-from api.models import BoundingBox, Point, TemplateMatchResult
+from api.models import ROI, Point, VisionObject
 from core.history_buffer import HistoryBuffer
 from core.image_manager import ImageManager
-from core.roi_handler import ROI, ROIHandler
+from core.roi_handler import ROIHandler
 from core.template_manager import TemplateManager
+from vision.color_detection import ColorDetector
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ class VisionService:
         self.image_manager = image_manager
         self.template_manager = template_manager
         self.history_buffer = history_buffer
+        self.color_detector = ColorDetector()
 
     def template_match(
         self,
@@ -55,7 +57,7 @@ class VisionService:
         method: str = "TM_CCOEFF_NORMED",
         threshold: float = 0.8,
         record_history: bool = True,
-    ) -> Tuple[List[TemplateMatchResult], str, int]:
+    ) -> Tuple[List[VisionObject], str, int]:
         """
         Perform template matching on an image.
 
@@ -67,7 +69,7 @@ class VisionService:
             record_history: Whether to record in history
 
         Returns:
-            Tuple of (matches, thumbnail_base64, processing_time_ms)
+            Tuple of (detected_objects, thumbnail_base64, processing_time_ms)
 
         Raises:
             ImageNotFoundException: If image not found
@@ -101,7 +103,7 @@ class VisionService:
         result = cv2.matchTemplate(search_gray, template_gray, cv_method)
 
         # Find matches above threshold
-        matches = []
+        detected_objects = []
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
         # For SQDIFF methods, lower is better
@@ -120,37 +122,40 @@ class VisionService:
                 score = 0
                 loc = None
 
-        # Create result if match found
+        # Create DetectedObject if match found
         if loc is not None:
             x = loc[0]
             y = loc[1]
+            w = template.shape[1]
+            h = template.shape[0]
 
-            matches.append(
-                TemplateMatchResult(
-                    position=Point(
-                        x=float(x + template.shape[1] // 2), y=float(y + template.shape[0] // 2)
-                    ),
-                    score=float(score),
-                    scale=1.0,
+            detected_objects.append(
+                VisionObject(
+                    object_id="match_0",
+                    object_type="template_match",
+                    bounding_box=ROI(x=x, y=y, width=w, height=h),
+                    center=Point(x=float(x + w // 2), y=float(y + h // 2)),
+                    confidence=min(float(score), 1.0),  # Clamp to avoid floating point errors
                     rotation=0.0,
-                    bounding_box=BoundingBox(
-                        top_left=Point(x=float(x), y=float(y)),
-                        bottom_right=Point(
-                            x=float(x + template.shape[1]), y=float(y + template.shape[0])
-                        ),
-                    ),
+                    properties={
+                        "template_id": template_id,
+                        "method": method,
+                        "scale": 1.0,
+                        "raw_score": float(score),
+                    },
                 )
             )
 
         # Create result image with overlay
         result_image = image.copy()
-        for match in matches:
-            pt1 = (int(match.bounding_box.top_left.x), int(match.bounding_box.top_left.y))
-            pt2 = (int(match.bounding_box.bottom_right.x), int(match.bounding_box.bottom_right.y))
+        for obj in detected_objects:
+            bbox = obj.bounding_box
+            pt1 = (bbox.x, bbox.y)
+            pt2 = (bbox.x + bbox.width, bbox.y + bbox.height)
             cv2.rectangle(result_image, pt1, pt2, (0, 255, 0), 2)
             cv2.putText(
                 result_image,
-                f"{match.score:.2f}",
+                f"{obj.confidence:.2f}",
                 (pt1[0], pt1[1] - 5),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5,
@@ -168,14 +173,14 @@ class VisionService:
         if record_history:
             self.history_buffer.add_inspection(
                 image_id=image_id,
-                result="PASS" if matches else "FAIL",
+                result="PASS" if detected_objects else "FAIL",
                 detections=[
                     {
                         "type": "template_match",
                         "template_id": template_id,
-                        "found": len(matches) > 0,
-                        "score": matches[0].score if matches else 0,
-                        "count": len(matches),
+                        "found": len(detected_objects) > 0,
+                        "confidence": detected_objects[0].confidence if detected_objects else 0,
+                        "count": len(detected_objects),
                     }
                 ],
                 processing_time_ms=processing_time,
@@ -183,10 +188,10 @@ class VisionService:
             )
 
         logger.debug(
-            f"Template matching completed: {len(matches)} matches found " f"in {processing_time}ms"
+            f"Template matching: {len(detected_objects)} matches " f"in {processing_time}ms"
         )
 
-        return matches, thumbnail_base64, processing_time
+        return detected_objects, thumbnail_base64, processing_time
 
     def learn_template_from_roi(
         self, image_id: str, roi: ROI, name: str, description: Optional[str] = None
@@ -310,16 +315,16 @@ class VisionService:
 
         # Add to history if requested
         if record_history:
+            object_count = len(result["objects"])
             self.history_buffer.add_inspection(
                 image_id=image_id,
-                result="PASS" if result["edges_found"] else "FAIL",
+                result="PASS" if object_count > 0 else "FAIL",
                 detections=[
                     {
                         "type": "edge_detection",
                         "method": edge_method.value,
-                        "found": result["edges_found"],
-                        "contour_count": result["contour_count"],
-                        "edge_ratio": result["edge_ratio"],
+                        "found": object_count > 0,
+                        "contour_count": object_count,
                     }
                 ],
                 processing_time_ms=processing_time,
@@ -327,8 +332,137 @@ class VisionService:
             )
 
         logger.debug(
-            f"Edge detection completed: {result['contour_count']} contours found "
+            f"Edge detection completed: {len(result['objects'])} contours found "
             f"in {processing_time}ms"
         )
 
         return result, thumbnail_base64, processing_time
+
+    def color_detect(
+        self,
+        image_id: str,
+        roi: Optional[Dict[str, int]] = None,
+        expected_color: Optional[str] = None,
+        min_percentage: float = 50.0,
+        method: str = "histogram",
+        record_history: bool = True,
+    ) -> Tuple[VisionObject, str, int]:
+        """
+        Perform color detection on an image.
+
+        Args:
+            image_id: Image identifier
+            roi: Optional region of interest {x, y, width, height}
+            expected_color: Expected color name (or None to just detect)
+            min_percentage: Minimum percentage for color match
+            method: Detection method ("histogram" or "kmeans")
+            record_history: Whether to record in history
+
+        Returns:
+            Tuple of (detected_object, thumbnail_base64, processing_time_ms)
+
+        Raises:
+            ImageNotFoundException: If image not found
+        """
+        start_time = time.time()
+
+        # Get image
+        image = self.image_manager.get(image_id)
+        if image is None:
+            raise ImageNotFoundException(image_id)
+
+        # Perform color detection
+        result = self.color_detector.detect(
+            image=image,
+            roi=roi,
+            expected_color=expected_color,
+            min_percentage=min_percentage,
+            method=method,
+        )
+
+        # Create VisionObject
+        detected_object = VisionObject(
+            object_id="color_0",
+            object_type="color_region",
+            bounding_box=ROI(**result["roi"]),
+            center=Point(
+                x=result["roi"]["x"] + result["roi"]["width"] / 2,
+                y=result["roi"]["y"] + result["roi"]["height"] / 2,
+            ),
+            confidence=result["confidence"],
+            area=float(result["analyzed_pixels"]),
+            properties={
+                "dominant_color": result["dominant_color"],
+                "color_percentages": result["color_percentages"],
+                "hsv_mean": result["hsv_mean"],
+                "expected_color": result["expected_color"],
+                "match": result["match"],
+                "method": method,
+            },
+        )
+
+        # Create visualization with color overlay
+        result_image = image.copy()
+        roi_info = result["roi"]
+        x, y, w, h = roi_info["x"], roi_info["y"], roi_info["width"], roi_info["height"]
+
+        # Draw ROI rectangle
+        color = (0, 255, 0) if result["match"] or expected_color is None else (0, 0, 255)
+        cv2.rectangle(result_image, (x, y), (x + w, y + h), color, 2)
+
+        # Add text with dominant color
+        text = f"{result['dominant_color']} ({result['confidence']*100:.1f}%)"
+        cv2.putText(
+            result_image,
+            text,
+            (x, y - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            color,
+            2,
+        )
+
+        # Add match/fail indicator if expected color was provided
+        if expected_color is not None:
+            status_text = "MATCH" if result["match"] else "FAIL"
+            cv2.putText(
+                result_image,
+                status_text,
+                (x, y + h + 25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                color,
+                2,
+            )
+
+        # Create thumbnail
+        _, thumbnail_base64 = self.image_manager.create_thumbnail(result_image)
+
+        # Calculate processing time
+        processing_time = int((time.time() - start_time) * 1000)
+
+        # Add to history if requested
+        if record_history:
+            inspection_result = "PASS" if result["match"] or expected_color is None else "FAIL"
+            self.history_buffer.add_inspection(
+                image_id=image_id,
+                result=inspection_result,
+                detections=[
+                    {
+                        "type": "color_detection",
+                        "dominant_color": result["dominant_color"],
+                        "expected_color": expected_color,
+                        "match": result["match"],
+                        "confidence": result["confidence"],
+                    }
+                ],
+                processing_time_ms=processing_time,
+                thumbnail_base64=thumbnail_base64,
+            )
+
+        logger.debug(
+            f"Color detection completed: {result['dominant_color']} "
+            f"({result['confidence']*100:.1f}%) in {processing_time}ms"
+        )
+
+        return detected_object, thumbnail_base64, processing_time

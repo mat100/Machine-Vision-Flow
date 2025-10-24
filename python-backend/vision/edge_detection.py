@@ -4,10 +4,12 @@ Edge detection algorithms for machine vision.
 
 import base64
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
+
+from api.models import ROI, Point, VisionObject
 
 
 class EdgeMethod(str, Enum):
@@ -80,6 +82,9 @@ class EdgeDetector:
         # Filter and analyze contours
         filtered_contours = self._filter_contours(contours, params)
 
+        # Convert to DetectedObject instances
+        objects = self._contours_to_objects(filtered_contours, method.value)
+
         # Create visualization
         visualization = self._create_visualization(
             processed_image, edges, filtered_contours, params
@@ -88,13 +93,8 @@ class EdgeDetector:
         return {
             "success": True,
             "method": method,
-            "edges_found": len(filtered_contours) > 0,
-            "contour_count": len(filtered_contours),
-            "contours": filtered_contours,
-            "edge_pixels": int(np.sum(edges > 0)),
-            "edge_ratio": float(np.sum(edges > 0) / (edges.shape[0] * edges.shape[1])),
+            "objects": objects,
             "visualization": visualization,
-            "params_used": params,
         }
 
     def _preprocess(self, image: np.ndarray, preprocessing: Optional[Dict[str, Any]]) -> np.ndarray:
@@ -294,6 +294,28 @@ class EdgeDetector:
         # Limit number of contours
         max_contours = int(params.get("max_contours", 100))
         return filtered[:max_contours]
+
+    def _contours_to_objects(self, contours: list, method: str) -> List[VisionObject]:
+        """Convert contour dicts to VisionObject instances."""
+        objects = []
+        for i, contour_dict in enumerate(contours):
+            obj = VisionObject(
+                object_id=f"contour_{i}",
+                object_type="edge_contour",
+                bounding_box=ROI(**contour_dict["bounding_box"]),
+                center=Point(**contour_dict["center"]),
+                confidence=1.0,  # Contours are binary (found/not found)
+                area=contour_dict["area"],
+                perimeter=contour_dict["perimeter"],
+                properties={
+                    "method": method,
+                    "vertex_count": contour_dict["vertex_count"],
+                    "is_closed": contour_dict["is_closed"],
+                },
+                raw_contour=contour_dict["contour"],
+            )
+            objects.append(obj)
+        return objects
 
     def _create_visualization(
         self, original: np.ndarray, edges: np.ndarray, contours: list, params: Dict[str, Any]
