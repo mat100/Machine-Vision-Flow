@@ -13,7 +13,6 @@ import numpy as np
 
 from api.exceptions import CameraConnectionException, CameraNotFoundException
 from core.camera_manager import CameraManager
-from core.constants import ImageConstants
 from core.image_manager import ImageManager
 from core.roi_handler import ROI, ROIHandler
 
@@ -154,10 +153,8 @@ class CameraService:
         # Store image
         image_id = self.image_manager.store(image, metadata)
 
-        # Create thumbnail
-        _, thumbnail_base64 = self.image_manager.create_thumbnail(
-            image, ImageConstants.DEFAULT_THUMBNAIL_WIDTH
-        )
+        # Create thumbnail (uses config width)
+        _, thumbnail_base64 = self.image_manager.create_thumbnail(image)
 
         # Return metadata with image dimensions
         result_metadata = {
@@ -189,12 +186,10 @@ class CameraService:
             # Use test image
             image = self.camera_manager.create_test_image(f"Preview: {camera_id}")
 
-        # Create thumbnail if requested
+        # Create thumbnail if requested (uses config width)
         thumbnail_base64 = None
         if create_thumbnail and image is not None:
-            _, thumbnail_base64 = self.image_manager.create_thumbnail(
-                image, ImageConstants.DEFAULT_THUMBNAIL_WIDTH
-            )
+            _, thumbnail_base64 = self.image_manager.create_thumbnail(image)
 
         return image, thumbnail_base64
 

@@ -28,6 +28,7 @@ class ImageManager:
         self,
         max_size_mb: int = ImageConstants.DEFAULT_MAX_MEMORY_MB,
         max_images: int = ImageConstants.DEFAULT_MAX_IMAGES,
+        thumbnail_width: int = ImageConstants.DEFAULT_THUMBNAIL_WIDTH,
     ):
         """
         Initialize Image Manager
@@ -35,10 +36,12 @@ class ImageManager:
         Args:
             max_size_mb: Maximum total size in megabytes
             max_images: Maximum number of images to store
+            thumbnail_width: Width for thumbnail generation (from config)
         """
         self.max_size_bytes = max_size_mb * 1024 * 1024
         self.max_images = max_images
         self.current_size = 0
+        self.thumbnail_width = thumbnail_width
 
         # LRU cache for image metadata
         self.cache: OrderedDict = OrderedDict()
@@ -52,7 +55,10 @@ class ImageManager:
         # Reference counting
         self.ref_counts: Dict[str, int] = {}
 
-        logger.info(f"Image Manager initialized: {max_size_mb}MB, max {max_images} images")
+        logger.info(
+            f"Image Manager initialized: {max_size_mb}MB, "
+            f"max {max_images} images, thumbnail_width={thumbnail_width}px"
+        )
 
     def store(self, image: np.ndarray, metadata: Optional[Dict] = None) -> str:
         """
@@ -263,18 +269,22 @@ class ImageManager:
             logger.info("Image Manager cleanup complete")
 
     def create_thumbnail(
-        self, image: np.ndarray, width: int = ImageConstants.DEFAULT_THUMBNAIL_WIDTH
+        self, image: np.ndarray, width: Optional[int] = None
     ) -> Tuple[np.ndarray, str]:
         """
         Create thumbnail from image
 
         Args:
             image: Source image
-            width: Target width
+            width: Target width (uses config value if None)
 
         Returns:
             Thumbnail array and base64 string
         """
+        # Use config width if not specified
+        if width is None:
+            width = self.thumbnail_width
+
         # Use centralized ImageUtils for thumbnail creation
         thumbnail_array, thumbnail_base64 = ImageUtils.create_thumbnail(
             image=image, width=width, maintain_aspect=True

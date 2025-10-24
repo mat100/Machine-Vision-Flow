@@ -14,7 +14,6 @@ import numpy as np
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
 from api.models import BoundingBox, Point, TemplateMatchResult
-from core.constants import ImageConstants
 from core.history_buffer import HistoryBuffer
 from core.image_manager import ImageManager
 from core.roi_handler import ROI, ROIHandler
@@ -172,10 +171,8 @@ class VisionService:
                 1,
             )
 
-        # Create thumbnail
-        _, thumbnail_base64 = self.image_manager.create_thumbnail(
-            result_image, ImageConstants.DEFAULT_THUMBNAIL_WIDTH
-        )
+        # Create thumbnail (uses config width)
+        _, thumbnail_base64 = self.image_manager.create_thumbnail(result_image)
 
         # Calculate processing time
         processing_time = int((time.time() - start_time) * 1000)
@@ -320,10 +317,8 @@ class VisionService:
         else:
             result_image = image.copy()
 
-        # Create thumbnail
-        _, thumbnail_base64 = self.image_manager.create_thumbnail(
-            result_image, ImageConstants.DEFAULT_THUMBNAIL_WIDTH
-        )
+        # Create thumbnail (uses config width)
+        _, thumbnail_base64 = self.image_manager.create_thumbnail(result_image)
 
         # Calculate processing time
         processing_time = int((time.time() - start_time) * 1000)

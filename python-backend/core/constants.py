@@ -25,7 +25,7 @@ class ImageConstants:
     # Thumbnail settings
     DEFAULT_THUMBNAIL_WIDTH = 320
     MIN_THUMBNAIL_WIDTH = 50
-    MAX_THUMBNAIL_WIDTH = 800
+    MAX_THUMBNAIL_WIDTH = 2000  # Allow full resolution thumbnails in debug mode
     THUMBNAIL_JPEG_QUALITY = 70
 
     # Memory management
