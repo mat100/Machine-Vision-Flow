@@ -9,6 +9,16 @@ Modular machine vision system inspired by Keyence/Cognex industrial vision. Node
 ## Common Commands
 
 ### Development (most common)
+
+**VSCode Development (recommended):**
+```bash
+# 1. Open project in VSCode
+# 2. Press F5 → Select "Debug: Full Stack (Python + Node-RED)"
+# 3. Set breakpoints in Python code and debug!
+# See .vscode/README.md for details
+```
+
+**Production mode (no debugging):**
 ```bash
 # Quick start both services
 make start          # Start both services in background
@@ -16,15 +26,8 @@ make status         # Check if services are running
 make logs           # View logs from both services
 make stop           # Stop both services
 
-# Enhanced development mode with auto-reload
-make dev            # Both services with live reload + colored logs
-make dev-python     # Python only with uvicorn hot reload
-make dev-nodered    # Node-RED with file watching
-
-# After code changes (90% of development)
+# After code changes
 make reload         # Restart both services (no reinstall)
-make reload-backend # Just Python backend
-make reload-nodered # Just Node-RED
 ```
 
 ### Installation/Setup

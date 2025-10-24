@@ -20,7 +20,12 @@ yarn-debug.log*
 yarn-error.log*
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/README.md
 .idea/
 *.swp
 *.swo

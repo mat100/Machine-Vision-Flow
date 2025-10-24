@@ -86,19 +86,32 @@ pip install -r requirements.txt
    git checkout -b feature/your-feature-name
    ```
 
-2. **Make your changes**
+2. **Develop using VSCode (recommended):**
+   ```bash
+   # Open in VSCode and press F5
+   # Select "Debug: Full Stack (Python + Node-RED)"
+   # Set breakpoints and debug your changes
+   ```
+
+   Or use production mode:
+   ```bash
+   make start  # Start services
+   make logs   # View logs
+   ```
+
+3. **Make your changes**
    - Write code following our [code style](#code-style)
    - Add tests for new functionality
    - Update documentation as needed
 
-3. **Run tests and linting:**
+4. **Run tests and linting:**
    ```bash
    make test
    make lint
    make format
    ```
 
-4. **Commit your changes:**
+5. **Commit your changes:**
    ```bash
    git add .
    git commit -m "Add feature: brief description"

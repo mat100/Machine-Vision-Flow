@@ -20,7 +20,7 @@ PORT_NODERED := 1880
 
 ARGS ?=
 
-.PHONY: help install start stop status test clean dev dev-python dev-nodered reload logs format lint setup-hooks
+.PHONY: help install start stop status test clean reload logs format lint setup-hooks
 
 help:
 	@echo "Machine Vision Flow - Core Commands"
@@ -32,14 +32,10 @@ help:
 	@echo "  make status        Show status"
 	@echo "  make test          Run tests"
 	@echo "  make clean         Clean runtime files (--all for everything)"
-	@echo ""
-	@echo "  make dev           Dev mode (both services)"
-	@echo "  make dev-python    Dev mode (Python only)"
-	@echo "  make dev-nodered   Dev mode (Node-RED only)"
 	@echo "  make reload        Reload services"
 	@echo "  make logs          View logs"
 	@echo ""
-	@echo "Development:"
+	@echo "Development (use VSCode for debugging - see .vscode/README.md):"
 	@echo "  make setup-hooks   Install pre-commit hooks"
 	@echo "  make format        Format Python code (black, isort)"
 	@echo "  make lint          Lint Python code (flake8)"
@@ -85,15 +81,6 @@ endif
 
 --all:
 	@:
-
-dev:
-	@$(SCRIPTS_DIR)/dev.sh $(ARGS)
-
-dev-python:
-	@$(SCRIPTS_DIR)/dev.sh --watch python $(ARGS)
-
-dev-nodered:
-	@$(SCRIPTS_DIR)/dev.sh --watch nodered $(ARGS)
 
 reload:
 	@echo "Reloading services..."

@@ -21,6 +21,9 @@ autoflake==2.3.1
 # Pre-commit hooks
 pre-commit==3.6.0
 
+# Debugging (for VSCode)
+debugpy==1.8.0
+
 # Optional tools for advanced development
 # mypy==1.7.0  # Type checking
 # bandit==1.7.5  # Security scanning

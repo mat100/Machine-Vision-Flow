@@ -3,6 +3,8 @@
 Modular Machine Vision system inspired by Keyence and Cognex, built on Node-RED (UI/orchestration) and Python backend (CV processing).
 
 > **Contributing:** See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines, code style, and how to submit pull requests.
+>
+> **VSCode Users:** See [.vscode/README.md](.vscode/README.md) for optimal VSCode setup with debugging, tasks, and auto port forwarding.
 
 ## 🚀 Quick Start
 
@@ -37,7 +39,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md#dependency-management) for details.
 
 ## 📋 Available Commands
 
-### Makefile (recommended)
+### Makefile
 ```bash
 make help          # Show help
 make install       # Install dependencies
@@ -47,18 +49,16 @@ make restart       # Restart system
 make status        # Check status
 make logs          # View logs
 make clean         # Clean temp files
-make dev           # Development mode with live logs
 make test          # Run tests
 ```
 
-### Shell scripts (alternative)
-```bash
-make start      # Start services
-make stop       # Stop services
-make status     # System status
-make logs       # View logs
-make dev        # Development mode with auto-reload
-```
+### Development with VSCode (recommended)
+For development with debugging support, use VSCode:
+1. Open project in VSCode
+2. Press `F5` → Select "Debug: Full Stack (Python + Node-RED)"
+3. Set breakpoints and debug!
+
+See [.vscode/README.md](.vscode/README.md) for details.
 
 ### Systemd services (for production)
 See [`systemd/README.md`](systemd/README.md) for detailed instructions.
