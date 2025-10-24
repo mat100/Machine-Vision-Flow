@@ -10,8 +10,6 @@
             cannyHigh: {value: 150, validate: RED.validators.number()},
             sobelThreshold: {value: 50, validate: RED.validators.number()},
             laplacianThreshold: {value: 30, validate: RED.validators.number()},
-            roiEnabled: {value: false},
-            roi: {value: {x: 0, y: 0, width: 100, height: 100}},
             blurEnabled: {value: false},
             blurKernel: {value: 5, validate: RED.validators.number()},
             bilateralEnabled: {value: false},
@@ -43,15 +41,6 @@
                     $(".sobel-params").show();
                 } else if (method === "laplacian") {
                     $(".laplacian-params").show();
-                }
-            }).trigger('change');
-
-            // ROI toggle
-            $("#node-input-roiEnabled").on('change', function() {
-                if ($(this).is(':checked')) {
-                    $(".roi-params").show();
-                } else {
-                    $(".roi-params").hide();
                 }
             }).trigger('change');
 
@@ -126,29 +115,6 @@
         <div class="form-row">
             <label for="node-input-laplacianThreshold"><i class="fa fa-sliders"></i> Threshold</label>
             <input type="number" id="node-input-laplacianThreshold" placeholder="30" min="0" max="255">
-        </div>
-    </div>
-
-    <hr>
-    <h4>Region of Interest (ROI)</h4>
-
-    <div class="form-row">
-        <label for="node-input-roiEnabled"><i class="fa fa-crop"></i> Enable ROI</label>
-        <input type="checkbox" id="node-input-roiEnabled" style="width:auto;">
-    </div>
-
-    <div class="roi-params" style="display:none;">
-        <div class="form-row">
-            <label>X Position</label>
-            <input type="number" id="node-input-roi-x" placeholder="0" style="width:100px;">
-            <label style="width:auto; margin-left:20px;">Y Position</label>
-            <input type="number" id="node-input-roi-y" placeholder="0" style="width:100px;">
-        </div>
-        <div class="form-row">
-            <label>Width</label>
-            <input type="number" id="node-input-roi-width" placeholder="100" style="width:100px;">
-            <label style="width:auto; margin-left:20px;">Height</label>
-            <input type="number" id="node-input-roi-height" placeholder="100" style="width:100px;">
         </div>
     </div>
 

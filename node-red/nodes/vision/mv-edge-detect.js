@@ -12,8 +12,6 @@ module.exports = function(RED) {
         node.cannyHigh = config.cannyHigh || 150;
         node.sobelThreshold = config.sobelThreshold || 50;
         node.laplacianThreshold = config.laplacianThreshold || 30;
-        node.roiEnabled = config.roiEnabled || false;
-        node.roi = config.roi || {};
 
         // Preprocessing options
         node.blurEnabled = config.blurEnabled || false;
@@ -49,16 +47,6 @@ module.exports = function(RED) {
                     threshold1: node.cannyLow,
                     threshold2: node.cannyHigh
                 };
-
-                // Add ROI if enabled
-                if (node.roiEnabled && node.roi) {
-                    requestData.roi = {
-                        x: parseInt(node.roi.x) || 0,
-                        y: parseInt(node.roi.y) || 0,
-                        width: parseInt(node.roi.width) || 100,
-                        height: parseInt(node.roi.height) || 100
-                    };
-                }
 
                 // Add preprocessing if enabled
                 const preprocessing = {};
@@ -134,7 +122,6 @@ module.exports = function(RED) {
                     method: node.method,
                     params: {
                         method: node.method,
-                        roi: node.roiEnabled ? node.roi : null,
                         preprocessing: preprocessing
                     },
                     duration_ms: result.processing_time_ms,

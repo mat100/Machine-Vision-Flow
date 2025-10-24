@@ -21,7 +21,7 @@ sys.path.append(str(Path(__file__).parent))
 from api.exceptions import register_exception_handlers  # noqa: E402
 
 # Import routers  # noqa: E402
-from api.routers import camera, history, system, template, vision  # noqa: E402
+from api.routers import camera, history, image, system, template, vision  # noqa: E402
 
 # Import configuration and exception handlers  # noqa: E402
 from config import get_settings  # noqa: E402
@@ -65,7 +65,9 @@ async def lifespan(app: FastAPI):
 
     # Initialize managers with Pydantic config
     image_manager = ImageManager(
-        max_size_mb=settings.image.max_memory_mb, max_images=settings.image.max_images
+        max_size_mb=settings.image.max_memory_mb,
+        max_images=settings.image.max_images,
+        thumbnail_width=settings.image.thumbnail_width,
     )
 
     camera_manager = CameraManager()
@@ -130,6 +132,7 @@ register_exception_handlers(app)
 app.include_router(camera.router, prefix="/api/camera", tags=["Camera"])
 app.include_router(vision.router, prefix="/api/vision", tags=["Vision"])
 app.include_router(template.router, prefix="/api/template", tags=["Template"])
+app.include_router(image.router, prefix="/api/image", tags=["Image"])
 app.include_router(history.router, prefix="/api/history", tags=["History"])
 app.include_router(system.router, prefix="/api/system", tags=["System"])
 
@@ -145,6 +148,7 @@ async def root():
             "camera": "/api/camera",
             "vision": "/api/vision",
             "template": "/api/template",
+            "image": "/api/image",
             "history": "/api/history",
             "system": "/api/system",
             "docs": "/docs",

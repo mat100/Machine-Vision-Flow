@@ -1,0 +1,108 @@
+<script type="text/javascript">
+    RED.nodes.registerType('mv-roi-extract', {
+        category: 'machine vision',
+        color: '#87a980',
+        defaults: {
+            name: {value: ""},
+            apiUrl: {value: "http://localhost:8000", required: true},
+            roi: {value: {x: 0, y: 0, width: 100, height: 100}}
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-crop",
+        label: function() {
+            return this.name || "ROI Extract";
+        },
+        paletteLabel: "ROI extract",
+        oneditprepare: function() {
+            // Load ROI values into individual fields
+            if (this.roi) {
+                $("#node-input-roi-x").val(this.roi.x || 0);
+                $("#node-input-roi-y").val(this.roi.y || 0);
+                $("#node-input-roi-width").val(this.roi.width || 100);
+                $("#node-input-roi-height").val(this.roi.height || 100);
+            }
+        },
+        oneditsave: function() {
+            // Save individual fields back into ROI object
+            this.roi = {
+                x: parseInt($("#node-input-roi-x").val()) || 0,
+                y: parseInt($("#node-input-roi-y").val()) || 0,
+                width: parseInt($("#node-input-roi-width").val()) || 100,
+                height: parseInt($("#node-input-roi-height").val()) || 100
+            };
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="mv-roi-extract">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-apiUrl"><i class="fa fa-server"></i> API URL</label>
+        <input type="text" id="node-input-apiUrl" placeholder="http://localhost:8000">
+    </div>
+
+    <hr>
+    <h4>Region of Interest (ROI)</h4>
+
+    <div class="form-row">
+        <label for="node-input-roi-x"><i class="fa fa-arrows-h"></i> X</label>
+        <input type="number" id="node-input-roi-x" placeholder="0" style="width: 70px;">
+        <label for="node-input-roi-y" style="margin-left: 20px;"><i class="fa fa-arrows-v"></i> Y</label>
+        <input type="number" id="node-input-roi-y" placeholder="0" style="width: 70px;">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-roi-width"><i class="fa fa-arrows-h"></i> Width</label>
+        <input type="number" id="node-input-roi-width" placeholder="100" style="width: 70px;">
+        <label for="node-input-roi-height" style="margin-left: 20px;"><i class="fa fa-arrows-v"></i> Height</label>
+        <input type="number" id="node-input-roi-height" placeholder="100" style="width: 70px;">
+    </div>
+</script>
+
+<script type="text/html" data-help-name="mv-roi-extract">
+    <p>Extract a Region of Interest (ROI) from an image and create a new image containing only that region.</p>
+
+    <h3>Inputs</h3>
+    <dl class="message-properties">
+        <dt>image_id <span class="property-type">string</span></dt>
+        <dd>The ID of the source image to extract ROI from</dd>
+    </dl>
+
+    <h3>Outputs</h3>
+    <dl class="message-properties">
+        <dt>image_id <span class="property-type">string</span></dt>
+        <dd>New image ID of the extracted ROI region</dd>
+
+        <dt>thumbnail <span class="property-type">string</span></dt>
+        <dd>Base64 encoded thumbnail of the extracted ROI</dd>
+
+        <dt>payload <span class="property-type">object</span></dt>
+        <dd>Contains image_id, thumbnail_base64, metadata, source_image_id, and roi coordinates</dd>
+    </dl>
+
+    <h3>Configuration</h3>
+    <p>Define the rectangular region to extract using X, Y coordinates (top-left corner) and Width, Height dimensions.</p>
+
+    <h3>Details</h3>
+    <p>This node extracts a specified rectangular region from an input image and stores it as a new, separate image in the image manager. The extracted region can then be used for further processing in subsequent nodes.</p>
+
+    <p>The ROI coordinates are automatically clipped to the image bounds, so you don't need to worry about exceeding image dimensions.</p>
+
+    <h3>Use Cases</h3>
+    <ul>
+        <li>Focus detection on a specific area of interest</li>
+        <li>Pre-process images by isolating relevant regions</li>
+        <li>Create image crops for template learning</li>
+        <li>Reduce processing time by working with smaller images</li>
+    </ul>
+
+    <h3>Example Flow</h3>
+    <pre>
+[Camera Capture] → [ROI Extract] → [Edge Detect] → [Result Merger]
+    </pre>
+</script>

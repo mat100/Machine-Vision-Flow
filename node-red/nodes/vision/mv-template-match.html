@@ -9,15 +9,6 @@
             templateId: {value: ""},
             threshold: {value: 0.8, validate: function(v) { return v >= 0 && v <= 1; }},
             method: {value: "TM_CCOEFF_NORMED"},
-            roiEnabled: {value: false},
-            roi: {
-                value: {
-                    x: 0,
-                    y: 0,
-                    width: 100,
-                    height: 100
-                }
-            },
             multiScale: {value: false},
             scaleRange: {value: [0.8, 1.2]}
         },
@@ -36,24 +27,9 @@
         oneditprepare: function() {
             const node = this;
 
-            // Initialize ROI fields
-            $("#node-input-roi-x").val(this.roi.x || 0);
-            $("#node-input-roi-y").val(this.roi.y || 0);
-            $("#node-input-roi-width").val(this.roi.width || 100);
-            $("#node-input-roi-height").val(this.roi.height || 100);
-
             // Initialize scale range
             $("#node-input-scale-min").val(this.scaleRange[0] || 0.8);
             $("#node-input-scale-max").val(this.scaleRange[1] || 1.2);
-
-            // Toggle ROI fields
-            $("#node-input-roiEnabled").on('change', function() {
-                if ($(this).is(':checked')) {
-                    $("#roi-settings").show();
-                } else {
-                    $("#roi-settings").hide();
-                }
-            }).trigger('change');
 
             // Toggle scale fields
             $("#node-input-multiScale").on('change', function() {
@@ -93,14 +69,6 @@
             $("#template-refresh").trigger('click');
         },
         oneditsave: function() {
-            // Save ROI
-            this.roi = {
-                x: parseInt($("#node-input-roi-x").val()) || 0,
-                y: parseInt($("#node-input-roi-y").val()) || 0,
-                width: parseInt($("#node-input-roi-width").val()) || 100,
-                height: parseInt($("#node-input-roi-height").val()) || 100
-            };
-
             // Save scale range
             this.scaleRange = [
                 parseFloat($("#node-input-scale-min").val()) || 0.8,
@@ -150,34 +118,6 @@
             <option value="TM_SQDIFF_NORMED">Squared Difference (Normalized)</option>
             <option value="TM_SQDIFF">Squared Difference</option>
         </select>
-    </div>
-
-    <hr>
-    <h4>Region of Interest (ROI)</h4>
-
-    <div class="form-row">
-        <label for="node-input-roiEnabled"><i class="fa fa-crop"></i> Enable ROI</label>
-        <input type="checkbox" id="node-input-roiEnabled" style="width: auto;">
-        <label for="node-input-roiEnabled" style="width: auto; margin-left: 10px;">
-            Search only in specified region
-        </label>
-    </div>
-
-    <div id="roi-settings" style="display: none; margin-left: 20px;">
-        <div class="form-row">
-            <label style="width: 100px;">Position:</label>
-            <label for="node-input-roi-x" style="width: 30px;">X:</label>
-            <input type="number" id="node-input-roi-x" style="width: 80px" min="0">
-            <label for="node-input-roi-y" style="width: 30px; margin-left: 10px;">Y:</label>
-            <input type="number" id="node-input-roi-y" style="width: 80px" min="0">
-        </div>
-        <div class="form-row">
-            <label style="width: 100px;">Size:</label>
-            <label for="node-input-roi-width" style="width: 50px;">Width:</label>
-            <input type="number" id="node-input-roi-width" style="width: 80px" min="1">
-            <label for="node-input-roi-height" style="width: 50px; margin-left: 10px;">Height:</label>
-            <input type="number" id="node-input-roi-height" style="width: 80px" min="1">
-        </div>
     </div>
 
     <hr>
@@ -232,9 +172,6 @@
         <li><b>Cross Correlation</b> - Works well with bright objects</li>
         <li><b>Squared Difference</b> - Lower values indicate better match</li>
     </ul>
-
-    <h4>ROI (Region of Interest):</h4>
-    <p>Enable ROI to search only within a specific area of the image, improving performance.</p>
 
     <h4>Multi-Scale Search:</h4>
     <p>Enable to find templates at different scales (sizes) within the specified range.</p>

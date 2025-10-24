@@ -238,3 +238,20 @@ class MergedResults(BaseModel):
     summary: Dict[str, Any]
     result: InspectionResult
     failed_checks: List[str]
+
+
+# Image processing models
+class ROIExtractRequest(BaseModel):
+    """Request to extract ROI from image"""
+
+    image_id: str
+    roi: ROI
+
+
+class ROIExtractResponse(BaseModel):
+    """Response from ROI extraction"""
+
+    success: bool
+    image_id: str
+    thumbnail_base64: str
+    metadata: Dict[str, Any]

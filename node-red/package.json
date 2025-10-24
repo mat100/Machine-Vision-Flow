@@ -19,6 +19,7 @@
       "mv-live-preview": "nodes/camera/mv-live-preview.js",
       "mv-template-match": "nodes/vision/mv-template-match.js",
       "mv-edge-detect": "nodes/vision/mv-edge-detect.js",
+      "mv-roi-extract": "nodes/vision/mv-roi-extract.js",
       "mv-result-merger": "nodes/analysis/mv-result-merger.js",
       "mv-overlay": "nodes/output/mv-overlay.js"
     }

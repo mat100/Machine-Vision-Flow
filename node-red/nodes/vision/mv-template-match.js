@@ -11,8 +11,6 @@ module.exports = function(RED) {
         node.templateSource = config.templateSource || 'library';
         node.threshold = parseFloat(config.threshold) || 0.8;
         node.method = config.method || 'TM_CCOEFF_NORMED';
-        node.roiEnabled = config.roiEnabled || false;
-        node.roi = config.roi || {};
         node.multiScale = config.multiScale || false;
         node.scaleRange = config.scaleRange || [0.8, 1.2];
 
@@ -53,16 +51,6 @@ module.exports = function(RED) {
                     multi_scale: node.multiScale,
                     scale_range: node.scaleRange
                 };
-
-                // Add ROI if enabled
-                if (node.roiEnabled && node.roi) {
-                    request.roi = {
-                        x: parseInt(node.roi.x) || 0,
-                        y: parseInt(node.roi.y) || 0,
-                        width: parseInt(node.roi.width) || 100,
-                        height: parseInt(node.roi.height) || 100
-                    };
-                }
 
                 // Call API
                 const response = await axios.post(
