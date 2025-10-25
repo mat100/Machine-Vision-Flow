@@ -28,14 +28,14 @@ async def template_match(
     request: TemplateMatchRequest, vision_service=Depends(get_vision_service)
 ) -> VisionResponse:
     """Perform template matching"""
-    # Convert bounding_box to dict if present
-    bbox_dict = None
-    if request.bounding_box:
-        bbox_dict = {
-            "x": request.bounding_box.x,
-            "y": request.bounding_box.y,
-            "width": request.bounding_box.width,
-            "height": request.bounding_box.height,
+    # Convert roi to dict if present
+    roi_dict = None
+    if request.roi:
+        roi_dict = {
+            "x": request.roi.x,
+            "y": request.roi.y,
+            "width": request.roi.width,
+            "height": request.roi.height,
         }
 
     # Service handles all template matching logic, history recording, and thumbnail creation
@@ -44,7 +44,7 @@ async def template_match(
         template_id=request.template_id,
         method=request.method.value,
         threshold=request.threshold,
-        bounding_box=bbox_dict,
+        roi=roi_dict,
         record_history=True,
     )
 
@@ -97,14 +97,14 @@ async def edge_detect(
         "equalize_enabled": request.equalize_enabled,
     }
 
-    # Convert bounding_box to dict if present
-    bbox_dict = None
-    if request.bounding_box:
-        bbox_dict = {
-            "x": request.bounding_box.x,
-            "y": request.bounding_box.y,
-            "width": request.bounding_box.width,
-            "height": request.bounding_box.height,
+    # Convert roi to dict if present
+    roi_dict = None
+    if request.roi:
+        roi_dict = {
+            "x": request.roi.x,
+            "y": request.roi.y,
+            "width": request.roi.width,
+            "height": request.roi.height,
         }
 
     # Service handles all edge detection logic, history recording, and thumbnail creation
@@ -113,7 +113,7 @@ async def edge_detect(
         method=request.method.lower(),
         params=params,
         preprocessing=preprocessing,
-        bounding_box=bbox_dict,
+        roi=roi_dict,
         record_history=True,
     )
 

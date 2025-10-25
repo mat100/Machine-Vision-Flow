@@ -60,13 +60,6 @@ class Size(BaseModel):
     height: int
 
 
-class BoundingBox(BaseModel):
-    """Bounding box for detected objects"""
-
-    top_left: Point
-    bottom_right: Point
-
-
 # Standard vision detection models
 class VisionObject(BaseModel):
     """
@@ -82,8 +75,10 @@ class VisionObject(BaseModel):
         description="Type: camera_capture, edge_contour, template_match, etc.",
     )
 
-    # Position & Geometry (standardized ROI)
-    bounding_box: ROI = Field(..., description="Bounding box in {x, y, width, height} format")
+    # Position & Geometry
+    bounding_box: ROI = Field(
+        ..., description="Bounding box of detected object in {x, y, width, height} format"
+    )
     center: Point = Field(..., description="Center point of the object")
 
     # Quality
@@ -174,7 +169,7 @@ class TemplateMatchRequest(BaseModel):
     template_id: str
     method: TemplateMethod = TemplateMethod.TM_CCOEFF_NORMED
     threshold: float = Field(0.8, ge=0.0, le=1.0)
-    bounding_box: Optional[ROI] = None
+    roi: Optional[ROI] = Field(None, description="Region of interest to limit search area")
     multi_scale: bool = False
     scale_range: Optional[List[float]] = [0.8, 1.2]
     rotation: bool = False
@@ -186,7 +181,7 @@ class EdgeDetectRequest(BaseModel):
 
     image_id: str
     method: str = "canny"
-    bounding_box: Optional[ROI] = None
+    roi: Optional[ROI] = Field(None, description="Region of interest to limit search area")
 
     # Canny parameters
     canny_low: Optional[int] = Field(50, ge=0, le=255, description="Canny low threshold")
@@ -326,7 +321,7 @@ class ROIExtractRequest(BaseModel):
     """Request to extract ROI from image"""
 
     image_id: str
-    bounding_box: ROI
+    roi: ROI = Field(..., description="Region of interest to extract")
 
 
 class ROIExtractResponse(BaseModel):

@@ -164,7 +164,7 @@ msg.payload = {
                                       //       color_region | aruco_marker | rotation_analysis
     image_id: "uuid-of-full-image",   // Reference to shared memory image
     timestamp: "2025-10-24T10:30:00", // ISO format
-    bounding_box: {x, y, width, height},
+    bounding_box: {x, y, width, height},  // OUTPUT: detected object boundaries
     center: {x, y},
     confidence: 0.95,                 // 0.0-1.0
     area: 30000.0,                    // Optional
@@ -187,6 +187,31 @@ msg.node_name = "Edge Detection";
 - **No arrays**: No `msg.objects[]` or `msg.detections[]` arrays
 - **Data in payload**: All vision data goes in `msg.payload` as VisionObject
 - **Metadata in root**: Processing info (success, time, node name) in `msg.*`
+
+### ROI vs Bounding Box Terminology
+
+**Important distinction between INPUT constraints and OUTPUT results:**
+
+- **`roi` (API parameter)**: Region Of Interest used as INPUT constraint to limit processing area
+  - Used in API requests to restrict where the algorithm searches
+  - Example: `/api/vision/template-match` with `roi` parameter only searches within that region
+  - Passed to API endpoints: `template-match`, `edge-detect`, `color-detect`, `aruco-detect`
+
+- **`bounding_box` (VisionObject field)**: OUTPUT result showing detected object boundaries
+  - Part of VisionObject returned from detection
+  - Represents where the object was actually found
+  - Used in message chaining: one node's output `bounding_box` can be another node's input `roi`
+
+**Message Chaining Pattern:**
+```javascript
+// Edge Detect outputs VisionObject with bounding_box
+msg.payload.bounding_box = {x: 100, y: 50, width: 200, height: 150}
+
+// Next node (Color Detect) uses that bounding_box as roi constraint
+// Node-RED automatically maps: msg.payload.bounding_box → API roi parameter
+```
+
+This separation ensures clear semantics: `roi` = "where to look", `bounding_box` = "where I found it".
 
 ## Key Technical Details
 

@@ -26,10 +26,10 @@ async def extract_roi(
 
     This endpoint extracts a rectangular region from an existing image
     and returns a thumbnail of that region. The original image_id remains
-    unchanged, only the bounding_box and thumbnail are updated.
+    unchanged, only the roi and thumbnail are updated.
 
     Args:
-        request: ROI extraction request with image_id and bounding_box coordinates
+        request: ROI extraction request with image_id and roi coordinates
         image_service: Image service dependency
 
     Returns:
@@ -38,10 +38,10 @@ async def extract_roi(
     # Extract ROI from source image (clipped to image bounds)
     # Convert Pydantic ROI model to dataclass ROI
     roi = ROI(
-        x=request.bounding_box.x,
-        y=request.bounding_box.y,
-        width=request.bounding_box.width,
-        height=request.bounding_box.height,
+        x=request.roi.x,
+        y=request.roi.y,
+        width=request.roi.width,
+        height=request.roi.height,
     )
     roi_image = image_service.get_image_with_roi(image_id=request.image_id, roi=roi, safe_mode=True)
 
@@ -71,7 +71,7 @@ async def extract_roi(
     original_image = image_service.get_image(request.image_id)
     img_height, img_width = original_image.shape[:2]
 
-    clipped_bbox = request.bounding_box.model_copy()
+    clipped_bbox = request.roi.model_copy()
     clipped_bbox.x = max(0, min(clipped_bbox.x, img_width - 1))
     clipped_bbox.y = max(0, min(clipped_bbox.y, img_height - 1))
     clipped_bbox.width = min(clipped_bbox.width, img_width - clipped_bbox.x)

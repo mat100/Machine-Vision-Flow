@@ -387,7 +387,11 @@ class TestVisionAPI:
                 obj = color_data["objects"][0]
                 assert obj["object_type"] == "color_region"
                 assert "dominant_color" in obj["properties"]
-                assert "percentage" in obj["properties"]
+                assert "color_percentages" in obj["properties"]
+                # Verify dominant color has a percentage
+                dominant_color = obj["properties"]["dominant_color"]
+                assert dominant_color in obj["properties"]["color_percentages"]
+                assert obj["properties"]["color_percentages"][dominant_color] > 0
 
     def test_edge_to_color_workflow(self, client, captured_image_id):
         """Test complete workflow: edge detect → color detect on each contour"""

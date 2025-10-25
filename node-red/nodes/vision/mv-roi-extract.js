@@ -51,7 +51,7 @@ module.exports = function(RED) {
                 // Prepare request
                 const requestData = {
                     image_id: imageId,
-                    bounding_box: bounding_box
+                    roi: bounding_box
                 };
 
                 // Call API

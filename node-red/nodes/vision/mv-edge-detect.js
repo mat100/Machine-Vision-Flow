@@ -44,8 +44,8 @@ module.exports = function(RED) {
                 const requestData = {
                     image_id: imageId,
                     method: node.method,
-                    // Include bounding_box if present in payload
-                    bounding_box: msg.payload?.bounding_box || null,
+                    // Map bounding_box from previous detection to roi parameter
+                    roi: msg.payload?.bounding_box || null,
                     // Canny parameters
                     canny_low: parseInt(node.cannyLow) || 50,
                     canny_high: parseInt(node.cannyHigh) || 150,

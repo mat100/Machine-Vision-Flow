@@ -62,7 +62,7 @@ class VisionService:
         template_id: str,
         method: str = "TM_CCOEFF_NORMED",
         threshold: float = 0.8,
-        bounding_box: Optional[Dict] = None,
+        roi: Optional[Dict] = None,
         record_history: bool = True,
     ) -> Tuple[List[VisionObject], str, int]:
         """
@@ -73,7 +73,7 @@ class VisionService:
             template_id: Template identifier
             method: OpenCV matching method
             threshold: Match threshold (0-1)
-            bounding_box: Optional bounding box to limit search area (dict with x, y, width, height)
+            roi: Optional region of interest to limit search area (dict with x, y, width, height)
             record_history: Whether to record in history
 
         Returns:
@@ -83,7 +83,7 @@ class VisionService:
             ImageNotFoundException: If image not found
             TemplateNotFoundException: If template not found
         """
-        from core.roi_handler import ROI, ROIHandler
+        from core.roi_handler import ROI as ROIDataclass
 
         with timer() as t:
             # Get image
@@ -91,17 +91,17 @@ class VisionService:
             if full_image is None:
                 raise ImageNotFoundException(image_id)
 
-            # Extract ROI if bounding_box specified
+            # Extract ROI if specified
             roi_offset = (0, 0)
-            if bounding_box:
-                roi = ROI(
-                    x=bounding_box.get("x", 0),
-                    y=bounding_box.get("y", 0),
-                    width=bounding_box.get("width", full_image.shape[1]),
-                    height=bounding_box.get("height", full_image.shape[0]),
+            if roi:
+                roi_obj = ROIDataclass(
+                    x=roi.get("x", 0),
+                    y=roi.get("y", 0),
+                    width=roi.get("width", full_image.shape[1]),
+                    height=roi.get("height", full_image.shape[0]),
                 )
-                image = ROIHandler.extract_roi(full_image, roi, safe_mode=True)
-                roi_offset = (roi.x, roi.y)
+                image = ROIHandler.extract_roi(full_image, roi_obj, safe_mode=True)
+                roi_offset = (roi_obj.x, roi_obj.y)
             else:
                 image = full_image
 
@@ -266,7 +266,7 @@ class VisionService:
         method: str = "canny",
         params: Optional[Dict] = None,
         preprocessing: Optional[Dict] = None,
-        bounding_box: Optional[Dict] = None,
+        roi: Optional[Dict] = None,
         record_history: bool = True,
     ) -> Tuple[Dict, str, int]:
         """
@@ -277,7 +277,7 @@ class VisionService:
             method: Edge detection method (canny, sobel, laplacian, etc.)
             params: Method-specific parameters
             preprocessing: Optional preprocessing parameters
-            bounding_box: Optional bounding box to limit detection area
+            roi: Optional region of interest to limit detection area
                 (dict with x, y, width, height)
             record_history: Whether to record in history
 
@@ -287,7 +287,7 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
-        from core.roi_handler import ROI, ROIHandler
+        from core.roi_handler import ROI as ROIDataclass
         from vision.edge_detection import EdgeDetector, EdgeMethod
 
         with timer() as t:
@@ -296,17 +296,17 @@ class VisionService:
             if full_image is None:
                 raise ImageNotFoundException(image_id)
 
-            # Extract ROI if bounding_box specified
+            # Extract ROI if specified
             roi_offset = (0, 0)
-            if bounding_box:
-                roi = ROI(
-                    x=bounding_box.get("x", 0),
-                    y=bounding_box.get("y", 0),
-                    width=bounding_box.get("width", full_image.shape[1]),
-                    height=bounding_box.get("height", full_image.shape[0]),
+            if roi:
+                roi_obj = ROIDataclass(
+                    x=roi.get("x", 0),
+                    y=roi.get("y", 0),
+                    width=roi.get("width", full_image.shape[1]),
+                    height=roi.get("height", full_image.shape[0]),
                 )
-                image = ROIHandler.extract_roi(full_image, roi, safe_mode=True)
-                roi_offset = (roi.x, roi.y)
+                image = ROIHandler.extract_roi(full_image, roi_obj, safe_mode=True)
+                roi_offset = (roi_obj.x, roi_obj.y)
             else:
                 image = full_image
 
