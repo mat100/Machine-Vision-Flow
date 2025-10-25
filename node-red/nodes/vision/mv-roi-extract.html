@@ -5,7 +5,8 @@
         defaults: {
             name: {value: ""},
             apiUrl: {value: "http://localhost:8000", required: true},
-            roi: {value: {x: 0, y: 0, width: 100, height: 100}}
+            roi: {value: {x: 0, y: 0, width: 100, height: 100}},
+            roiMode: {value: "absolute"}
         },
         inputs: 1,
         outputs: 1,
@@ -50,6 +51,14 @@
     <h4>Region of Interest (ROI)</h4>
 
     <div class="form-row">
+        <label for="node-input-roiMode"><i class="fa fa-cog"></i> ROI Mode</label>
+        <select id="node-input-roiMode" style="width: 70%;">
+            <option value="absolute">Absolute - ROI coordinates in original image</option>
+            <option value="relative">Relative - ROI relative to input bounding box</option>
+        </select>
+    </div>
+
+    <div class="form-row">
         <label for="node-input-roi-x"><i class="fa fa-arrows-h"></i> X</label>
         <input type="number" id="node-input-roi-x" placeholder="0" style="width: 70px;">
         <label for="node-input-roi-y" style="margin-left: 20px;"><i class="fa fa-arrows-v"></i> Y</label>
@@ -65,44 +74,66 @@
 </script>
 
 <script type="text/html" data-help-name="mv-roi-extract">
-    <p>Extract a Region of Interest (ROI) from an image and create a new image containing only that region.</p>
+    <p>Extract a Region of Interest (ROI) from a VisionObject by updating its bounding box and thumbnail.</p>
 
     <h3>Inputs</h3>
     <dl class="message-properties">
-        <dt>image_id <span class="property-type">string</span></dt>
-        <dd>The ID of the source image to extract ROI from</dd>
+        <dt>payload <span class="property-type">VisionObject</span></dt>
+        <dd>Standardized vision object with <code>image_id</code> and optionally <code>bounding_box</code></dd>
     </dl>
 
     <h3>Outputs</h3>
     <dl class="message-properties">
-        <dt>image_id <span class="property-type">string</span></dt>
-        <dd>New image ID of the extracted ROI region</dd>
+        <dt>payload <span class="property-type">VisionObject</span></dt>
+        <dd>Same VisionObject with updated:
+            <ul>
+                <li><code>bounding_box</code> - Updated ROI coordinates {x, y, width, height}</li>
+                <li><code>center</code> - Updated center point {x, y}</li>
+                <li><code>thumbnail</code> - Base64 encoded preview of the ROI area</li>
+            </ul>
+            All other fields (<code>object_id</code>, <code>object_type</code>, <code>image_id</code>, <code>confidence</code>, <code>contour</code>, etc.) are preserved.
+        </dd>
 
-        <dt>thumbnail <span class="property-type">string</span></dt>
-        <dd>Base64 encoded thumbnail of the extracted ROI</dd>
+        <dt>success <span class="property-type">boolean</span></dt>
+        <dd>Always true on successful extraction</dd>
 
-        <dt>payload <span class="property-type">object</span></dt>
-        <dd>Contains image_id, thumbnail_base64, metadata, source_image_id, and roi coordinates</dd>
+        <dt>processing_time_ms <span class="property-type">number</span></dt>
+        <dd>Processing time in milliseconds</dd>
+
+        <dt>node_name <span class="property-type">string</span></dt>
+        <dd>Name of this node</dd>
     </dl>
 
     <h3>Configuration</h3>
-    <p>Define the rectangular region to extract using X, Y coordinates (top-left corner) and Width, Height dimensions.</p>
+
+    <h4>ROI Mode</h4>
+    <ul>
+        <li><b>Absolute</b> - ROI coordinates are absolute positions in the original image (ignores input bounding_box)</li>
+        <li><b>Relative</b> - ROI coordinates are relative to the input bounding_box (if present). The configured X,Y are added as offsets to the input bounding_box position.</li>
+    </ul>
+
+    <h4>ROI Coordinates</h4>
+    <p>Define the rectangular region using X, Y coordinates (top-left corner) and Width, Height dimensions.</p>
 
     <h3>Details</h3>
-    <p>This node extracts a specified rectangular region from an input image and stores it as a new, separate image in the image manager. The extracted region can then be used for further processing in subsequent nodes.</p>
+    <p>This node modifies a VisionObject by extracting a specific rectangular region. Unlike creating a new image, it preserves the original <code>image_id</code> and all object properties, only updating the bounding box and thumbnail to focus on the ROI area.</p>
 
     <p>The ROI coordinates are automatically clipped to the image bounds, so you don't need to worry about exceeding image dimensions.</p>
 
     <h3>Use Cases</h3>
     <ul>
-        <li>Focus detection on a specific area of interest</li>
-        <li>Pre-process images by isolating relevant regions</li>
-        <li>Create image crops for template learning</li>
-        <li>Reduce processing time by working with smaller images</li>
+        <li>Focus subsequent processing on a specific area of interest</li>
+        <li>Narrow down detection regions from previous nodes</li>
+        <li>Zoom into detected objects for detailed analysis</li>
+        <li>Create cascaded detection pipelines (detect region → extract ROI → detect details)</li>
     </ul>
 
-    <h3>Example Flow</h3>
+    <h3>Example Flows</h3>
     <pre>
-[Camera Capture] → [ROI Extract] → [Edge Detect] → [Result Merger]
+// Absolute mode: Always analyze top-left corner
+[Camera Capture] → [ROI Extract (absolute)] → [Color Detect]
+
+// Relative mode: Analyze center of detected edge
+[Camera Capture] → [Edge Detect] → [ROI Extract (relative)] → [Color Detect]
     </pre>
 </script>

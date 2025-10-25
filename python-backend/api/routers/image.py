@@ -22,48 +22,64 @@ async def extract_roi(
     request: ROIExtractRequest, image_service=Depends(get_image_service)
 ) -> ROIExtractResponse:
     """
-    Extract Region of Interest from an image and store it as a new image.
+    Extract Region of Interest thumbnail from an image.
 
     This endpoint extracts a rectangular region from an existing image
-    and stores it as a separate image in the image manager.
+    and returns a thumbnail of that region. The original image_id remains
+    unchanged, only the bounding_box and thumbnail are updated.
 
     Args:
-        request: ROI extraction request with image_id and roi coordinates
+        request: ROI extraction request with image_id and bounding_box coordinates
         image_service: Image service dependency
 
     Returns:
-        ROIExtractResponse with new image_id, thumbnail, and metadata
+        ROIExtractResponse with thumbnail and clipped bounding_box
     """
-    # Convert request ROI to ROI object
+    # Extract ROI from source image (clipped to image bounds)
+    # Convert Pydantic ROI model to dataclass ROI
     roi = ROI(
-        x=request.roi.x,
-        y=request.roi.y,
-        width=request.roi.width,
-        height=request.roi.height,
+        x=request.bounding_box.x,
+        y=request.bounding_box.y,
+        width=request.bounding_box.width,
+        height=request.bounding_box.height,
     )
+    roi_image = image_service.get_image_with_roi(image_id=request.image_id, roi=roi, safe_mode=True)
 
-    # Extract ROI from source image
-    roi_image = image_service.get_image_with_roi(
-        image_id=request.image_id, roi=roi, safe_mode=True  # Clip to image bounds if needed
-    )
+    # Create thumbnail directly from the cropped image
+    import base64
 
-    # Store extracted ROI as new image
-    metadata = {
-        "source_image_id": request.image_id,
-        "roi": roi.to_dict(),
-        "operation": "roi_extract",
-    }
+    import cv2
 
-    new_image_id = image_service.store_image(roi_image, metadata=metadata)
+    from core.constants import ImageConstants
 
-    # Create thumbnail for the extracted ROI
-    thumbnail_base64 = image_service.create_thumbnail(new_image_id)
+    # Resize to thumbnail size (max width 320px)
+    height, width = roi_image.shape[:2]
+    max_width = ImageConstants.DEFAULT_THUMBNAIL_WIDTH
+    if width > max_width:
+        scale = max_width / width
+        new_width = max_width
+        new_height = int(height * scale)
+        thumbnail_image = cv2.resize(roi_image, (new_width, new_height))
+    else:
+        thumbnail_image = roi_image
+
+    # Encode to base64
+    _, buffer = cv2.imencode(".jpg", thumbnail_image)
+    thumbnail = base64.b64encode(buffer).decode("utf-8")
+
+    # Get actual clipped bounding box
+    original_image = image_service.get_image(request.image_id)
+    img_height, img_width = original_image.shape[:2]
+
+    clipped_bbox = request.bounding_box.model_copy()
+    clipped_bbox.x = max(0, min(clipped_bbox.x, img_width - 1))
+    clipped_bbox.y = max(0, min(clipped_bbox.y, img_height - 1))
+    clipped_bbox.width = min(clipped_bbox.width, img_width - clipped_bbox.x)
+    clipped_bbox.height = min(clipped_bbox.height, img_height - clipped_bbox.y)
 
     logger.info(
-        f"Extracted ROI from {request.image_id} -> {new_image_id}: "
-        f"{roi.width}x{roi.height} at ({roi.x},{roi.y})"
+        f"Extracted ROI thumbnail from {request.image_id}: "
+        f"{clipped_bbox.width}x{clipped_bbox.height} at ({clipped_bbox.x},{clipped_bbox.y})"
     )
 
-    return ROIExtractResponse(
-        success=True, image_id=new_image_id, thumbnail_base64=thumbnail_base64, metadata=metadata
-    )
+    return ROIExtractResponse(success=True, thumbnail=thumbnail, bounding_box=clipped_bbox)

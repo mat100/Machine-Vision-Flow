@@ -48,6 +48,7 @@ module.exports = function(RED) {
                     template_id: templateId,
                     method: node.method,
                     threshold: node.threshold,
+                    bounding_box: msg.payload?.bounding_box || null,
                     multi_scale: node.multiScale,
                     scale_range: node.scaleRange
                 };

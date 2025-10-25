@@ -32,10 +32,10 @@ module.exports = function(RED) {
             done = done || function(err) { if(err) node.error(err, msg) };
 
             try {
-                // Get image_id from message
-                const imageId = msg.image_id || msg.payload?.image_id;
+                // Get image_id from message payload
+                const imageId = msg.payload?.image_id;
                 if (!imageId) {
-                    throw new Error("No image_id in message");
+                    throw new Error("No image_id in msg.payload");
                 }
 
                 node.status({fill: "blue", shape: "dot", text: "detecting edges..."});
@@ -44,6 +44,8 @@ module.exports = function(RED) {
                 const requestData = {
                     image_id: imageId,
                     method: node.method,
+                    // Include bounding_box if present in payload
+                    bounding_box: msg.payload?.bounding_box || null,
                     // Canny parameters
                     canny_low: parseInt(node.cannyLow) || 50,
                     canny_high: parseInt(node.cannyHigh) || 150,

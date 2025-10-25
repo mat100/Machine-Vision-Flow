@@ -8,6 +8,7 @@ module.exports = function(RED) {
         // Configuration
         node.apiUrl = config.apiUrl || 'http://localhost:8000';
         node.roi = config.roi || {x: 0, y: 0, width: 100, height: 100};
+        node.roiMode = config.roiMode || 'absolute';
 
         node.status({fill: "grey", shape: "ring", text: "ready"});
 
@@ -16,23 +17,41 @@ module.exports = function(RED) {
             done = done || function(err) { if(err) node.error(err, msg) };
 
             try {
-                // Get image_id from message
-                const imageId = msg.image_id || msg.payload?.image_id;
+                // Get image_id from message payload
+                const imageId = msg.payload?.image_id;
                 if (!imageId) {
-                    throw new Error("No image_id in message");
+                    throw new Error("No image_id in msg.payload");
                 }
 
                 node.status({fill: "blue", shape: "dot", text: "extracting ROI..."});
 
+                // Calculate bounding box based on mode
+                let bounding_box;
+                const configRoi = {
+                    x: parseInt(node.roi.x) || 0,
+                    y: parseInt(node.roi.y) || 0,
+                    width: parseInt(node.roi.width) || 100,
+                    height: parseInt(node.roi.height) || 100
+                };
+
+                if (node.roiMode === 'relative' && msg.payload.bounding_box) {
+                    // Relative mode: add ROI offset to existing bounding box
+                    const inputBox = msg.payload.bounding_box;
+                    bounding_box = {
+                        x: inputBox.x + configRoi.x,
+                        y: inputBox.y + configRoi.y,
+                        width: configRoi.width,
+                        height: configRoi.height
+                    };
+                } else {
+                    // Absolute mode: use ROI as-is
+                    bounding_box = configRoi;
+                }
+
                 // Prepare request
                 const requestData = {
                     image_id: imageId,
-                    roi: {
-                        x: parseInt(node.roi.x) || 0,
-                        y: parseInt(node.roi.y) || 0,
-                        width: parseInt(node.roi.width) || 100,
-                        height: parseInt(node.roi.height) || 100
-                    }
+                    bounding_box: bounding_box
                 };
 
                 // Call API
@@ -54,19 +73,24 @@ module.exports = function(RED) {
                 node.status({
                     fill: "green",
                     shape: "dot",
-                    text: `ROI extracted: ${requestData.roi.width}x${requestData.roi.height} | ${processingTime}ms`
+                    text: `ROI extracted: ${result.bounding_box.width}x${result.bounding_box.height} | ${processingTime}ms`
                 });
 
-                // Update message with new image_id from extracted ROI
-                msg.image_id = result.image_id;
-                msg.thumbnail = result.thumbnail_base64;
-                msg.payload = {
-                    image_id: result.image_id,
-                    thumbnail_base64: result.thumbnail_base64,
-                    metadata: result.metadata,
-                    source_image_id: imageId,
-                    roi: requestData.roi
+                // Preserve input VisionObject, only update bbox, center, and thumbnail
+                const outputPayload = {...msg.payload};
+                outputPayload.bounding_box = result.bounding_box;
+                outputPayload.center = {
+                    x: result.bounding_box.x + result.bounding_box.width / 2,
+                    y: result.bounding_box.y + result.bounding_box.height / 2
                 };
+                outputPayload.thumbnail = result.thumbnail;
+
+                msg.payload = outputPayload;
+
+                // Metadata in message root
+                msg.success = true;
+                msg.processing_time_ms = processingTime;
+                msg.node_name = node.name || "ROI Extract";
 
                 send(msg);
                 done();

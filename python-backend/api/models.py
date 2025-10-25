@@ -32,6 +32,8 @@ class VisionObjectType(str, Enum):
     EDGE_CONTOUR = "edge_contour"
     TEMPLATE_MATCH = "template_match"
     COLOR_REGION = "color_region"
+    ARUCO_MARKER = "aruco_marker"
+    ROTATION_ANALYSIS = "rotation_analysis"
 
 
 # Common models
@@ -172,6 +174,7 @@ class TemplateMatchRequest(BaseModel):
     template_id: str
     method: TemplateMethod = TemplateMethod.TM_CCOEFF_NORMED
     threshold: float = Field(0.8, ge=0.0, le=1.0)
+    bounding_box: Optional[ROI] = None
     multi_scale: bool = False
     scale_range: Optional[List[float]] = [0.8, 1.2]
     rotation: bool = False
@@ -183,6 +186,7 @@ class EdgeDetectRequest(BaseModel):
 
     image_id: str
     method: str = "canny"
+    bounding_box: Optional[ROI] = None
 
     # Canny parameters
     canny_low: Optional[int] = Field(50, ge=0, le=255, description="Canny low threshold")
@@ -322,13 +326,32 @@ class ROIExtractRequest(BaseModel):
     """Request to extract ROI from image"""
 
     image_id: str
-    roi: ROI
+    bounding_box: ROI
 
 
 class ROIExtractResponse(BaseModel):
     """Response from ROI extraction"""
 
     success: bool
-    image_id: str
-    thumbnail_base64: str
-    metadata: Dict[str, Any]
+    thumbnail: str
+    bounding_box: ROI
+
+
+class ArucoDetectRequest(BaseModel):
+    """Request for ArUco marker detection"""
+
+    image_id: str = Field(..., description="ID of the image to analyze")
+    dictionary: str = Field("DICT_4X4_50", description="ArUco dictionary type")
+    params: Optional[Dict[str, Any]] = Field(None, description="Detection parameters")
+
+
+class RotationDetectRequest(BaseModel):
+    """Request for rotation detection"""
+
+    image_id: str = Field(..., description="ID of the image for visualization")
+    contour: List = Field(..., description="Contour points [[x1,y1], [x2,y2], ...]")
+    method: str = Field(
+        "min_area_rect", description="Detection method: min_area_rect, ellipse_fit, pca"
+    )
+    angle_range: str = Field("0_360", description="Angle output range: 0_360, -180_180, or 0_180")
+    roi: Optional[ROI] = Field(None, description="Optional ROI for visualization context")

@@ -8,7 +8,14 @@ from fastapi import APIRouter, Depends
 
 from api.dependencies import get_vision_service
 from api.exceptions import safe_endpoint
-from api.models import ColorDetectRequest, EdgeDetectRequest, TemplateMatchRequest, VisionResponse
+from api.models import (
+    ArucoDetectRequest,
+    ColorDetectRequest,
+    EdgeDetectRequest,
+    RotationDetectRequest,
+    TemplateMatchRequest,
+    VisionResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +28,23 @@ async def template_match(
     request: TemplateMatchRequest, vision_service=Depends(get_vision_service)
 ) -> VisionResponse:
     """Perform template matching"""
+    # Convert bounding_box to dict if present
+    bbox_dict = None
+    if request.bounding_box:
+        bbox_dict = {
+            "x": request.bounding_box.x,
+            "y": request.bounding_box.y,
+            "width": request.bounding_box.width,
+            "height": request.bounding_box.height,
+        }
+
     # Service handles all template matching logic, history recording, and thumbnail creation
     detected_objects, thumbnail_base64, processing_time = vision_service.template_match(
         image_id=request.image_id,
         template_id=request.template_id,
         method=request.method.value,
         threshold=request.threshold,
+        bounding_box=bbox_dict,
         record_history=True,
     )
 
@@ -79,12 +97,23 @@ async def edge_detect(
         "equalize_enabled": request.equalize_enabled,
     }
 
+    # Convert bounding_box to dict if present
+    bbox_dict = None
+    if request.bounding_box:
+        bbox_dict = {
+            "x": request.bounding_box.x,
+            "y": request.bounding_box.y,
+            "width": request.bounding_box.width,
+            "height": request.bounding_box.height,
+        }
+
     # Service handles all edge detection logic, history recording, and thumbnail creation
     result, thumbnail_base64, processing_time = vision_service.edge_detect(
         image_id=request.image_id,
         method=request.method.lower(),
         params=params,
         preprocessing=preprocessing,
+        bounding_box=bbox_dict,
         record_history=True,
     )
 
@@ -130,6 +159,60 @@ async def color_detect(
 
     return VisionResponse(
         objects=objects,
+        thumbnail_base64=thumbnail_base64,
+        processing_time_ms=processing_time,
+    )
+
+
+@router.post("/aruco-detect")
+@safe_endpoint
+async def aruco_detect(
+    request: ArucoDetectRequest, vision_service=Depends(get_vision_service)
+) -> VisionResponse:
+    """Detect ArUco markers in image"""
+    # Service handles all ArUco detection logic, history recording, and thumbnail creation
+    detected_objects, thumbnail_base64, processing_time = vision_service.aruco_detect(
+        image_id=request.image_id,
+        dictionary=request.dictionary,
+        params=request.params,
+        record_history=True,
+    )
+
+    return VisionResponse(
+        objects=detected_objects,
+        thumbnail_base64=thumbnail_base64,
+        processing_time_ms=processing_time,
+    )
+
+
+@router.post("/rotation-detect")
+@safe_endpoint
+async def rotation_detect(
+    request: RotationDetectRequest, vision_service=Depends(get_vision_service)
+) -> VisionResponse:
+    """Detect rotation angle from contour"""
+    # Convert ROI model to dict if provided
+    roi_dict = None
+    if request.roi is not None:
+        roi_dict = {
+            "x": request.roi.x,
+            "y": request.roi.y,
+            "width": request.roi.width,
+            "height": request.roi.height,
+        }
+
+    # Service handles all rotation detection logic, history recording, and thumbnail creation
+    detected_object, thumbnail_base64, processing_time = vision_service.rotation_detect(
+        image_id=request.image_id,
+        contour=request.contour,
+        method=request.method,
+        angle_range=request.angle_range,
+        roi=roi_dict,
+        record_history=True,
+    )
+
+    return VisionResponse(
+        objects=[detected_object],
         thumbnail_base64=thumbnail_base64,
         processing_time_ms=processing_time,
     )
