@@ -91,14 +91,6 @@ def get_history_buffer(managers: Managers = Depends(get_managers)) -> HistoryBuf
 
 
 # Common query parameters
-def common_pagination(
-    offset: int = Query(0, ge=0, description="Number of items to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Number of items to return"),
-) -> Dict[str, int]:
-    """Common pagination parameters."""
-    return {"offset": offset, "limit": limit}
-
-
 def image_id_param(image_id: str = Path(..., description="Unique image identifier")) -> str:
     """Common image ID path parameter."""
     return image_id
@@ -230,7 +222,6 @@ def validate_vision_request(
     image_id: str,
     roi: Optional[ROI],
     image_manager: ImageManager,
-    convert_roi_to_dict: bool = True,
 ):
     """
     Unified validation for vision detection endpoints.
@@ -244,10 +235,9 @@ def validate_vision_request(
         image_id: Image identifier to validate
         roi: Optional ROI to validate
         image_manager: ImageManager instance
-        convert_roi_to_dict: If True, returns dict; if False, returns ROI model
 
     Returns:
-        ROI as dict or ROI model (based on convert_roi_to_dict), or None if roi is None
+        ROI as dict, or None if roi is None
 
     Raises:
         HTTPException: If image not found or ROI invalid
@@ -259,11 +249,8 @@ def validate_vision_request(
     if roi:
         validate_roi_bounds(roi, image_id, image_manager)
 
-    # Convert ROI to dict or return as-is
-    if convert_roi_to_dict:
-        return roi_to_dict(roi)
-    else:
-        return roi
+    # Convert ROI to dict
+    return roi_to_dict(roi)
 
 
 # Authentication dependency (placeholder for future implementation)
@@ -318,26 +305,6 @@ def get_config(request: Request) -> Dict[str, Any]:
     except AttributeError:
         logger.warning("Config not found in app state, using defaults")
         return {}
-
-
-# Error response helper
-def error_response(status_code: int, message: str, details: Optional[Dict] = None) -> HTTPException:
-    """
-    Create standardized error response.
-
-    Args:
-        status_code: HTTP status code
-        message: Error message
-        details: Optional additional details
-
-    Returns:
-        HTTPException with structured error
-    """
-    content = {"error": message}
-    if details:
-        content["details"] = details
-
-    return HTTPException(status_code=status_code, detail=content)
 
 
 # Service layer dependencies

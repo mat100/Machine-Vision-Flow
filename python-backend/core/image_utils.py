@@ -34,7 +34,6 @@ class ImageUtils:
     # Re-export all methods from ImageProcessors
     create_thumbnail = staticmethod(ImageProcessors.create_thumbnail)
     resize_image = staticmethod(ImageProcessors.resize_image)
-    draw_overlay = staticmethod(ImageProcessors.draw_overlay)
     extract_roi = staticmethod(ImageProcessors.extract_roi)
 
     # Re-export all methods from ImageGeometry

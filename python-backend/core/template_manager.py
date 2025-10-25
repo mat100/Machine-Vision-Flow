@@ -305,9 +305,3 @@ class TemplateManager:
 
         base64_str = base64.b64encode(buffer.read()).decode("utf-8")
         return f"data:image/png;base64,{base64_str}"
-
-    def clear_cache(self):
-        """Clear template image cache (keep metadata)"""
-        with self.lock:
-            self.template_images.clear()
-            logger.info("Template cache cleared")

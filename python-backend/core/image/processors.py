@@ -111,65 +111,6 @@ class ImageProcessors:
         return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
 
     @staticmethod
-    def draw_overlay(image: np.ndarray, overlays: list, copy: bool = True) -> np.ndarray:
-        """
-        Draw overlays (rectangles, text, etc.) on image.
-
-        Args:
-            image: Input image
-            overlays: List of overlay dictionaries
-            copy: If True, work on copy of image
-
-        Returns:
-            Image with overlays
-        """
-        if copy:
-            image = image.copy()
-
-        for overlay in overlays:
-            overlay_type = overlay.get("type")
-
-            if overlay_type == "rectangle":
-                cv2.rectangle(
-                    image,
-                    (overlay["x"], overlay["y"]),
-                    (overlay["x"] + overlay["width"], overlay["y"] + overlay["height"]),
-                    overlay.get("color", (0, 255, 0)),
-                    overlay.get("thickness", 2),
-                )
-
-            elif overlay_type == "text":
-                cv2.putText(
-                    image,
-                    overlay["text"],
-                    (overlay["x"], overlay["y"]),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    overlay.get("scale", 1.0),
-                    overlay.get("color", (0, 255, 0)),
-                    overlay.get("thickness", 2),
-                )
-
-            elif overlay_type == "circle":
-                cv2.circle(
-                    image,
-                    (overlay["x"], overlay["y"]),
-                    overlay["radius"],
-                    overlay.get("color", (0, 255, 0)),
-                    overlay.get("thickness", 2),
-                )
-
-            elif overlay_type == "line":
-                cv2.line(
-                    image,
-                    (overlay["x1"], overlay["y1"]),
-                    (overlay["x2"], overlay["y2"]),
-                    overlay.get("color", (0, 255, 0)),
-                    overlay.get("thickness", 2),
-                )
-
-        return image
-
-    @staticmethod
     def extract_roi(
         image: np.ndarray, x: int, y: int, width: int, height: int, safe: bool = True
     ) -> Optional[np.ndarray]:

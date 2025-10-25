@@ -152,7 +152,7 @@ async def color_detect(
     OUTPUT results:
     - bounding_box: Region where color was analyzed
     """
-    result = execute_vision_detection(
+    return execute_vision_detection(
         request.image_id,
         request.roi,
         image_manager,
@@ -167,13 +167,6 @@ async def color_detect(
             record_history=True,
         ),
     )
-
-    # Special case: Filter objects based on match result
-    if result.objects and request.expected_color is not None:
-        if not result.objects[0].properties.get("match", False):
-            result.objects = []
-
-    return result
 
 
 @router.post("/aruco-detect")
@@ -195,28 +188,17 @@ async def aruco_detect(
     - properties.corners: 4 corner points
     - rotation: Marker rotation in degrees (0-360)
     """
-    # Note: ArUco detection uses ROI as Pydantic model (not dict)
-    # So we need custom validation
-    validated_roi = validate_vision_request(
+    return execute_vision_detection(
         request.image_id,
         request.roi,
         image_manager,
-        convert_roi_to_dict=False,
-    )
-
-    # ArUco uses ROI object directly, not dict
-    detected_objects, thumbnail_base64, processing_time = vision_service.aruco_detect(
-        image_id=request.image_id,
-        dictionary=request.dictionary,
-        roi=validated_roi,
-        params=request.params,
-        record_history=True,
-    )
-
-    return VisionResponse(
-        objects=detected_objects,
-        thumbnail_base64=thumbnail_base64,
-        processing_time_ms=processing_time,
+        lambda roi: vision_service.aruco_detect(
+            image_id=request.image_id,
+            dictionary=request.dictionary,
+            roi=roi,
+            params=request.params,
+            record_history=True,
+        ),
     )
 
 

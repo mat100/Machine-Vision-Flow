@@ -118,7 +118,7 @@ class VisionService:
                 result = self._adjust_coordinates_for_roi(result, roi_offset)
 
             # Generate thumbnail
-            thumbnail_base64 = self._create_detection_thumbnail(result, image)
+            thumbnail_base64 = self._create_detection_thumbnail(result)
 
         # Read processing time AFTER with block (timer updates in finally)
         processing_time_ms = t["ms"]
@@ -132,25 +132,15 @@ class VisionService:
         return result, thumbnail_base64, processing_time_ms
 
     def _adjust_coordinates_for_roi(self, result, roi_offset):
-        """Adjust object coordinates by ROI offset."""
-        # Handle different result types
-        if isinstance(result, dict) and "objects" in result:
-            # Result with objects list
-            for obj in result["objects"]:
-                self._adjust_object_coordinates(obj, roi_offset)
-            return result
-        elif isinstance(result, list):
-            # Direct list of objects
-            for obj in result:
-                self._adjust_object_coordinates(obj, roi_offset)
-            return result
-        elif isinstance(result, VisionObject):
-            # Single object
-            self._adjust_object_coordinates(result, roi_offset)
-            return result
-        else:
-            # Unknown format, return as-is
-            return result
+        """
+        Adjust object coordinates by ROI offset.
+
+        All detectors return Dict with "objects" list, so we can simplify this.
+        """
+        # All detectors return dict with "objects" list
+        for obj in result["objects"]:
+            self._adjust_object_coordinates(obj, roi_offset)
+        return result
 
     def _adjust_object_coordinates(self, obj: VisionObject, roi_offset: Tuple[int, int]):
         """Adjust single object coordinates by ROI offset."""
@@ -163,30 +153,24 @@ class VisionService:
         if hasattr(obj, "contour") and obj.contour:
             obj.contour = [[x + roi_offset[0], y + roi_offset[1]] for x, y in obj.contour]
 
-    def _create_detection_thumbnail(self, result, processed_image) -> str:
-        """Create thumbnail from detection result."""
-        # Check if result has annotated image
-        if isinstance(result, dict) and "image" in result:
-            _, thumbnail_base64 = self.image_manager.create_thumbnail(result["image"])
-            return thumbnail_base64
+    def _create_detection_thumbnail(self, result) -> str:
+        """
+        Create thumbnail from detection result.
 
-        # Fallback: use processed image
-        _, thumbnail_base64 = self.image_manager.create_thumbnail(processed_image)
+        All detectors return dict with "image" containing the annotated visualization.
+        """
+        _, thumbnail_base64 = self.image_manager.create_thumbnail(result["image"])
         return thumbnail_base64
 
     def _record_detection_history(
         self, image_id: str, result, detection_type: str, processing_time_ms: int, thumbnail: str
     ):
-        """Record detection in history buffer."""
-        # Determine object count
-        if isinstance(result, dict) and "objects" in result:
-            object_count = len(result["objects"])
-        elif isinstance(result, list):
-            object_count = len(result)
-        elif isinstance(result, VisionObject):
-            object_count = 1
-        else:
-            object_count = 0
+        """
+        Record detection in history buffer.
+
+        All detectors return dict with "objects" list.
+        """
+        object_count = len(result["objects"])
 
         self.history_buffer.add_inspection(
             image_id=image_id,
@@ -303,10 +287,11 @@ class VisionService:
             else:
                 result_image = image.copy()
 
-            # Return result in format expected by _execute_detection
+            # Return result in unified format (consistent with other detectors)
             return {
+                "success": True,
                 "objects": detected_objects,
-                "visualization": {"has_overlay": True, "image": result_image},
+                "image": result_image,
             }
 
         # Execute using template method - it handles ROI, coordinate adjustment, thumbnail, history
@@ -535,6 +520,13 @@ class VisionService:
             f"Color detection completed: {detected_object.properties['dominant_color']} "
             f"({detected_object.confidence*100:.1f}%) in {processing_time}ms"
         )
+
+        # Filter result: if expected_color specified and doesn't match, return empty list
+        # This business logic belongs in service layer, not router
+        if expected_color is not None:
+            is_match = detected_object.properties.get("match", False)
+            if not is_match:
+                return [], thumbnail_base64, processing_time
 
         return [detected_object], thumbnail_base64, processing_time
 
