@@ -107,7 +107,7 @@ class CameraService:
         Capture image from camera and store it.
 
         This is a high-level operation that:
-        1. Captures image from camera
+        1. Captures image from camera (auto-connects if needed)
         2. Applies ROI if specified
         3. Stores image in image manager
         4. Creates thumbnail
@@ -124,6 +124,24 @@ class CameraService:
         Raises:
             CameraNotFoundException: If camera not found or image capture fails
         """
+        # Auto-connect camera if not already connected
+        if not self.is_camera_connected(camera_id):
+            logger.info(f"Camera {camera_id} not connected, attempting auto-connect")
+            try:
+                # Handle test camera
+                if camera_id == "test":
+                    self.connect_camera(camera_id=camera_id, camera_type="test", source=None)
+                # Handle USB cameras
+                elif camera_id.startswith("usb_"):
+                    source = int(camera_id.split("_")[1])
+                    self.connect_camera(camera_id=camera_id, camera_type="usb", source=source)
+                # Default case
+                else:
+                    self.connect_camera(camera_id=camera_id, camera_type="usb", source=0)
+                logger.info(f"Camera {camera_id} auto-connected successfully")
+            except Exception as e:
+                logger.warning(f"Failed to auto-connect camera {camera_id}: {e}")
+
         # Capture image
         image = self.camera_manager.capture(camera_id)
 

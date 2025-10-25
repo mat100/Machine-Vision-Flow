@@ -15,27 +15,43 @@ module.exports = function(RED) {
 
         // Connect to camera on startup if autoConnect
         if (node.autoConnect && node.cameraId) {
-            connectCamera();
+            // Wait for backend to be ready, then connect
+            connectCameraWithRetry();
         }
 
-        // Connect to camera
-        async function connectCamera() {
-            try {
-                const response = await axios.post(
-                    `${node.apiUrl}/api/camera/connect`,
-                    {
-                        camera_id: node.cameraId,
-                        resolution: config.resolution
-                    }
-                );
+        // Connect to camera with retry logic
+        async function connectCameraWithRetry(maxRetries = 5, retryDelay = 2000) {
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    // Check if backend is available
+                    await axios.get(`${node.apiUrl}/api/system/health`, { timeout: 1000 });
 
-                if (response.data.success) {
-                    node.status({fill: "green", shape: "dot", text: `connected: ${node.cameraId}`});
-                    node.log(`Camera connected: ${node.cameraId}`);
+                    // Backend is ready, try to connect camera
+                    node.status({fill: "yellow", shape: "ring", text: `connecting (${attempt}/${maxRetries})...`});
+
+                    const response = await axios.post(
+                        `${node.apiUrl}/api/camera/connect`,
+                        {
+                            camera_id: node.cameraId,
+                            resolution: config.resolution
+                        }
+                    );
+
+                    if (response.data.success) {
+                        node.status({fill: "green", shape: "dot", text: `connected: ${node.cameraId}`});
+                        node.log(`Camera connected: ${node.cameraId}`);
+                        return; // Success, exit retry loop
+                    }
+                } catch (error) {
+                    if (attempt < maxRetries) {
+                        // Wait before retry
+                        node.status({fill: "yellow", shape: "ring", text: `waiting for backend (${attempt}/${maxRetries})...`});
+                        await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    } else {
+                        // Final attempt failed - silently fail, will auto-connect on capture
+                        node.status({fill: "grey", shape: "ring", text: "ready"});
+                    }
                 }
-            } catch (error) {
-                node.error(`Failed to connect camera: ${error.message}`);
-                node.status({fill: "red", shape: "ring", text: "connection failed"});
             }
         }
 
