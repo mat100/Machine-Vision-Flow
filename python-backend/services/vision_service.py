@@ -497,6 +497,7 @@ class VisionService:
         self,
         image_id: str,
         dictionary: str = "DICT_4X4_50",
+        roi: Optional[ROI] = None,
         params: Optional[Dict] = None,
         record_history: bool = True,
     ) -> Tuple[List[VisionObject], str, int]:
@@ -506,6 +507,7 @@ class VisionService:
         Args:
             image_id: ID of the image to process
             dictionary: ArUco dictionary type
+            roi: Optional region of interest to search in
             params: Detection parameters
             record_history: Whether to record in history buffer
 
@@ -520,9 +522,24 @@ class VisionService:
         if image is None:
             raise ImageNotFoundException(image_id)
 
+        # Extract ROI if specified
+        image_to_process = image
+        if roi:
+            image_to_process = image[roi.y : roi.y + roi.height, roi.x : roi.x + roi.width]
+
         # Perform ArUco detection
         with timer() as t:
-            result = self.aruco_detector.detect(image, dictionary=dictionary, params=params or {})
+            result = self.aruco_detector.detect(
+                image_to_process, dictionary=dictionary, params=params or {}
+            )
+
+        # Adjust coordinates if ROI was used
+        if roi:
+            for obj in result["objects"]:
+                obj.center.x += roi.x
+                obj.center.y += roi.y
+                obj.bounding_box.x += roi.x
+                obj.bounding_box.y += roi.y
 
         # Get visualization
         thumbnail_base64 = result["visualization"]["overlay"]
@@ -604,8 +621,15 @@ class VisionService:
         # Get single object
         detected_object = result["objects"][0]
 
-        # Get visualization
-        thumbnail_base64 = result["visualization"]["overlay"]
+        # Get visualization and create thumbnail
+        import base64
+
+        overlay_data = base64.b64decode(result["visualization"]["overlay"])
+        nparr = np.frombuffer(overlay_data, np.uint8)
+        overlay_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        # Create thumbnail from overlay
+        _, thumbnail_base64 = self.image_manager.create_thumbnail(overlay_image)
 
         # Record history if requested
         if record_history:

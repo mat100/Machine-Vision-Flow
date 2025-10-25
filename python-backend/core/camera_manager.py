@@ -355,7 +355,7 @@ class CameraManager:
         logger.info("Camera Manager cleanup complete")
 
     def create_test_image(self, text: str = "Test Image") -> np.ndarray:
-        """Create a test image for development"""
+        """Create a test image for development with ArUco markers"""
         # Create a 1920x1080 test image
         img = np.zeros((1080, 1920, 3), dtype=np.uint8)
 
@@ -363,13 +363,54 @@ class CameraManager:
         for i in range(1080):
             img[i, :] = [i * 255 // 1080, 100, 255 - i * 255 // 1080]
 
+        # Add ArUco markers (for testing rotation detection)
+        try:
+            aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+            marker_size = 200  # Marker itself
+            border_size = 50  # White border around marker
+            total_size = marker_size + 2 * border_size  # Total with border
+
+            # Generate first marker (ID 0)
+            marker_image = cv2.aruco.generateImageMarker(aruco_dict, 0, marker_size)
+            # Create white background and place marker in center
+            marker_with_border = np.ones((total_size, total_size), dtype=np.uint8) * 255
+            marker_with_border[
+                border_size : border_size + marker_size, border_size : border_size + marker_size
+            ] = marker_image
+
+            # Place first marker in top-left
+            y_pos, x_pos = 50, 50
+            img[y_pos : y_pos + total_size, x_pos : x_pos + total_size] = cv2.cvtColor(
+                marker_with_border, cv2.COLOR_GRAY2BGR
+            )
+
+            # Generate second marker (ID 5)
+            marker_image2 = cv2.aruco.generateImageMarker(aruco_dict, 5, marker_size)
+            marker_with_border2 = np.ones((total_size, total_size), dtype=np.uint8) * 255
+            marker_with_border2[
+                border_size : border_size + marker_size, border_size : border_size + marker_size
+            ] = marker_image2
+
+            # Place second marker in top-right
+            x_pos2 = 1920 - total_size - 50
+            img[y_pos : y_pos + total_size, x_pos2 : x_pos2 + total_size] = cv2.cvtColor(
+                marker_with_border2, cv2.COLOR_GRAY2BGR
+            )
+        except Exception as e:
+            logger.warning(f"Could not add ArUco markers to test image: {e}")
+
+        # Add some test objects (rectangles) for edge/rotation detection
+        cv2.rectangle(img, (800, 400), (1000, 600), (255, 100, 100), -1)  # Blue rectangle
+        cv2.rectangle(img, (1100, 450), (1250, 550), (100, 255, 100), -1)  # Green rectangle
+        cv2.circle(img, (950, 800), 80, (100, 100, 255), -1)  # Red circle
+
         # Add text
         font = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(img, text, (600, 540), font, 3, (255, 255, 255), 3)
+        cv2.putText(img, text, (600, 950), font, 2, (255, 255, 255), 3)
 
         # Add timestamp
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        cv2.putText(img, timestamp, (50, 50), font, 1, (255, 255, 255), 2)
+        cv2.putText(img, timestamp, (50, 1050), font, 1, (255, 255, 255), 2)
 
         # Add grid
         for x in range(0, 1920, 192):

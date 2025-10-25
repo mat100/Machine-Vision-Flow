@@ -20,6 +20,8 @@
       "mv-template-match": "nodes/vision/mv-template-match.js",
       "mv-edge-detect": "nodes/vision/mv-edge-detect.js",
       "mv-color-detect": "nodes/vision/mv-color-detect.js",
+      "mv-aruco-detect": "nodes/vision/mv-aruco-detect.js",
+      "mv-rotation-detect": "nodes/vision/mv-rotation-detect.js",
       "mv-roi-extract": "nodes/vision/mv-roi-extract.js",
       "mv-overlay": "nodes/output/mv-overlay.js"
     }

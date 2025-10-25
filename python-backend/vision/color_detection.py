@@ -5,6 +5,7 @@ Provides automatic dominant color detection using histogram analysis
 and k-means clustering.
 """
 
+import logging
 from typing import Dict, Optional
 
 import cv2
@@ -19,7 +20,7 @@ class ColorDetector:
 
     def __init__(self):
         """Initialize color detector."""
-        pass
+        self.logger = logging.getLogger(__name__)
 
     def detect(
         self,

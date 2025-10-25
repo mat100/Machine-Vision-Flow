@@ -174,6 +174,7 @@ async def aruco_detect(
     detected_objects, thumbnail_base64, processing_time = vision_service.aruco_detect(
         image_id=request.image_id,
         dictionary=request.dictionary,
+        roi=request.roi,
         params=request.params,
         record_history=True,
     )

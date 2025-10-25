@@ -82,6 +82,8 @@ node-red
 - **vision/edge_detection.py:392** - Canny, Sobel, Laplacian methods
 - **vision/color_detection.py** - Histogram and K-means dominant color detection
 - **vision/color_definitions.py** - Standard HSV color ranges (10 colors)
+- **vision/aruco_detection.py** - ArUco fiducial marker detection (OpenCV 4.8.1+)
+- **vision/rotation_detection.py** - Object rotation analysis (min_area_rect, ellipse_fit, PCA)
 - **services/vision_service.py** - Business logic for all vision operations
 
 #### Node-RED Custom Nodes (`node-red/nodes/`)
@@ -89,6 +91,8 @@ node-red
 - **vision/mv-template-match** - Template matching, sends N messages for N matches
 - **vision/mv-edge-detect** - Edge detection with 6 methods, sends N messages for N contours
 - **vision/mv-color-detect** - Dominant color detection, auto-uses msg.payload.bounding_box if present
+- **vision/mv-aruco-detect** - ArUco marker detection, sends N messages for N markers, supports ROI
+- **vision/mv-rotation-detect** - Rotation analysis from contours, supports reference objects
 - **vision/mv-roi-extract** - Extracts ROI from full image for focused processing
 - **output/mv-overlay** - Annotates images with detection results
 
@@ -129,6 +133,25 @@ Note: Color Detect automatically uses msg.payload.contour for precise masking,
       inside the actual contour shape, excluding background within the bbox.
 ```
 
+**Pattern 4: ArUco Reference with Rotation Analysis**
+```
+[Camera Capture] → full image
+       ↓
+       ├→ [ArUco Detect] → finds reference marker, sends marker with rotation
+       │        ↓
+       │   [Set Reference] → stores marker as msg.reference_object
+       │        ↓
+       └→ [Edge Detect] → finds object contours
+                ↓ ↓ ↓
+         [Rotation Detect] → calculates rotation relative to reference
+                ↓ ↓ ↓
+         [Application Logic] → checks if object rotation matches expected angle
+
+Note: ArUco markers provide absolute rotation reference. Rotation Detect can
+      calculate relative rotation by comparing object angle to reference marker.
+      Both nodes support ROI from msg.payload.bounding_box for focused analysis.
+```
+
 ### Unified Message Format
 
 **ALL vision nodes use this standard format:**
@@ -137,7 +160,8 @@ Note: Color Detect automatically uses msg.payload.contour for precise masking,
 // msg.payload = VisionObject (always)
 msg.payload = {
     object_id: "contour_0",           // Unique ID for this object
-    object_type: "edge_contour",      // Type: camera_capture | edge_contour | template_match | color_region
+    object_type: "edge_contour",      // Type: camera_capture | edge_contour | template_match |
+                                      //       color_region | aruco_marker | rotation_analysis
     image_id: "uuid-of-full-image",   // Reference to shared memory image
     timestamp: "2025-10-24T10:30:00", // ISO format
     bounding_box: {x, y, width, height},
@@ -145,6 +169,7 @@ msg.payload = {
     confidence: 0.95,                 // 0.0-1.0
     area: 30000.0,                    // Optional
     perimeter: 700.0,                 // Optional
+    rotation: 45.0,                   // Optional - rotation in degrees (0-360)
     contour: [[x1,y1], [x2,y2], ...], // Optional - contour points (from edge detection)
     thumbnail: "base64...",           // 320px preview with overlays
     properties: {}                    // Node-specific data
@@ -179,7 +204,8 @@ All vision detection APIs use a unified format:
 ```python
 {
     "object_id": "contour_0",
-    "object_type": "edge_contour" | "template_match" | "color_region" | "camera_capture",
+    "object_type": "edge_contour" | "template_match" | "color_region" |
+                   "camera_capture" | "aruco_marker" | "rotation_analysis",
     "image_id": "uuid",  # Optional, added by Node-RED
     "timestamp": "2025-10-24T10:30:00",  # Optional, added by Node-RED
     "bounding_box": {"x": 100, "y": 50, "width": 200, "height": 150},
@@ -187,9 +213,9 @@ All vision detection APIs use a unified format:
     "confidence": 0.85,  # 0.0-1.0
     "area": 30000.0,     # Optional
     "perimeter": 700.0,  # Optional
-    "rotation": 0.0,     # Optional
+    "rotation": 0.0,     # Optional - rotation in degrees (0-360)
     "properties": {},    # Type-specific data
-    "raw_contour": []    # Optional, for edge detection
+    "contour": []        # Optional, for edge detection
 }
 ```
 
@@ -208,6 +234,8 @@ POST /api/camera/capture?camera_id=test     # Returns image_id + thumbnail
 POST /api/vision/template-match             # Template matching with ROI
 POST /api/vision/edge-detect                # Edge detection (6 methods)
 POST /api/vision/color-detect               # Dominant color detection (auto)
+POST /api/vision/aruco-detect               # ArUco marker detection with ROI support
+POST /api/vision/rotation-detect            # Rotation analysis from contours
 GET  /api/camera/stream/{id}                # MJPEG live stream
 POST /api/templates/learn                   # Learn template from ROI
 ```
@@ -233,6 +261,58 @@ POST /api/templates/learn                   # Learn template from ROI
 1. **Detection only**: Returns dominant color found (no expected color)
 2. **Color matching**: Checks if dominant color matches expected color + min percentage
 
+### ArUco Marker Detection
+
+**What are ArUco Markers?**
+- Fiducial markers (2D barcodes) for establishing reference coordinate systems
+- Each marker has unique ID and known size/orientation
+- Provides absolute rotation reference for measuring object angles
+
+**Supported Dictionaries**:
+- DICT_4X4_50, DICT_5X5_50, DICT_6X6_50 (most common)
+- DICT_4X4_100, DICT_4X4_250, DICT_4X4_1000
+- DICT_5X5_100, DICT_5X5_250, DICT_5X5_1000
+- DICT_6X6_100, DICT_6X6_250, DICT_6X6_1000
+- DICT_7X7_50, DICT_7X7_100, DICT_7X7_250, DICT_7X7_1000
+- DICT_ARUCO_ORIGINAL
+
+**ROI Support**:
+- Automatically uses `msg.payload.bounding_box` to limit search area
+- Improves performance and reduces false positives
+- Coordinates adjusted from ROI-relative to absolute
+
+**Output Properties**:
+- `marker_id`: Unique marker ID from dictionary
+- `corners`: 4 corner points [[x,y], [x,y], [x,y], [x,y]]
+- `rotation`: Marker rotation in degrees (0-360)
+
+### Rotation Detection
+
+**What is Rotation Detection?**
+- Calculates object orientation from contour points
+- Three methods with different accuracy/speed tradeoffs
+- Can calculate absolute or relative (to reference) rotation
+
+**Detection Methods**:
+- `min_area_rect` - Fast, uses minimum area rectangle (best for rectangular objects)
+- `ellipse_fit` - Medium, fits ellipse to contour (best for elliptical/circular objects)
+- `pca` - Robust, Principal Component Analysis (best for irregular shapes)
+
+**Angle Ranges**:
+- `0_360` - Returns 0° to 360° (default, 0° = horizontal right)
+- `-180_180` - Returns -180° to +180° (symmetric range)
+- `0_180` - Returns 0° to 180° (for symmetric objects)
+
+**Reference Object Pattern**:
+- Store ArUco marker in `msg.reference_object`
+- Rotation Detect automatically uses it to calculate relative rotation
+- Example: If reference is 45° and object is 90°, relative rotation = 45°
+
+**ROI Support**:
+- Accepts `roi` parameter for visualization context
+- Thumbnail shows only ROI area with properly aligned overlays
+- Coordinates automatically converted between absolute and ROI-relative
+
 ### Development Ports
 - Python Backend: `http://localhost:8000`
 - Node-RED UI: `http://localhost:1880`
@@ -249,6 +329,15 @@ Use `camera_id: "test"` to generate synthetic test images:
 ```bash
 curl -X POST http://localhost:8000/api/camera/capture?camera_id=test
 ```
+
+**Test Image Contents**:
+- 3 ArUco markers (IDs: 0, 5, 17) with white borders for reliable detection
+- 2 colored rectangles (red, blue)
+- 1 circle
+- Grid pattern background
+
+**Note**: Test images include ArUco markers using OpenCV 4.8.1+ API (`generateImageMarker`).
+If using older OpenCV, update `camera_manager.py` test image generation.
 
 ## Adding New Features
 
@@ -274,3 +363,6 @@ curl -X POST http://localhost:8000/api/camera/capture?camera_id=test
 - Supports 1-2 cameras simultaneously
 - Edge detection fully implemented with 6 methods
 - Templates stored as files with JSON metadata
+- ArUco detection requires OpenCV 4.8.1+ (uses new ArucoDetector API)
+- Rotation detection supports 3 methods: min_area_rect, ellipse_fit, PCA
+- Both ArUco and Rotation detection support ROI from msg.payload.bounding_box

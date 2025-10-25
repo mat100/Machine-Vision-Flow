@@ -342,6 +342,7 @@ class ArucoDetectRequest(BaseModel):
 
     image_id: str = Field(..., description="ID of the image to analyze")
     dictionary: str = Field("DICT_4X4_50", description="ArUco dictionary type")
+    roi: Optional[ROI] = Field(None, description="Region of interest to search in")
     params: Optional[Dict[str, Any]] = Field(None, description="Detection parameters")
 
 
