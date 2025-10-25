@@ -20,7 +20,7 @@ PORT_NODERED := 1880
 
 ARGS ?=
 
-.PHONY: help install start stop status test clean reload logs format lint setup-hooks
+.PHONY: help install start stop status test clean reload logs format lint setup-hooks dev
 
 help:
 	@echo "Machine Vision Flow - Core Commands"
@@ -36,6 +36,7 @@ help:
 	@echo "  make logs          View logs"
 	@echo ""
 	@echo "Development (use VSCode for debugging - see .vscode/README.md):"
+	@echo "  make dev           Start with auto-reload (Python + Node-RED)"
 	@echo "  make setup-hooks   Install pre-commit hooks"
 	@echo "  make format        Format Python code (black, isort)"
 	@echo "  make lint          Lint Python code (flake8)"
@@ -114,3 +115,21 @@ lint:
 	@echo "Linting Python code..."
 	@cd $(BACKEND_DIR) && $(BACKEND_PYTHON) -m flake8 . --exclude=venv --max-line-length=100 --extend-ignore=E203,W503
 	@echo "Linting complete!"
+
+dev:
+	@echo "Starting development mode with auto-reload..."
+	@echo ""
+	@echo "Python backend: Auto-reloads on .py changes (uvicorn --reload)"
+	@echo "Node-RED: Auto-restarts on .js/.html changes (nodemon)"
+	@echo ""
+	@echo "Press Ctrl+C to stop both services"
+	@echo ""
+	@$(SHELL) -lc "source \"$(SCRIPTS_DIR)/lib/services.sh\"; ensure_node_red_dependencies false"
+	@trap 'pkill -f \"nodemon.*node-red\" || pkill -f node-red; exit 0' INT TERM; \
+		cd node-red && npx nodemon --exec node-red & \
+		NODERED_PID=$$!; \
+		cd $(BACKEND_DIR) && \
+		export MV_CONFIG_FILE=$(BACKEND_DIR)/config.dev.yaml && \
+		$(BACKEND_PYTHON) -m uvicorn main:app --reload --host=0.0.0.0 --port=$(PORT_BACKEND) & \
+		BACKEND_PID=$$!; \
+		wait $$NODERED_PID $$BACKEND_PID

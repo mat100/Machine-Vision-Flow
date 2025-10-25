@@ -17,12 +17,7 @@
         "MV_CONFIG_FILE": "${workspaceFolder}/python-backend/config.dev.yaml"
       },
       "jinja": true,
-      "justMyCode": false,
-      "serverReadyAction": {
-        "pattern": "Uvicorn running on (https?://[0-9a-z.:]+)",
-        "uriFormat": "%s/docs",
-        "action": "openExternally"
-      }
+      "justMyCode": false
     },
     {
       "name": "Debug: Full Stack (Python + Node-RED)",
@@ -42,12 +37,7 @@
       "jinja": true,
       "justMyCode": false,
       "preLaunchTask": "Start Node-RED",
-      "postDebugTask": "Stop Node-RED",
-      "serverReadyAction": {
-        "pattern": "Uvicorn running on (https?://[0-9a-z.:]+)",
-        "uriFormat": "%s/docs",
-        "action": "openExternally"
-      }
+      "postDebugTask": "Stop Node-RED"
     },
     {
       "name": "Python: Current File",

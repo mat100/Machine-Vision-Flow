@@ -18,7 +18,7 @@
     {
       "label": "Start Node-RED",
       "type": "shell",
-      "command": "node-red",
+      "command": "cd node-red && npx nodemon --exec node-red",
       "isBackground": true,
       "dependsOn": ["Install Node-RED Dependencies"],
       "problemMatcher": {
@@ -30,8 +30,8 @@
         },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "^.*Starting flows.*$",
-          "endsPattern": "^.*Started flows.*$"
+          "beginsPattern": "^.*(Starting flows|\\[nodemon\\] restarting).*$",
+          "endsPattern": "^.*(Started flows|\\[nodemon\\] starting).*$"
         }
       },
       "presentation": {
@@ -44,7 +44,7 @@
     {
       "label": "Stop Node-RED",
       "type": "shell",
-      "command": "pkill -f node-red || true",
+      "command": "pkill -f 'nodemon.*node-red' || pkill -f node-red || true",
       "problemMatcher": [],
       "presentation": {
         "reveal": "never",

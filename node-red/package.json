@@ -28,6 +28,9 @@
     "axios": "^1.6.0",
     "form-data": "^4.0.0"
   },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/yourusername/machine-vision-flow"
