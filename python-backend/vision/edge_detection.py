@@ -307,9 +307,12 @@ class EdgeDetector:
             epsilon = EdgeDetectionDefaults.CONTOUR_APPROX_EPSILON * perimeter
             approx = cv2.approxPolyDP(contour, epsilon, True)
 
+            # Flatten contour from shape (N, 1, 2) to [[x, y], [x, y], ...]
+            contour_points = contour.reshape(-1, 2).tolist()
+
             filtered.append(
                 {
-                    "contour": contour.tolist(),
+                    "contour": contour_points,
                     "area": float(area),
                     "perimeter": float(perimeter),
                     "center": {"x": cx, "y": cy},
