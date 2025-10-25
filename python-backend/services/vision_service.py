@@ -6,12 +6,21 @@ template matching, edge detection, and other computer vision tasks.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import cv2
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
-from api.models import ROI, Point, VisionObject, VisionObjectType
+from api.models import (
+    ROI,
+    AngleRange,
+    ArucoDict,
+    ColorMethod,
+    Point,
+    RotationMethod,
+    VisionObject,
+    VisionObjectType,
+)
 from core.decorators import timer
 from core.history_buffer import HistoryBuffer
 from core.image_manager import ImageManager
@@ -453,7 +462,7 @@ class VisionService:
         use_contour_mask: bool = True,
         expected_color: Optional[str] = None,
         min_percentage: float = 50.0,
-        method: str = "histogram",
+        method: Union[ColorMethod, str] = ColorMethod.HISTOGRAM,
         record_history: bool = True,
     ) -> Tuple[VisionObject, str, int]:
         """
@@ -478,6 +487,8 @@ class VisionService:
 
         # Create detector function
         def detect_func(image):
+            # Convert ColorMethod enum to string if needed
+            method_str = method.value if isinstance(method, ColorMethod) else method
             return self.color_detector.detect(
                 image=image,
                 roi=roi,
@@ -485,7 +496,7 @@ class VisionService:
                 use_contour_mask=use_contour_mask,
                 expected_color=expected_color,
                 min_percentage=min_percentage,
-                method=method,
+                method=method_str,
             )
 
         # Execute using template method (handles image retrieval, thumbnail, timing)
@@ -529,7 +540,7 @@ class VisionService:
     def aruco_detect(
         self,
         image_id: str,
-        dictionary: str = "DICT_4X4_50",
+        dictionary: Union[ArucoDict, str] = ArucoDict.DICT_4X4_50,
         roi: Optional[Dict] = None,
         params: Optional[Dict] = None,
         record_history: bool = True,
@@ -556,9 +567,12 @@ class VisionService:
         if dictionary is None:
             dictionary = ArucoDetectionDefaults.DEFAULT_DICTIONARY
 
+        # Convert ArucoDict enum to string if needed
+        dictionary_str = dictionary.value if isinstance(dictionary, ArucoDict) else dictionary
+
         # Create detector function
         def detect_func(image):
-            return self.aruco_detector.detect(image, dictionary=dictionary, params=params or {})
+            return self.aruco_detector.detect(image, dictionary=dictionary_str, params=params or {})
 
         # Execute using template method
         result, thumbnail_base64, processing_time = self._execute_detection(
@@ -580,8 +594,8 @@ class VisionService:
         self,
         image_id: str,
         contour: List,
-        method: str = "min_area_rect",
-        angle_range: str = "0_360",
+        method: Union[RotationMethod, str] = RotationMethod.MIN_AREA_RECT,
+        angle_range: Union[AngleRange, str] = AngleRange.RANGE_0_360,
         roi: Optional[Dict[str, int]] = None,
         record_history: bool = True,
     ) -> Tuple[VisionObject, str, int]:
@@ -602,19 +616,22 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
-        # Import enums
-        from vision.rotation_detection import AngleRange, RotationMethod
+        # Convert string to enum if needed (API provides enums, but backwards compatibility)
+        if isinstance(method, str):
+            try:
+                method_enum = RotationMethod(method)
+            except ValueError:
+                method_enum = RotationMethod.MIN_AREA_RECT
+        else:
+            method_enum = method
 
-        # Convert string to enum
-        try:
-            method_enum = RotationMethod(method)
-        except ValueError:
-            method_enum = RotationMethod.MIN_AREA_RECT
-
-        try:
-            range_enum = AngleRange(angle_range)
-        except ValueError:
-            range_enum = AngleRange.RANGE_0_360
+        if isinstance(angle_range, str):
+            try:
+                range_enum = AngleRange(angle_range)
+            except ValueError:
+                range_enum = AngleRange.RANGE_0_360
+        else:
+            range_enum = angle_range
 
         # Create detector function
         def detect_func(image):

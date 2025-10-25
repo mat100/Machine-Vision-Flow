@@ -258,8 +258,13 @@ class TestRotationAPI:
         }
         response = client.post("/api/vision/rotation-detect", json=request_data)
 
-        # Should return error for insufficient points
-        assert response.status_code in [400, 500]
+        # Should return validation error (422 Unprocessable Entity)
+        assert response.status_code == 422
+        # Our custom validation error handler returns 'details' array
+        response_json = response.json()
+        assert "details" in response_json
+        assert response_json["error"] == "Validation failed"
+        assert any("contour" in str(err["field"]) for err in response_json["details"])
 
 
 class TestArucoRotationIntegration:

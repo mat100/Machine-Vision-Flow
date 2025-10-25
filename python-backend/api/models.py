@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # Enums
@@ -23,6 +23,51 @@ class InspectionResult(str, Enum):
     PASS = "PASS"
     FAIL = "FAIL"
     ERROR = "ERROR"
+
+
+class ColorMethod(str, Enum):
+    """Color detection methods"""
+
+    HISTOGRAM = "histogram"
+    KMEANS = "kmeans"
+
+
+class ArucoDict(str, Enum):
+    """ArUco dictionary types"""
+
+    DICT_4X4_50 = "DICT_4X4_50"
+    DICT_4X4_100 = "DICT_4X4_100"
+    DICT_4X4_250 = "DICT_4X4_250"
+    DICT_4X4_1000 = "DICT_4X4_1000"
+    DICT_5X5_50 = "DICT_5X5_50"
+    DICT_5X5_100 = "DICT_5X5_100"
+    DICT_5X5_250 = "DICT_5X5_250"
+    DICT_5X5_1000 = "DICT_5X5_1000"
+    DICT_6X6_50 = "DICT_6X6_50"
+    DICT_6X6_100 = "DICT_6X6_100"
+    DICT_6X6_250 = "DICT_6X6_250"
+    DICT_6X6_1000 = "DICT_6X6_1000"
+    DICT_7X7_50 = "DICT_7X7_50"
+    DICT_7X7_100 = "DICT_7X7_100"
+    DICT_7X7_250 = "DICT_7X7_250"
+    DICT_7X7_1000 = "DICT_7X7_1000"
+    DICT_ARUCO_ORIGINAL = "DICT_ARUCO_ORIGINAL"
+
+
+class RotationMethod(str, Enum):
+    """Rotation detection methods"""
+
+    MIN_AREA_RECT = "min_area_rect"
+    ELLIPSE_FIT = "ellipse_fit"
+    PCA = "pca"
+
+
+class AngleRange(str, Enum):
+    """Angle output range options"""
+
+    RANGE_0_360 = "0_360"  # 0 to 360 degrees
+    RANGE_NEG180_180 = "-180_180"  # -180 to +180 degrees
+    RANGE_0_180 = "0_180"  # 0 to 180 degrees (symmetric objects)
 
 
 class VisionObjectType(str, Enum):
@@ -465,8 +510,8 @@ class ColorDetectRequest(BaseModel):
     min_percentage: float = Field(
         50.0, ge=0.0, le=100.0, description="Minimum percentage for match"
     )
-    method: str = Field(
-        "histogram", description="Detection method: histogram (fast) or kmeans (accurate)"
+    method: ColorMethod = Field(
+        ColorMethod.HISTOGRAM, description="Detection method: histogram (fast) or kmeans (accurate)"
     )
     use_contour_mask: bool = Field(
         True, description="Use contour mask instead of full bounding box when contour is available"
@@ -546,7 +591,7 @@ class ArucoDetectRequest(BaseModel):
     """Request for ArUco marker detection"""
 
     image_id: str = Field(..., description="ID of the image to analyze")
-    dictionary: str = Field("DICT_4X4_50", description="ArUco dictionary type")
+    dictionary: ArucoDict = Field(ArucoDict.DICT_4X4_50, description="ArUco dictionary type")
     roi: Optional[ROI] = Field(None, description="Region of interest to search in")
     params: Optional[Dict[str, Any]] = Field(None, description="Detection parameters")
 
@@ -555,9 +600,22 @@ class RotationDetectRequest(BaseModel):
     """Request for rotation detection"""
 
     image_id: str = Field(..., description="ID of the image for visualization")
-    contour: List = Field(..., description="Contour points [[x1,y1], [x2,y2], ...]")
-    method: str = Field(
-        "min_area_rect", description="Detection method: min_area_rect, ellipse_fit, pca"
+    contour: List = Field(..., description="Contour points [[x1,y1], [x2,y2], ...]", min_length=5)
+    method: RotationMethod = Field(
+        RotationMethod.MIN_AREA_RECT,
+        description="Detection method: min_area_rect, ellipse_fit, pca",
     )
-    angle_range: str = Field("0_360", description="Angle output range: 0_360, -180_180, or 0_180")
+    angle_range: AngleRange = Field(
+        AngleRange.RANGE_0_360, description="Angle output range: 0_360, -180_180, or 0_180"
+    )
     roi: Optional[ROI] = Field(None, description="Optional ROI for visualization context")
+
+    @field_validator("contour")
+    @classmethod
+    def validate_contour(cls, v):
+        """Validate contour has minimum required points."""
+        if len(v) < 5:
+            raise ValueError(
+                f"Contour must have at least 5 points for rotation detection, got {len(v)}"
+            )
+        return v
