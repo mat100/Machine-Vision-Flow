@@ -9,7 +9,6 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 import cv2
-import numpy as np
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
 from api.models import ROI, Point, VisionObject, VisionObjectType
@@ -157,24 +156,10 @@ class VisionService:
 
     def _create_detection_thumbnail(self, result, processed_image) -> str:
         """Create thumbnail from detection result."""
-        # Check if result has visualization
-        if isinstance(result, dict) and "visualization" in result:
-            viz = result.get("visualization", {})
-
-            # Check for direct image in visualization
-            if "image" in viz:
-                _, thumbnail_base64 = self.image_manager.create_thumbnail(viz["image"])
-                return thumbnail_base64
-
-            # Check for base64-encoded overlay
-            if "overlay" in viz:
-                import base64
-
-                overlay_data = base64.b64decode(viz["overlay"])
-                nparr = np.frombuffer(overlay_data, np.uint8)
-                result_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                _, thumbnail_base64 = self.image_manager.create_thumbnail(result_image)
-                return thumbnail_base64
+        # Check if result has annotated image
+        if isinstance(result, dict) and "image" in result:
+            _, thumbnail_base64 = self.image_manager.create_thumbnail(result["image"])
+            return thumbnail_base64
 
         # Fallback: use processed image
         _, thumbnail_base64 = self.image_manager.create_thumbnail(processed_image)

@@ -4,11 +4,13 @@ Image API Router - Image processing operations
 
 import logging
 
+import cv2
 from fastapi import APIRouter, Depends
 
 from api.dependencies import get_image_service
 from api.exceptions import safe_endpoint
 from api.models import ROIExtractRequest, ROIExtractResponse
+from core.image_utils import ImageUtils
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +43,6 @@ async def extract_roi(
     )
 
     # Create thumbnail directly from the cropped image
-    import base64
-
-    import cv2
-
     from core.constants import ImageConstants
 
     # Resize to thumbnail size (max width 320px)
@@ -58,9 +56,8 @@ async def extract_roi(
     else:
         thumbnail_image = roi_image
 
-    # Encode to base64
-    _, buffer = cv2.imencode(".jpg", thumbnail_image)
-    thumbnail = base64.b64encode(buffer).decode("utf-8")
+    # Encode to base64 using utility function
+    thumbnail = ImageUtils.encode_image_to_base64(thumbnail_image, ".jpg")
 
     # Get actual clipped bounding box
     original_image = image_service.get_image(request.image_id)

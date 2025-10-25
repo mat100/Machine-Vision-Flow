@@ -11,6 +11,8 @@ import numpy as np
 
 from api.models import ROI, Point, VisionObject, VisionObjectType
 from core.constants import RotationDetectionDefaults
+from core.image_utils import ImageUtils
+from core.overlay_renderer import OverlayRenderer
 
 
 class RotationMethod(str, Enum):
@@ -34,6 +36,7 @@ class RotationDetector:
 
     def __init__(self):
         """Initialize rotation detector."""
+        self.overlay_renderer = OverlayRenderer()
 
     def detect(
         self,
@@ -91,12 +94,11 @@ class RotationDetector:
         # Convert angle to requested range
         angle = self._convert_angle_range(angle, angle_range)
 
-        # Calculate bounding box from contour
-        x, y, w, h = cv2.boundingRect(contour_array)
-
-        # Calculate area and perimeter
-        area = float(cv2.contourArea(contour_array))
-        perimeter = float(cv2.arcLength(contour_array, True))
+        # Calculate contour properties using utility function
+        props = ImageUtils.calculate_contour_properties(contour_array)
+        x, y, w, h = props["bounding_box"]
+        area = props["area"]
+        perimeter = props["perimeter"]
 
         # Create VisionObject
         obj = VisionObject(
@@ -116,14 +118,16 @@ class RotationDetector:
             contour=contour,  # Preserve original contour
         )
 
-        # Create visualization
-        visualization = self._create_visualization(image, contour_array, angle, center, method, roi)
+        # Create visualization using OverlayRenderer
+        image_result = self.overlay_renderer.render_rotation_analysis(
+            image, obj, contour=contour_array, method=method.value
+        )
 
         return {
             "success": True,
             "method": method,
             "objects": [obj],
-            "visualization": visualization,
+            "image": image_result,
         }
 
     def _detect_min_area_rect(self, contour: np.ndarray) -> tuple:
@@ -148,11 +152,9 @@ class RotationDetector:
         if width < height:
             angle = angle + 90
 
-        # Normalize to 0-360
-        while angle < 0:
-            angle += 360
-        while angle >= 360:
-            angle -= 360
+        # Normalize to 0-360 (convert to radians first for utility function)
+        angle_rad = np.radians(angle)
+        angle = ImageUtils.normalize_angle(angle_rad, angle_format="0_360")
 
         center = Point(x=float(center_tuple[0]), y=float(center_tuple[1]))
         confidence = RotationDetectionDefaults.MIN_AREA_RECT_CONFIDENCE
@@ -176,12 +178,9 @@ class RotationDetector:
         # OpenCV's fitEllipse returns angle in range 0-180
         # This is the angle of the major axis from horizontal
 
-        # Normalize to 0-360 (ellipse is symmetric, so 0-180 is sufficient)
-        # But we'll keep it in 0-360 for consistency
-        while angle < 0:
-            angle += 360
-        while angle >= 360:
-            angle -= 360
+        # Normalize to 0-360 (convert to radians first for utility function)
+        angle_rad = np.radians(angle)
+        angle = ImageUtils.normalize_angle(angle_rad, angle_format="0_360")
 
         center = Point(x=float(center_tuple[0]), y=float(center_tuple[1]))
 
@@ -226,13 +225,9 @@ class RotationDetector:
         # Principal component (dominant direction)
         principal_axis = eigenvectors[:, 0]
 
-        # Calculate angle from principal axis
+        # Calculate angle from principal axis (normalized to 0-360)
         angle_rad = np.arctan2(principal_axis[1], principal_axis[0])
-        angle = float(np.degrees(angle_rad))
-
-        # Normalize to 0-360
-        if angle < 0:
-            angle += 360.0
+        angle = ImageUtils.normalize_angle(angle_rad, angle_format="0_360")
 
         # Calculate confidence from eigenvalue ratio
         # Higher ratio = more elongated = more confident in rotation
@@ -249,122 +244,19 @@ class RotationDetector:
         Convert angle to requested range.
 
         Args:
-            angle: Input angle (assumed 0-360)
+            angle: Input angle in degrees (assumed 0-360)
             range_type: Desired output range
 
         Returns:
             Angle in requested range
         """
-        if range_type == AngleRange.RANGE_0_360:
-            # Already in 0-360
-            while angle < 0:
-                angle += 360
-            while angle >= 360:
-                angle -= 360
-            return angle
+        # Map AngleRange enum to ImageUtils format strings
+        format_map = {
+            AngleRange.RANGE_0_360: "0_360",
+            AngleRange.RANGE_NEG180_180: "-180_180",
+            AngleRange.RANGE_0_180: "0_180",
+        }
 
-        elif range_type == AngleRange.RANGE_NEG180_180:
-            # Convert to -180 to +180
-            while angle < -180:
-                angle += 360
-            while angle > 180:
-                angle -= 360
-            return angle
-
-        elif range_type == AngleRange.RANGE_0_180:
-            # Convert to 0-180 (symmetric)
-            while angle < 0:
-                angle += 180
-            while angle >= 180:
-                angle -= 180
-            return angle
-
-        return angle
-
-    def _create_visualization(
-        self,
-        original: np.ndarray,
-        contour: np.ndarray,
-        angle: float,
-        center: Point,
-        method: RotationMethod,
-        roi: Optional[Dict[str, int]],
-    ) -> Dict[str, np.ndarray]:
-        """Create visualization with overlay image (not base64)."""
-
-        # If ROI provided, crop to ROI and adjust coordinates
-        if roi:
-            # Extract ROI region
-            x, y, w, h = roi["x"], roi["y"], roi["width"], roi["height"]
-            roi_image = original[y : y + h, x : x + w].copy()
-
-            # Convert to BGR if grayscale
-            if len(roi_image.shape) == 2:
-                overlay = cv2.cvtColor(roi_image, cv2.COLOR_GRAY2BGR)
-            else:
-                overlay = roi_image.copy()
-
-            # Adjust contour coordinates to be relative to ROI
-            # Contour has shape (N, 1, 2) in OpenCV format
-            contour_roi = contour.copy()
-            contour_roi[:, 0, 0] -= x  # Subtract ROI x offset
-            contour_roi[:, 0, 1] -= y  # Subtract ROI y offset
-
-            # Adjust center to be relative to ROI
-            center_roi = (int(center.x - x), int(center.y - y))
-        else:
-            # No ROI - use full image
-            if len(original.shape) == 2:
-                overlay = cv2.cvtColor(original, cv2.COLOR_GRAY2BGR)
-            else:
-                overlay = original.copy()
-
-            contour_roi = contour
-            center_roi = (int(center.x), int(center.y))
-
-        # Draw contour
-        cv2.drawContours(
-            overlay,
-            [contour_roi.astype(np.int32)],
-            -1,
-            RotationDetectionDefaults.CONTOUR_COLOR,
-            RotationDetectionDefaults.LINE_THICKNESS - 1,
-        )
-
-        # Draw center point
-        cv2.circle(
-            overlay,
-            center_roi,
-            RotationDetectionDefaults.CENTER_RADIUS,
-            RotationDetectionDefaults.CENTER_COLOR,
-            -1,
-        )
-
-        # Draw rotation indicator (line from center showing angle)
-        line_length = RotationDetectionDefaults.ROTATION_LINE_LENGTH
+        # Convert to radians, normalize, and return
         angle_rad = np.radians(angle)
-        end_x = int(center_roi[0] + line_length * np.cos(angle_rad))
-        end_y = int(center_roi[1] + line_length * np.sin(angle_rad))
-        cv2.arrowedLine(
-            overlay,
-            center_roi,
-            (end_x, end_y),
-            RotationDetectionDefaults.ARROW_COLOR,
-            RotationDetectionDefaults.LINE_THICKNESS,
-            tipLength=RotationDetectionDefaults.ARROW_TIP_LENGTH,
-        )
-
-        # Add text info
-        text = f"Rotation: {angle:.1f}deg ({method.value})"
-        cv2.putText(
-            overlay,
-            text,
-            (10, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            RotationDetectionDefaults.TEXT_COLOR,
-            RotationDetectionDefaults.LINE_THICKNESS - 1,
-        )
-
-        # Return image directly (not base64) for consistency with other detectors
-        return {"image": overlay}
+        return ImageUtils.normalize_angle(angle_rad, angle_format=format_map[range_type])

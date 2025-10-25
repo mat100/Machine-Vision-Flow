@@ -2,7 +2,6 @@
 Edge detection algorithms for machine vision.
 """
 
-import base64
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +10,8 @@ import numpy as np
 
 from api.models import ROI, Point, VisionObject, VisionObjectType
 from core.constants import EdgeDetectionDefaults
+from core.image_utils import ImageUtils
+from core.overlay_renderer import OverlayRenderer
 
 
 class EdgeMethod(str, Enum):
@@ -29,6 +30,7 @@ class EdgeDetector:
 
     def __init__(self):
         """Initialize edge detector."""
+        self.overlay_renderer = OverlayRenderer()
 
     def detect(
         self,
@@ -56,10 +58,7 @@ class EdgeDetector:
         processed_image = self._preprocess(image, preprocessing)
 
         # Convert to grayscale if needed
-        if len(processed_image.shape) == 3:
-            gray = cv2.cvtColor(processed_image, cv2.COLOR_BGR2GRAY)
-        else:
-            gray = processed_image
+        gray = ImageUtils.ensure_grayscale(processed_image)
 
         # Apply edge detection
         if method == EdgeMethod.CANNY:
@@ -86,16 +85,17 @@ class EdgeDetector:
         # Convert to DetectedObject instances
         objects = self._contours_to_objects(filtered_contours, method.value)
 
-        # Create visualization
-        visualization = self._create_visualization(
-            processed_image, edges, filtered_contours, params
+        # Create visualization using OverlayRenderer
+        show_centers = params.get("show_centers", EdgeDetectionDefaults.SHOW_CENTERS)
+        image = self.overlay_renderer.render_edge_detection(
+            processed_image, objects, show_centers=show_centers
         )
 
         return {
             "success": True,
             "method": method,
             "objects": objects,
-            "visualization": visualization,
+            "image": image,
         }
 
     def _preprocess(self, image: np.ndarray, preprocessing: Optional[Dict[str, Any]]) -> np.ndarray:
@@ -283,8 +283,10 @@ class EdgeDetector:
 
         filtered = []
         for contour in contours:
-            area = cv2.contourArea(contour)
-            perimeter = cv2.arcLength(contour, True)
+            # Calculate all contour properties using utility function
+            props = ImageUtils.calculate_contour_properties(contour)
+            area = props["area"]
+            perimeter = props["perimeter"]
 
             # Apply filters
             if area < min_area or area > max_area:
@@ -292,16 +294,9 @@ class EdgeDetector:
             if perimeter < min_perimeter or perimeter > max_perimeter:
                 continue
 
-            # Calculate properties
-            M = cv2.moments(contour)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-            else:
-                cx, cy = 0, 0
-
-            # Bounding box
-            x, y, w, h = cv2.boundingRect(contour)
+            # Extract individual properties
+            cx, cy = props["center"]
+            x, y, w, h = props["bounding_box"]
 
             # Approximated contour
             epsilon = EdgeDetectionDefaults.CONTOUR_APPROX_EPSILON * perimeter
@@ -350,55 +345,3 @@ class EdgeDetector:
             )
             objects.append(obj)
         return objects
-
-    def _create_visualization(
-        self,
-        original: np.ndarray,
-        edges: np.ndarray,
-        contours: list,
-        params: Dict[str, Any],
-    ) -> Dict[str, str]:
-        """Create visualization images."""
-        visualization = {}
-
-        # Edge image
-        edge_colored = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
-        _, buffer = cv2.imencode(".png", edge_colored)
-        visualization["edges"] = base64.b64encode(buffer).decode("utf-8")
-
-        # Overlay on original
-        if len(original.shape) == 2:
-            overlay = cv2.cvtColor(original, cv2.COLOR_GRAY2BGR)
-        else:
-            overlay = original.copy()
-
-        # Draw contours
-        for i, contour_info in enumerate(contours):
-            contour = np.array(contour_info["contour"], dtype=np.int32)
-            # Green for largest, yellow for others
-            color = (0, 255, 0) if i == 0 else (0, 255, 255)
-            cv2.drawContours(overlay, [contour], -1, color, 2)
-
-            # Draw bounding box
-            bbox = contour_info["bounding_box"]
-            cv2.rectangle(
-                overlay,
-                (bbox["x"], bbox["y"]),
-                (bbox["x"] + bbox["width"], bbox["y"] + bbox["height"]),
-                (255, 0, 0),
-                1,
-            )
-
-            # Draw center point
-            if params.get("show_centers", EdgeDetectionDefaults.SHOW_CENTERS):
-                center = contour_info["center"]
-                cv2.circle(overlay, (center["x"], center["y"]), 3, (0, 0, 255), -1)
-
-        # Add text info
-        text = f"Contours: {len(contours)}"
-        cv2.putText(overlay, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-
-        _, buffer = cv2.imencode(".png", overlay)
-        visualization["overlay"] = base64.b64encode(buffer).decode("utf-8")
-
-        return visualization

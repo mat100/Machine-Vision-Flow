@@ -14,6 +14,7 @@ from sklearn.cluster import KMeans
 
 from api.models import ROI, Point, VisionObject, VisionObjectType
 from core.constants import ColorDetectionDefaults
+from core.overlay_renderer import OverlayRenderer
 from vision.color_definitions import count_colors_vectorized, hsv_to_color_name
 
 
@@ -23,6 +24,7 @@ class ColorDetector:
     def __init__(self):
         """Initialize color detector."""
         self.logger = logging.getLogger(__name__)
+        self.overlay_renderer = OverlayRenderer()
 
     def detect(
         self,
@@ -114,14 +116,14 @@ class ColorDetector:
             },
         )
 
-        # Create visualization
-        visualization_image = self._create_visualization(
-            image, roi_image, vision_object, expected_color, contour_points, x, y
+        # Create visualization using OverlayRenderer
+        image_result = self.overlay_renderer.render_color_detection(
+            image, vision_object, expected_color=expected_color, contour_points=contour_points
         )
 
         return {
             "objects": [vision_object],
-            "visualization": {"image": visualization_image},
+            "image": image_result,
             "success": True,
             "method": method,
         }
@@ -259,68 +261,3 @@ class ColorDetector:
             "all_colors": {k: round(v, 1) for k, v in color_percentages.items() if v > 0},
             "hsv_mean": hsv_mean,
         }
-
-    def _create_visualization(
-        self,
-        full_image: np.ndarray,
-        roi_image: np.ndarray,
-        obj: VisionObject,
-        expected_color: Optional[str],
-        contour_points: Optional[list],
-        roi_x: int,
-        roi_y: int,
-    ) -> np.ndarray:
-        """
-        Create visualization overlay for color detection.
-
-        Args:
-            full_image: Full original image
-            roi_image: ROI image that was analyzed
-            obj: VisionObject with detection results
-            expected_color: Expected color (if color matching)
-            contour_points: Optional contour points for overlay
-            roi_x: ROI x offset in full image
-            roi_y: ROI y offset in full image
-
-        Returns:
-            Image with visualization overlay
-        """
-        # Convert grayscale to BGR if needed
-        if len(full_image.shape) == 2:
-            result = cv2.cvtColor(full_image, cv2.COLOR_GRAY2BGR)
-        else:
-            result = full_image.copy()
-
-        bbox = obj.bounding_box
-        x, y, w, h = bbox.x, bbox.y, bbox.width, bbox.height
-
-        # Determine color based on match status
-        is_match = obj.properties.get("match", True)
-        color = (0, 255, 0) if (is_match or expected_color is None) else (0, 0, 255)  # Green or Red
-
-        # Draw contour if used for masking
-        if contour_points is not None:
-            try:
-                contour = np.array(contour_points, dtype=np.int32)
-                # Draw cyan contour outline to show masked region
-                cv2.drawContours(result, [contour], -1, (255, 255, 0), 2)  # Cyan
-            except Exception:
-                pass  # Fall back to just bbox
-
-        # Draw bounding box
-        cv2.rectangle(result, (x, y), (x + w, y + h), color, 2)
-
-        # Add text with dominant color
-        dominant_color = obj.properties.get("dominant_color", "unknown")
-        confidence_pct = obj.confidence * 100
-        text = f"{dominant_color} ({confidence_pct:.1f}%)"
-        cv2.putText(result, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-
-        # Add match/fail indicator if expected color was provided
-        if expected_color is not None:
-            status_text = "MATCH" if is_match else "FAIL"
-            cv2.putText(
-                result, status_text, (x, y + h + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2
-            )
-
-        return result

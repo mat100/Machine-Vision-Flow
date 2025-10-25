@@ -522,7 +522,7 @@ class DebugSettings(BaseModel):
 
     enabled: bool
     save_images: bool
-    show_overlays: bool
+    show_visualizations: bool
     verbose_logging: bool
 
 
