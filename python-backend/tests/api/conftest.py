@@ -30,11 +30,20 @@ def client():
     template_manager = TemplateManager(temp_dir)
     history_buffer = HistoryBuffer(max_size=100)
 
+    # Create test config
+    test_config = {
+        "debug": {
+            "save_debug_images": False,
+            "show_overlays": False,
+        }
+    }
+
     # Set in app state
     app.state.image_manager = image_manager
     app.state.camera_manager = camera_manager
     app.state.template_manager = template_manager
     app.state.history_buffer = history_buffer
+    app.state.config = test_config
 
     # Create test client (no context manager to avoid blocking)
     test_client = TestClient(app, raise_server_exceptions=False)

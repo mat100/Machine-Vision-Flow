@@ -93,7 +93,7 @@ async def set_debug_mode(enable: bool, request: Request) -> DebugSettings:
     return DebugSettings(
         enabled=enable,
         save_images=config.get("debug", {}).get("save_debug_images", enable),
-        show_overlays=config.get("debug", {}).get("show_overlays", enable),
+        show_visualizations=config.get("debug", {}).get("show_overlays", enable),
         verbose_logging=enable,
     )
 
