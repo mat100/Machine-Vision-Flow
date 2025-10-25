@@ -24,7 +24,9 @@ pre-commit==3.6.0
 # Debugging (for VSCode)
 debugpy==1.8.0
 
+# Security and type checking
+bandit==1.7.9  # Security vulnerability scanning
+mypy==1.11.2  # Static type checking
+
 # Optional tools for advanced development
-# mypy==1.7.0  # Type checking
-# bandit==1.7.5  # Security scanning
 # pytest-benchmark==4.0.0  # Performance testing

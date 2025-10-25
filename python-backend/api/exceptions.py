@@ -184,6 +184,12 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     debug_mode = getattr(request.app.state, "debug", False)
 
     if debug_mode:
+        # WARNING: Debug mode exposes full stack traces and internal details
+        # This should NEVER be enabled in production environments
+        logger.warning(
+            "Debug mode is enabled - exposing stack traces. "
+            "Ensure this is NOT a production environment!"
+        )
         return JSONResponse(
             status_code=500,
             content={
@@ -194,6 +200,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
                     "traceback": traceback.format_exc(),
                 },
                 "type": "InternalError",
+                "debug_warning": "Stack traces exposed - debug mode enabled",
             },
         )
     else:

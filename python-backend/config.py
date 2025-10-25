@@ -3,6 +3,7 @@ Configuration management using Pydantic for Machine Vision Flow.
 Provides type-safe configuration with validation and environment variable support.
 """
 
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -19,6 +20,8 @@ from core.constants import (
     TemplateConstants,
     VisionConstants,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ImageConfig(BaseSettings):
@@ -323,7 +326,7 @@ class Settings(BaseSettings):
                             if key not in values or values[key] is None:
                                 values[key] = value
             except Exception as e:
-                print(f"Warning: Failed to load config file {config_file}: {e}")
+                logger.warning(f"Failed to load config file {config_file}: {e}")
 
         return values
 
