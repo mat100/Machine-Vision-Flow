@@ -73,8 +73,9 @@ class ColorDetector:
 
                 # Count actual analyzed pixels
                 analyzed_pixels = cv2.countNonZero(mask)
-            except Exception:
+            except Exception as e:
                 # If mask creation fails, fall back to full ROI
+                self.logger.warning(f"Contour mask creation failed: {e}")
                 mask = None
 
         # Detect dominant colors

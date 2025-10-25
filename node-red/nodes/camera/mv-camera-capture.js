@@ -90,13 +90,13 @@ module.exports = function(RED) {
 
                     // Metadata in root
                     msg.success = true;
-                    msg.processing_time_ms = 0;
+                    msg.processing_time_ms = response.data.processing_time_ms || 0;
                     msg.node_name = node.name || "Camera Capture";
 
                     node.status({
                         fill: "green",
                         shape: "dot",
-                        text: `captured: ${imageId.substring(0, 8)}...`
+                        text: `captured: ${imageId.substring(0, 8)}... | ${msg.processing_time_ms}ms`
                     });
 
                     send(msg);

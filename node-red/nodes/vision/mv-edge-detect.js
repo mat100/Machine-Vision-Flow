@@ -99,7 +99,7 @@ module.exports = function(RED) {
                     node.status({
                         fill: "yellow",
                         shape: "ring",
-                        text: "no edges found"
+                        text: `no edges found | ${result.processing_time_ms}ms`
                     });
                     done();
                     return;
@@ -139,7 +139,7 @@ module.exports = function(RED) {
                 node.status({
                     fill: "green",
                     shape: "dot",
-                    text: `sent ${result.objects.length} messages`
+                    text: `sent ${result.objects.length} messages | ${result.processing_time_ms}ms`
                 });
 
                 done();

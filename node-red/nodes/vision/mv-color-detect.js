@@ -69,7 +69,7 @@ module.exports = function(RED) {
                     node.status({
                         fill: "yellow",
                         shape: "ring",
-                        text: actualColor
+                        text: `${actualColor} | ${result.processing_time_ms}ms`
                     });
                     done();
                     return;
@@ -103,12 +103,12 @@ module.exports = function(RED) {
 
                 // Update status
                 const statusText = node.expectedColor
-                    ? `✓ ${dominantColor} (${confidence}%)`
+                    ? `${dominantColor} (${confidence}%)`
                     : `${dominantColor} (${confidence}%)`;
                 node.status({
                     fill: "green",
                     shape: "dot",
-                    text: statusText
+                    text: `${statusText} | ${result.processing_time_ms}ms`
                 });
 
                 send(msg);

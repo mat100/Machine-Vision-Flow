@@ -50,10 +50,11 @@ module.exports = function(RED) {
                 const result = response.data;
 
                 // Update status
+                const processingTime = result.processing_time_ms || 0;
                 node.status({
                     fill: "green",
                     shape: "dot",
-                    text: `ROI extracted: ${requestData.roi.width}x${requestData.roi.height}`
+                    text: `ROI extracted: ${requestData.roi.width}x${requestData.roi.height} | ${processingTime}ms`
                 });
 
                 // Update message with new image_id from extracted ROI
