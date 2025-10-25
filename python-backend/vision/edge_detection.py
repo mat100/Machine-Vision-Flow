@@ -10,6 +10,7 @@ import cv2
 import numpy as np
 
 from api.models import ROI, Point, VisionObject, VisionObjectType
+from core.constants import EdgeDetectionDefaults
 
 
 class EdgeMethod(str, Enum):
@@ -106,22 +107,39 @@ class EdgeDetector:
 
         # Gaussian blur
         if preprocessing.get("blur_enabled", False):
-            kernel_size = int(preprocessing.get("blur_kernel", 5))
+            kernel_size = int(
+                preprocessing.get("blur_kernel", EdgeDetectionDefaults.BLUR_KERNEL_SIZE)
+            )
             if kernel_size % 2 == 0:
                 kernel_size += 1  # Ensure odd kernel size
             result = cv2.GaussianBlur(result, (kernel_size, kernel_size), 0)
 
         # Bilateral filter (edge-preserving blur)
         if preprocessing.get("bilateral_enabled", False):
-            d = int(preprocessing.get("bilateral_d", 9))
-            sigma_color = float(preprocessing.get("bilateral_sigma_color", 75))
-            sigma_space = float(preprocessing.get("bilateral_sigma_space", 75))
+            d = int(preprocessing.get("bilateral_d", EdgeDetectionDefaults.BILATERAL_D))
+            sigma_color = float(
+                preprocessing.get(
+                    "bilateral_sigma_color",
+                    EdgeDetectionDefaults.BILATERAL_SIGMA_COLOR,
+                )
+            )
+            sigma_space = float(
+                preprocessing.get(
+                    "bilateral_sigma_space",
+                    EdgeDetectionDefaults.BILATERAL_SIGMA_SPACE,
+                )
+            )
             result = cv2.bilateralFilter(result, d, sigma_color, sigma_space)
 
         # Morphological operations
         if preprocessing.get("morphology_enabled", False):
             operation = preprocessing.get("morphology_operation", "close")
-            kernel_size = int(preprocessing.get("morphology_kernel", 3))
+            kernel_size = int(
+                preprocessing.get(
+                    "morphology_kernel",
+                    EdgeDetectionDefaults.MORPHOLOGY_KERNEL_SIZE,
+                )
+            )
             kernel = np.ones((kernel_size, kernel_size), np.uint8)
 
             if operation == "close":
@@ -146,20 +164,24 @@ class EdgeDetector:
 
     def _detect_canny(self, gray: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
         """Apply Canny edge detection."""
-        low_threshold = params.get("canny_low", 50)
-        high_threshold = params.get("canny_high", 150)
-        aperture_size = params.get("canny_aperture", 3)
-        l2_gradient = params.get("canny_l2_gradient", False)
+        low_threshold = params.get("canny_low", EdgeDetectionDefaults.CANNY_LOW_THRESHOLD)
+        high_threshold = params.get("canny_high", EdgeDetectionDefaults.CANNY_HIGH_THRESHOLD)
+        aperture_size = params.get("canny_aperture", EdgeDetectionDefaults.CANNY_APERTURE_SIZE)
+        l2_gradient = params.get("canny_l2_gradient", EdgeDetectionDefaults.CANNY_L2_GRADIENT)
 
         return cv2.Canny(
-            gray, low_threshold, high_threshold, apertureSize=aperture_size, L2gradient=l2_gradient
+            gray,
+            low_threshold,
+            high_threshold,
+            apertureSize=aperture_size,
+            L2gradient=l2_gradient,
         )
 
     def _detect_sobel(self, gray: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
         """Apply Sobel edge detection."""
-        kernel_size = int(params.get("sobel_kernel", 3))
-        scale = float(params.get("sobel_scale", 1))
-        delta = float(params.get("sobel_delta", 0))
+        kernel_size = int(params.get("sobel_kernel", EdgeDetectionDefaults.SOBEL_KERNEL_SIZE))
+        scale = float(params.get("sobel_scale", EdgeDetectionDefaults.SOBEL_SCALE))
+        delta = float(params.get("sobel_delta", EdgeDetectionDefaults.SOBEL_DELTA))
 
         # Compute gradients
         grad_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=kernel_size, scale=scale, delta=delta)
@@ -169,23 +191,27 @@ class EdgeDetector:
         magnitude = np.sqrt(grad_x**2 + grad_y**2)
 
         # Threshold
-        threshold = float(params.get("sobel_threshold", 50))
+        threshold = float(params.get("sobel_threshold", EdgeDetectionDefaults.SOBEL_THRESHOLD))
         edges = np.uint8(magnitude > threshold) * 255
 
         return edges
 
     def _detect_laplacian(self, gray: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
         """Apply Laplacian edge detection."""
-        kernel_size = int(params.get("laplacian_kernel", 3))
-        scale = float(params.get("laplacian_scale", 1))
-        delta = float(params.get("laplacian_delta", 0))
+        kernel_size = int(
+            params.get("laplacian_kernel", EdgeDetectionDefaults.LAPLACIAN_KERNEL_SIZE)
+        )
+        scale = float(params.get("laplacian_scale", EdgeDetectionDefaults.LAPLACIAN_SCALE))
+        delta = float(params.get("laplacian_delta", EdgeDetectionDefaults.LAPLACIAN_DELTA))
 
         # Apply Laplacian
         laplacian = cv2.Laplacian(gray, cv2.CV_64F, ksize=kernel_size, scale=scale, delta=delta)
 
         # Convert to absolute values and threshold
         laplacian = np.abs(laplacian)
-        threshold = float(params.get("laplacian_threshold", 30))
+        threshold = float(
+            params.get("laplacian_threshold", EdgeDetectionDefaults.LAPLACIAN_THRESHOLD)
+        )
         edges = np.uint8(laplacian > threshold) * 255
 
         return edges
@@ -204,15 +230,15 @@ class EdgeDetector:
         magnitude = np.sqrt(grad_x**2 + grad_y**2)
 
         # Threshold
-        threshold = float(params.get("prewitt_threshold", 50))
+        threshold = float(params.get("prewitt_threshold", EdgeDetectionDefaults.PREWITT_THRESHOLD))
         edges = np.uint8(magnitude > threshold) * 255
 
         return edges
 
     def _detect_scharr(self, gray: np.ndarray, params: Dict[str, Any]) -> np.ndarray:
         """Apply Scharr edge detection."""
-        scale = float(params.get("scharr_scale", 1))
-        delta = float(params.get("scharr_delta", 0))
+        scale = float(params.get("scharr_scale", EdgeDetectionDefaults.SCHARR_SCALE))
+        delta = float(params.get("scharr_delta", EdgeDetectionDefaults.SCHARR_DELTA))
 
         # Compute gradients using Scharr operator
         grad_x = cv2.Scharr(gray, cv2.CV_64F, 1, 0, scale=scale, delta=delta)
@@ -222,7 +248,7 @@ class EdgeDetector:
         magnitude = np.sqrt(grad_x**2 + grad_y**2)
 
         # Threshold
-        threshold = float(params.get("scharr_threshold", 50))
+        threshold = float(params.get("scharr_threshold", EdgeDetectionDefaults.SCHARR_THRESHOLD))
         edges = np.uint8(magnitude > threshold) * 255
 
         return edges
@@ -231,23 +257,28 @@ class EdgeDetector:
         self, gray: np.ndarray, params: Dict[str, Any]
     ) -> np.ndarray:
         """Apply morphological gradient edge detection."""
-        kernel_size = int(params.get("morph_kernel", 3))
+        kernel_size = int(params.get("morph_kernel", EdgeDetectionDefaults.MORPH_KERNEL_SIZE))
         kernel = np.ones((kernel_size, kernel_size), np.uint8)
 
         # Morphological gradient
         gradient = cv2.morphologyEx(gray, cv2.MORPH_GRADIENT, kernel)
 
         # Threshold
-        threshold = float(params.get("morph_threshold", 30))
+        threshold = float(params.get("morph_threshold", EdgeDetectionDefaults.MORPH_THRESHOLD))
         edges = np.uint8(gradient > threshold) * 255
 
         return edges
 
     def _filter_contours(self, contours: list, params: Dict[str, Any]) -> list:
         """Filter contours based on parameters."""
-        min_area = float(params.get("min_contour_area", 10))
+        min_area = float(params.get("min_contour_area", EdgeDetectionDefaults.MIN_CONTOUR_AREA))
         max_area = float(params.get("max_contour_area", float("inf")))
-        min_perimeter = float(params.get("min_contour_perimeter", 0))
+        min_perimeter = float(
+            params.get(
+                "min_contour_perimeter",
+                EdgeDetectionDefaults.MIN_CONTOUR_PERIMETER,
+            )
+        )
         max_perimeter = float(params.get("max_contour_perimeter", float("inf")))
 
         filtered = []
@@ -273,7 +304,7 @@ class EdgeDetector:
             x, y, w, h = cv2.boundingRect(contour)
 
             # Approximated contour
-            epsilon = 0.02 * perimeter
+            epsilon = EdgeDetectionDefaults.CONTOUR_APPROX_EPSILON * perimeter
             approx = cv2.approxPolyDP(contour, epsilon, True)
 
             filtered.append(
@@ -292,7 +323,7 @@ class EdgeDetector:
         filtered.sort(key=lambda x: x["area"], reverse=True)
 
         # Limit number of contours
-        max_contours = int(params.get("max_contours", 100))
+        max_contours = int(params.get("max_contours", EdgeDetectionDefaults.MAX_CONTOURS))
         return filtered[:max_contours]
 
     def _contours_to_objects(self, contours: list, method: str) -> List[VisionObject]:
@@ -318,7 +349,11 @@ class EdgeDetector:
         return objects
 
     def _create_visualization(
-        self, original: np.ndarray, edges: np.ndarray, contours: list, params: Dict[str, Any]
+        self,
+        original: np.ndarray,
+        edges: np.ndarray,
+        contours: list,
+        params: Dict[str, Any],
     ) -> Dict[str, str]:
         """Create visualization images."""
         visualization = {}
@@ -337,7 +372,8 @@ class EdgeDetector:
         # Draw contours
         for i, contour_info in enumerate(contours):
             contour = np.array(contour_info["contour"], dtype=np.int32)
-            color = (0, 255, 0) if i == 0 else (0, 255, 255)  # Green for largest, yellow for others
+            # Green for largest, yellow for others
+            color = (0, 255, 0) if i == 0 else (0, 255, 255)
             cv2.drawContours(overlay, [contour], -1, color, 2)
 
             # Draw bounding box
@@ -351,7 +387,7 @@ class EdgeDetector:
             )
 
             # Draw center point
-            if params.get("show_centers", True):
+            if params.get("show_centers", EdgeDetectionDefaults.SHOW_CENTERS):
                 center = contour_info["center"]
                 cv2.circle(overlay, (center["x"], center["y"]), 3, (0, 0, 255), -1)
 

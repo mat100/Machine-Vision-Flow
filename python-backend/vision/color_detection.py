@@ -12,6 +12,8 @@ import cv2
 import numpy as np
 from sklearn.cluster import KMeans
 
+from api.models import ROI, Point, VisionObject, VisionObjectType
+from core.constants import ColorDetectionDefaults
 from vision.color_definitions import count_colors_vectorized, hsv_to_color_name
 
 
@@ -27,10 +29,10 @@ class ColorDetector:
         image: np.ndarray,
         roi: Optional[Dict[str, int]] = None,
         contour_points: Optional[list] = None,
-        use_contour_mask: bool = True,
+        use_contour_mask: bool = ColorDetectionDefaults.USE_CONTOUR_MASK,
         expected_color: Optional[str] = None,
-        min_percentage: float = 50.0,
-        method: str = "histogram",
+        min_percentage: float = ColorDetectionDefaults.MIN_PERCENTAGE,
+        method: str = ColorDetectionDefaults.DEFAULT_METHOD,
     ) -> Dict:
         """
         Detect dominant color in image or ROI.
@@ -92,17 +94,36 @@ class ColorDetector:
             dominant_percentage = color_info["color_percentages"].get(dominant_color, 0)
             match = (dominant_color == expected_color) and (dominant_percentage >= min_percentage)
 
+        confidence = color_info["color_percentages"].get(color_info["dominant_color"], 0) / 100.0
+
+        # Create VisionObject
+        vision_object = VisionObject(
+            object_id="color_0",
+            object_type=VisionObjectType.COLOR_REGION.value,
+            bounding_box=ROI(x=x, y=y, width=w, height=h),
+            center=Point(x=float(x + w / 2), y=float(y + h / 2)),
+            confidence=confidence,
+            area=float(analyzed_pixels),
+            properties={
+                "dominant_color": color_info["dominant_color"],
+                "color_percentages": color_info["all_colors"],
+                "hsv_mean": color_info.get("hsv_mean", [0, 0, 0]),
+                "expected_color": expected_color,
+                "match": match,
+                "method": method,
+            },
+        )
+
+        # Create visualization
+        visualization_image = self._create_visualization(
+            image, roi_image, vision_object, expected_color, contour_points, x, y
+        )
+
         return {
+            "objects": [vision_object],
+            "visualization": {"image": visualization_image},
             "success": True,
-            "roi": {"x": x, "y": y, "width": w, "height": h},
-            "dominant_color": color_info["dominant_color"],
-            "color_percentages": color_info["all_colors"],
-            "hsv_mean": color_info.get("hsv_mean", [0, 0, 0]),
-            "analyzed_pixels": int(analyzed_pixels),
-            "expected_color": expected_color,
-            "match": match,
-            "confidence": color_info["color_percentages"].get(color_info["dominant_color"], 0)
-            / 100.0,
+            "method": method,
         }
 
     def _detect_histogram(self, hsv: np.ndarray, mask: Optional[np.ndarray] = None) -> Dict:
@@ -163,7 +184,10 @@ class ColorDetector:
         }
 
     def _detect_kmeans(
-        self, hsv: np.ndarray, mask: Optional[np.ndarray] = None, k: int = 3
+        self,
+        hsv: np.ndarray,
+        mask: Optional[np.ndarray] = None,
+        k: int = ColorDetectionDefaults.KMEANS_CLUSTERS,
     ) -> Dict:
         """
         Detect dominant colors using k-means clustering (more accurate, slower).
@@ -185,7 +209,11 @@ class ColorDetector:
         pixels = np.float32(pixels)
 
         # Perform k-means clustering
-        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        kmeans = KMeans(
+            n_clusters=k,
+            random_state=ColorDetectionDefaults.KMEANS_RANDOM_STATE,
+            n_init=ColorDetectionDefaults.KMEANS_N_INIT,
+        )
         kmeans.fit(pixels)
 
         # Get cluster centers and labels
@@ -231,3 +259,68 @@ class ColorDetector:
             "all_colors": {k: round(v, 1) for k, v in color_percentages.items() if v > 0},
             "hsv_mean": hsv_mean,
         }
+
+    def _create_visualization(
+        self,
+        full_image: np.ndarray,
+        roi_image: np.ndarray,
+        obj: VisionObject,
+        expected_color: Optional[str],
+        contour_points: Optional[list],
+        roi_x: int,
+        roi_y: int,
+    ) -> np.ndarray:
+        """
+        Create visualization overlay for color detection.
+
+        Args:
+            full_image: Full original image
+            roi_image: ROI image that was analyzed
+            obj: VisionObject with detection results
+            expected_color: Expected color (if color matching)
+            contour_points: Optional contour points for overlay
+            roi_x: ROI x offset in full image
+            roi_y: ROI y offset in full image
+
+        Returns:
+            Image with visualization overlay
+        """
+        # Convert grayscale to BGR if needed
+        if len(full_image.shape) == 2:
+            result = cv2.cvtColor(full_image, cv2.COLOR_GRAY2BGR)
+        else:
+            result = full_image.copy()
+
+        bbox = obj.bounding_box
+        x, y, w, h = bbox.x, bbox.y, bbox.width, bbox.height
+
+        # Determine color based on match status
+        is_match = obj.properties.get("match", True)
+        color = (0, 255, 0) if (is_match or expected_color is None) else (0, 0, 255)  # Green or Red
+
+        # Draw contour if used for masking
+        if contour_points is not None:
+            try:
+                contour = np.array(contour_points, dtype=np.int32)
+                # Draw cyan contour outline to show masked region
+                cv2.drawContours(result, [contour], -1, (255, 255, 0), 2)  # Cyan
+            except Exception:
+                pass  # Fall back to just bbox
+
+        # Draw bounding box
+        cv2.rectangle(result, (x, y), (x + w, y + h), color, 2)
+
+        # Add text with dominant color
+        dominant_color = obj.properties.get("dominant_color", "unknown")
+        confidence_pct = obj.confidence * 100
+        text = f"{dominant_color} ({confidence_pct:.1f}%)"
+        cv2.putText(result, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+        # Add match/fail indicator if expected color was provided
+        if expected_color is not None:
+            status_text = "MATCH" if is_match else "FAIL"
+            cv2.putText(
+                result, status_text, (x, y + h + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2
+            )
+
+        return result

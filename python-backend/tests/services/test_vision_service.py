@@ -149,13 +149,11 @@ class TestVisionService:
         mock_image_manager.get.return_value = test_image
         mock_image_manager.create_thumbnail.return_value = (test_image, "base64-thumb")
 
-        result, thumbnail, processing_time = service.edge_detect(
+        detected_objects, thumbnail, processing_time = service.edge_detect(
             image_id="test-img", method="canny"
         )
 
-        assert result["success"] is True
-        assert "objects" in result
-        assert isinstance(result["objects"], list)
+        assert isinstance(detected_objects, list)
         assert thumbnail == "base64-thumb"
         assert processing_time > 0
         mock_history_buffer.add_inspection.assert_called_once()
@@ -250,14 +248,14 @@ class TestVisionServiceIntegration:
         image_id = image_manager.store(test_image, {})
 
         # Perform edge detection
-        result, thumbnail, processing_time = vision_service.edge_detect(
+        detected_objects, thumbnail, processing_time = vision_service.edge_detect(
             image_id=image_id, method="canny"
         )
 
-        assert result["success"] is True
+        assert isinstance(detected_objects, list)
         assert thumbnail is not None
         assert processing_time > 0
-        assert len(result["objects"]) >= 0
+        assert len(detected_objects) >= 0
 
     def test_learn_template_integration(self, vision_service, test_image, image_manager):
         """Test learning template with real managers"""

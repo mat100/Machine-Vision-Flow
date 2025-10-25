@@ -56,6 +56,158 @@ class VisionService:
         self.rotation_detector = RotationDetector()
         self.overlay_renderer = OverlayRenderer()
 
+    def _execute_detection(
+        self,
+        image_id: str,
+        detector_func,
+        roi: Optional[Dict] = None,
+        record_history: bool = True,
+        history_type: str = "detection",
+        **detector_kwargs,
+    ) -> Tuple[any, str, int]:
+        """
+        Template method for vision detection operations.
+
+        This method encapsulates common logic:
+        - Image retrieval
+        - ROI extraction
+        - Coordinate adjustment
+        - Thumbnail generation
+        - History recording
+
+        Args:
+            image_id: Image identifier
+            detector_func: Detection function to execute
+                (receives image, returns result dict/objects)
+            roi: Optional region of interest
+            record_history: Whether to record in history
+            history_type: Type of detection for history logging
+            **detector_kwargs: Additional kwargs passed to detector function
+
+        Returns:
+            Tuple of (detection_result, thumbnail_base64, processing_time_ms)
+        """
+        with timer() as t:
+            # Get image
+            full_image = self.image_manager.get(image_id)
+            if full_image is None:
+                raise ImageNotFoundException(image_id)
+
+            # Extract ROI if specified
+            roi_offset = (0, 0)
+            if roi:
+                roi_obj = ROI.from_dict(roi) if isinstance(roi, dict) else roi
+                image = ROIHandler.extract_roi(full_image, roi_obj, safe_mode=True)
+                roi_offset = (roi_obj.x, roi_obj.y)
+            else:
+                image = full_image
+
+            # Execute detection
+            result = detector_func(image, **detector_kwargs)
+
+            # Adjust coordinates if ROI was used
+            if roi_offset != (0, 0):
+                result = self._adjust_coordinates_for_roi(result, roi_offset)
+
+            # Generate thumbnail
+            thumbnail_base64 = self._create_detection_thumbnail(result, image)
+
+        # Read processing time AFTER with block (timer updates in finally)
+        processing_time_ms = t["ms"]
+
+        # Record history if requested
+        if record_history:
+            self._record_detection_history(
+                image_id, result, history_type, processing_time_ms, thumbnail_base64
+            )
+
+        return result, thumbnail_base64, processing_time_ms
+
+    def _adjust_coordinates_for_roi(self, result, roi_offset):
+        """Adjust object coordinates by ROI offset."""
+        # Handle different result types
+        if isinstance(result, dict) and "objects" in result:
+            # Result with objects list
+            for obj in result["objects"]:
+                self._adjust_object_coordinates(obj, roi_offset)
+            return result
+        elif isinstance(result, list):
+            # Direct list of objects
+            for obj in result:
+                self._adjust_object_coordinates(obj, roi_offset)
+            return result
+        elif isinstance(result, VisionObject):
+            # Single object
+            self._adjust_object_coordinates(result, roi_offset)
+            return result
+        else:
+            # Unknown format, return as-is
+            return result
+
+    def _adjust_object_coordinates(self, obj: VisionObject, roi_offset: Tuple[int, int]):
+        """Adjust single object coordinates by ROI offset."""
+        obj.bounding_box.x += roi_offset[0]
+        obj.bounding_box.y += roi_offset[1]
+        obj.center.x += roi_offset[0]
+        obj.center.y += roi_offset[1]
+
+        # Adjust contour points if present
+        if hasattr(obj, "contour") and obj.contour:
+            obj.contour = [[x + roi_offset[0], y + roi_offset[1]] for x, y in obj.contour]
+
+    def _create_detection_thumbnail(self, result, processed_image) -> str:
+        """Create thumbnail from detection result."""
+        # Check if result has visualization
+        if isinstance(result, dict) and "visualization" in result:
+            viz = result.get("visualization", {})
+
+            # Check for direct image in visualization
+            if "image" in viz:
+                _, thumbnail_base64 = self.image_manager.create_thumbnail(viz["image"])
+                return thumbnail_base64
+
+            # Check for base64-encoded overlay
+            if "overlay" in viz:
+                import base64
+
+                overlay_data = base64.b64decode(viz["overlay"])
+                nparr = np.frombuffer(overlay_data, np.uint8)
+                result_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                _, thumbnail_base64 = self.image_manager.create_thumbnail(result_image)
+                return thumbnail_base64
+
+        # Fallback: use processed image
+        _, thumbnail_base64 = self.image_manager.create_thumbnail(processed_image)
+        return thumbnail_base64
+
+    def _record_detection_history(
+        self, image_id: str, result, detection_type: str, processing_time_ms: int, thumbnail: str
+    ):
+        """Record detection in history buffer."""
+        # Determine object count
+        if isinstance(result, dict) and "objects" in result:
+            object_count = len(result["objects"])
+        elif isinstance(result, list):
+            object_count = len(result)
+        elif isinstance(result, VisionObject):
+            object_count = 1
+        else:
+            object_count = 0
+
+        self.history_buffer.add_inspection(
+            image_id=image_id,
+            result="PASS" if object_count > 0 else "FAIL",
+            detections=[
+                {
+                    "type": detection_type,
+                    "found": object_count > 0,
+                    "count": object_count,
+                }
+            ],
+            processing_time_ms=processing_time_ms,
+            thumbnail_base64=thumbnail,
+        )
+
     def template_match(
         self,
         image_id: str,
@@ -83,26 +235,13 @@ class VisionService:
             ImageNotFoundException: If image not found
             TemplateNotFoundException: If template not found
         """
-        with timer() as t:
-            # Get image
-            full_image = self.image_manager.get(image_id)
-            if full_image is None:
-                raise ImageNotFoundException(image_id)
+        # Get template first (before detector function)
+        template = self.template_manager.get_template(template_id)
+        if template is None:
+            raise TemplateNotFoundException(template_id)
 
-            # Extract ROI if specified
-            roi_offset = (0, 0)
-            if roi:
-                roi_obj = ROI.from_dict(roi)
-                image = ROIHandler.extract_roi(full_image, roi_obj, safe_mode=True)
-                roi_offset = (roi_obj.x, roi_obj.y)
-            else:
-                image = full_image
-
-            # Get template
-            template = self.template_manager.get_template(template_id)
-            if template is None:
-                raise TemplateNotFoundException(template_id)
-
+        # Create detector function that performs template matching
+        def detect_func(image):
             # Convert to grayscale if needed
             if len(image.shape) == 3:
                 search_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -138,10 +277,10 @@ class VisionService:
                     score = 0
                     loc = None
 
-            # Create DetectedObject if match found
+            # Create DetectedObject if match found (with local coordinates)
             if loc is not None:
-                x = loc[0] + roi_offset[0]
-                y = loc[1] + roi_offset[1]
+                x = loc[0]
+                y = loc[1]
                 w = template.shape[1]
                 h = template.shape[0]
 
@@ -162,36 +301,32 @@ class VisionService:
                     )
                 )
 
-            # Create result image with overlay on ROI area only
-            # Render matches with local coordinates (before offset adjustment)
+            # Create visualization
             if detected_objects:
-                # Create temporary objects with local coordinates for rendering
-                local_objects = []
-                for obj in detected_objects:
-                    local_obj = VisionObject(
-                        object_id=obj.object_id,
-                        object_type=obj.object_type,
-                        bounding_box=ROI(
-                            x=obj.bounding_box.x - roi_offset[0],
-                            y=obj.bounding_box.y - roi_offset[1],
-                            width=obj.bounding_box.width,
-                            height=obj.bounding_box.height,
-                        ),
-                        center=Point(
-                            x=obj.center.x - roi_offset[0], y=obj.center.y - roi_offset[1]
-                        ),
-                        confidence=obj.confidence,
-                        properties=obj.properties,
-                    )
-                    local_objects.append(local_obj)
-                result_image = self.overlay_renderer.render_template_matches(image, local_objects)
+                result_image = self.overlay_renderer.render_template_matches(
+                    image, detected_objects
+                )
             else:
                 result_image = image.copy()
 
-            # Create thumbnail from ROI area (not full image)
-            _, thumbnail_base64 = self.image_manager.create_thumbnail(result_image)
+            # Return result in format expected by _execute_detection
+            return {
+                "objects": detected_objects,
+                "visualization": {"has_overlay": True, "image": result_image},
+            }
 
-        # Add to history if requested
+        # Execute using template method - it handles ROI, coordinate adjustment, thumbnail, history
+        result, thumbnail_base64, processing_time = self._execute_detection(
+            image_id=image_id,
+            detector_func=detect_func,
+            roi=roi,
+            record_history=False,  # We'll do custom history recording
+            history_type="template_match",
+        )
+
+        detected_objects = result["objects"]
+
+        # Custom history recording for template match (includes template_id and confidence)
         if record_history:
             self.history_buffer.add_inspection(
                 image_id=image_id,
@@ -205,13 +340,13 @@ class VisionService:
                         "count": len(detected_objects),
                     }
                 ],
-                processing_time_ms=t["ms"],
+                processing_time_ms=processing_time,
                 thumbnail_base64=thumbnail_base64,
             )
 
-        logger.debug(f"Template matching: {len(detected_objects)} matches in {t['ms']}ms")
+        logger.debug(f"Template matching: {len(detected_objects)} matches in {processing_time}ms")
 
-        return detected_objects, thumbnail_base64, t["ms"]
+        return detected_objects, thumbnail_base64, processing_time
 
     def learn_template_from_roi(
         self, image_id: str, roi: ROI, name: str, description: Optional[str] = None
@@ -261,7 +396,7 @@ class VisionService:
         preprocessing: Optional[Dict] = None,
         roi: Optional[Dict] = None,
         record_history: bool = True,
-    ) -> Tuple[Dict, str, int]:
+    ) -> Tuple[List[VisionObject], str, int]:
         """
         Perform edge detection on an image.
 
@@ -271,112 +406,59 @@ class VisionService:
             params: Method-specific parameters
             preprocessing: Optional preprocessing parameters
             roi: Optional region of interest to limit detection area
-                (dict with x, y, width, height)
             record_history: Whether to record in history
 
         Returns:
-            Tuple of (result_dict, thumbnail_base64, processing_time_ms)
+            Tuple of (detected_objects, thumbnail_base64, processing_time_ms)
 
         Raises:
             ImageNotFoundException: If image not found
         """
+        from core.constants import EdgeDetectionDefaults
         from vision.edge_detection import EdgeDetector, EdgeMethod
 
-        with timer() as t:
-            # Get image
-            full_image = self.image_manager.get(image_id)
-            if full_image is None:
-                raise ImageNotFoundException(image_id)
+        # Parse method
+        try:
+            edge_method = EdgeMethod(method.lower())
+        except ValueError:
+            edge_method = EdgeMethod.CANNY
 
-            # Extract ROI if specified
-            roi_offset = (0, 0)
-            if roi:
-                roi_obj = ROI.from_dict(roi)
-                image = ROIHandler.extract_roi(full_image, roi_obj, safe_mode=True)
-                roi_offset = (roi_obj.x, roi_obj.y)
-            else:
-                image = full_image
+        # Set default parameters if not provided
+        if params is None:
+            params = {}
 
-            # Initialize edge detector
+        # Set method-specific defaults using constants
+        if edge_method == EdgeMethod.CANNY:
+            params.setdefault("canny_low", EdgeDetectionDefaults.CANNY_LOW_THRESHOLD)
+            params.setdefault("canny_high", EdgeDetectionDefaults.CANNY_HIGH_THRESHOLD)
+        elif edge_method == EdgeMethod.SOBEL:
+            params.setdefault("sobel_threshold", EdgeDetectionDefaults.SOBEL_THRESHOLD)
+        elif edge_method == EdgeMethod.LAPLACIAN:
+            params.setdefault("laplacian_threshold", EdgeDetectionDefaults.LAPLACIAN_THRESHOLD)
+
+        # Create detector function
+        def detect_func(image):
             detector = EdgeDetector()
-
-            # Set default parameters if not provided
-            if params is None:
-                params = {}
-
-            # Parse method
-            try:
-                edge_method = EdgeMethod(method.lower())
-            except ValueError:
-                edge_method = EdgeMethod.CANNY
-
-            # Set default parameters based on method
-            if edge_method == EdgeMethod.CANNY:
-                from core.constants import VisionConstants
-
-                params.setdefault("canny_low", VisionConstants.CANNY_LOW_THRESHOLD_DEFAULT)
-                params.setdefault("canny_high", VisionConstants.CANNY_HIGH_THRESHOLD_DEFAULT)
-            elif edge_method == EdgeMethod.SOBEL:
-                params.setdefault("sobel_threshold", 50)
-            elif edge_method == EdgeMethod.LAPLACIAN:
-                params.setdefault("laplacian_threshold", 30)
-
-            # Perform edge detection
-            result = detector.detect(
+            return detector.detect(
                 image=image, method=edge_method, params=params, preprocessing=preprocessing
             )
 
-            # Adjust object coordinates if ROI was used
-            if roi_offset != (0, 0):
-                for obj in result["objects"]:
-                    # Adjust bounding box
-                    obj.bounding_box.x += roi_offset[0]
-                    obj.bounding_box.y += roi_offset[1]
-                    # Adjust center
-                    obj.center.x += roi_offset[0]
-                    obj.center.y += roi_offset[1]
-                    # Adjust contour points if present
-                    if hasattr(obj, "raw_contour") and obj.raw_contour:
-                        obj.raw_contour = [
-                            [x + roi_offset[0], y + roi_offset[1]] for x, y in obj.raw_contour
-                        ]
-
-            # Create result image with overlay - use ROI area only for thumbnail
-            if result["visualization"] and "overlay" in result["visualization"]:
-                import base64
-
-                overlay_data = base64.b64decode(result["visualization"]["overlay"])
-                nparr = np.frombuffer(overlay_data, np.uint8)
-                result_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            else:
-                result_image = image.copy()
-
-            # Create thumbnail from ROI area (not full image)
-            _, thumbnail_base64 = self.image_manager.create_thumbnail(result_image)
-
-        # Add to history if requested
-        if record_history:
-            object_count = len(result["objects"])
-            self.history_buffer.add_inspection(
-                image_id=image_id,
-                result="PASS" if object_count > 0 else "FAIL",
-                detections=[
-                    {
-                        "type": "edge_detection",
-                        "method": edge_method.value,
-                        "found": object_count > 0,
-                        "contour_count": object_count,
-                    }
-                ],
-                processing_time_ms=t["ms"],
-                thumbnail_base64=thumbnail_base64,
-            )
-
-        logger.debug(
-            f"Edge detection completed: {len(result['objects'])} contours found " f"in {t['ms']}ms"
+        # Execute using template method
+        result, thumbnail_base64, processing_time = self._execute_detection(
+            image_id=image_id,
+            detector_func=detect_func,
+            roi=roi,
+            record_history=record_history,
+            history_type="edge_detection",
         )
 
-        return result, thumbnail_base64, t["ms"]
+        logger.debug(
+            f"Edge detection completed: {len(result['objects'])} contours "
+            f"found in {processing_time}ms"
+        )
+
+        # Return List[VisionObject] directly (not Dict) for consistency
+        return result["objects"], thumbnail_base64, processing_time
 
     def color_detect(
         self,
@@ -408,14 +490,10 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
-        with timer() as t:
-            # Get image
-            image = self.image_manager.get(image_id)
-            if image is None:
-                raise ImageNotFoundException(image_id)
 
-            # Perform color detection
-            result = self.color_detector.detect(
+        # Create detector function
+        def detect_func(image):
+            return self.color_detector.detect(
                 image=image,
                 roi=roi,
                 contour_points=contour,
@@ -425,66 +503,49 @@ class VisionService:
                 method=method,
             )
 
-            # Create VisionObject
-            detected_object = VisionObject(
-                object_id="color_0",
-                object_type=VisionObjectType.COLOR_REGION.value,
-                bounding_box=ROI(**result["roi"]),
-                center=Point(
-                    x=result["roi"]["x"] + result["roi"]["width"] / 2,
-                    y=result["roi"]["y"] + result["roi"]["height"] / 2,
-                ),
-                confidence=result["confidence"],
-                area=float(result["analyzed_pixels"]),
-                properties={
-                    "dominant_color": result["dominant_color"],
-                    "color_percentages": result["color_percentages"],
-                    "hsv_mean": result["hsv_mean"],
-                    "expected_color": result["expected_color"],
-                    "match": result["match"],
-                    "method": method,
-                },
-            )
+        # Execute using template method (handles image retrieval, thumbnail, timing)
+        result, thumbnail_base64, processing_time = self._execute_detection(
+            image_id=image_id,
+            detector_func=detect_func,
+            roi=None,  # ColorDetector handles ROI internally
+            record_history=False,  # Custom history recording below
+            history_type="color_detection",
+        )
 
-            # Create visualization with color overlay
-            result_image = self.overlay_renderer.render_color_detection(
-                image, detected_object, expected_color, contour_points=contour
-            )
+        detected_object = result["objects"][0]
 
-            # Create thumbnail
-            _, thumbnail_base64 = self.image_manager.create_thumbnail(result_image)
-
-        # Add to history if requested
+        # Custom history recording (PASS/FAIL based on match OR no expected color)
         if record_history:
-            inspection_result = "PASS" if result["match"] or expected_color is None else "FAIL"
+            is_match = detected_object.properties.get("match", False)
+            inspection_result = "PASS" if (is_match or expected_color is None) else "FAIL"
             self.history_buffer.add_inspection(
                 image_id=image_id,
                 result=inspection_result,
                 detections=[
                     {
                         "type": "color_detection",
-                        "dominant_color": result["dominant_color"],
+                        "dominant_color": detected_object.properties["dominant_color"],
                         "expected_color": expected_color,
-                        "match": result["match"],
-                        "confidence": result["confidence"],
+                        "match": is_match,
+                        "confidence": detected_object.confidence,
                     }
                 ],
-                processing_time_ms=t["ms"],
+                processing_time_ms=processing_time,
                 thumbnail_base64=thumbnail_base64,
             )
 
         logger.debug(
-            f"Color detection completed: {result['dominant_color']} "
-            f"({result['confidence']*100:.1f}%) in {t['ms']}ms"
+            f"Color detection completed: {detected_object.properties['dominant_color']} "
+            f"({detected_object.confidence*100:.1f}%) in {processing_time}ms"
         )
 
-        return detected_object, thumbnail_base64, t["ms"]
+        return detected_object, thumbnail_base64, processing_time
 
     def aruco_detect(
         self,
         image_id: str,
         dictionary: str = "DICT_4X4_50",
-        roi: Optional[ROI] = None,
+        roi: Optional[Dict] = None,
         params: Optional[Dict] = None,
         record_history: bool = True,
     ) -> Tuple[List[VisionObject], str, int]:
@@ -494,7 +555,7 @@ class VisionService:
         Args:
             image_id: ID of the image to process
             dictionary: ArUco dictionary type
-            roi: Optional region of interest to search in
+            roi: Optional region of interest to search in (dict with x, y, width, height)
             params: Detection parameters
             record_history: Whether to record in history buffer
 
@@ -504,55 +565,31 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
-        # Get image from manager
-        image = self.image_manager.get(image_id)
-        if image is None:
-            raise ImageNotFoundException(image_id)
+        from core.constants import ArucoDetectionDefaults
 
-        # Extract ROI if specified
-        image_to_process = image
-        if roi:
-            image_to_process = image[roi.y : roi.y + roi.height, roi.x : roi.x + roi.width]
+        # Set default dictionary
+        if dictionary is None:
+            dictionary = ArucoDetectionDefaults.DEFAULT_DICTIONARY
 
-        # Perform ArUco detection
-        with timer() as t:
-            result = self.aruco_detector.detect(
-                image_to_process, dictionary=dictionary, params=params or {}
-            )
+        # Create detector function
+        def detect_func(image):
+            return self.aruco_detector.detect(image, dictionary=dictionary, params=params or {})
 
-        # Adjust coordinates if ROI was used
-        if roi:
-            for obj in result["objects"]:
-                obj.center.x += roi.x
-                obj.center.y += roi.y
-                obj.bounding_box.x += roi.x
-                obj.bounding_box.y += roi.y
+        # Execute using template method
+        result, thumbnail_base64, processing_time = self._execute_detection(
+            image_id=image_id,
+            detector_func=detect_func,
+            roi=roi,
+            record_history=record_history,
+            history_type="aruco_detection",
+        )
 
-        # Get visualization
-        thumbnail_base64 = result["visualization"]["overlay"]
+        logger.debug(
+            f"ArUco detection completed: {len(result['objects'])} markers "
+            f"in {processing_time}ms"
+        )
 
-        # Record history if requested
-        if record_history:
-            from api.models import InspectionResult
-
-            inspection_result = (
-                InspectionResult.PASS if len(result["objects"]) > 0 else InspectionResult.FAIL
-            )
-
-            self.history_buffer.add_inspection(
-                image_id=image_id,
-                result=inspection_result,
-                detections=[
-                    {"type": "aruco_marker", "marker_id": obj.properties["marker_id"]}
-                    for obj in result["objects"]
-                ],
-                processing_time_ms=t["ms"],
-                thumbnail_base64=thumbnail_base64,
-            )
-
-        logger.debug(f"ArUco detection completed: {len(result['objects'])} markers in {t['ms']}ms")
-
-        return result["objects"], thumbnail_base64, t["ms"]
+        return result["objects"], thumbnail_base64, processing_time
 
     def rotation_detect(
         self,
@@ -580,11 +617,6 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
-        # Get image from manager
-        image = self.image_manager.get(image_id)
-        if image is None:
-            raise ImageNotFoundException(image_id)
-
         # Import enums
         from vision.rotation_detection import AngleRange, RotationMethod
 
@@ -599,26 +631,24 @@ class VisionService:
         except ValueError:
             range_enum = AngleRange.RANGE_0_360
 
-        # Perform rotation detection
-        with timer() as t:
-            result = self.rotation_detector.detect(
+        # Create detector function
+        def detect_func(image):
+            return self.rotation_detector.detect(
                 image, contour=contour, method=method_enum, angle_range=range_enum, roi=roi
             )
 
-        # Get single object
+        # Execute using template method (handles image retrieval, thumbnail, timing)
+        result, thumbnail_base64, processing_time = self._execute_detection(
+            image_id=image_id,
+            detector_func=detect_func,
+            roi=None,  # RotationDetector handles ROI for visualization
+            record_history=False,  # Custom history recording below
+            history_type="rotation_analysis",
+        )
+
         detected_object = result["objects"][0]
 
-        # Get visualization and create thumbnail
-        import base64
-
-        overlay_data = base64.b64decode(result["visualization"]["overlay"])
-        nparr = np.frombuffer(overlay_data, np.uint8)
-        overlay_image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        # Create thumbnail from overlay
-        _, thumbnail_base64 = self.image_manager.create_thumbnail(overlay_image)
-
-        # Record history if requested
+        # Custom history recording (rotation always succeeds if contour valid)
         if record_history:
             from api.models import InspectionResult
 
@@ -633,13 +663,13 @@ class VisionService:
                         "confidence": detected_object.confidence,
                     }
                 ],
-                processing_time_ms=t["ms"],
+                processing_time_ms=processing_time,
                 thumbnail_base64=thumbnail_base64,
             )
 
         logger.debug(
             f"Rotation detection completed: {detected_object.rotation:.1f}° "
-            f"({method}) in {t['ms']}ms"
+            f"({method}) in {processing_time}ms"
         )
 
-        return detected_object, thumbnail_base64, t["ms"]
+        return detected_object, thumbnail_base64, processing_time

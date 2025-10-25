@@ -3,7 +3,6 @@ Rotation detection algorithms for machine vision.
 Calculates object orientation from contours using various methods.
 """
 
-import base64
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +10,7 @@ import cv2
 import numpy as np
 
 from api.models import ROI, Point, VisionObject, VisionObjectType
+from core.constants import RotationDetectionDefaults
 
 
 class RotationMethod(str, Enum):
@@ -64,14 +64,18 @@ class RotationDetector:
             contour_array = contour_array.reshape((-1, 1, 2))
 
         # Validate contour has enough points
-        if len(contour_array) < 5 and method == RotationMethod.ELLIPSE_FIT:
+        min_points_ellipse = RotationDetectionDefaults.MIN_POINTS_FOR_ELLIPSE
+        if len(contour_array) < min_points_ellipse and method == RotationMethod.ELLIPSE_FIT:
             raise ValueError(
-                f"Ellipse fitting requires at least 5 points, got {len(contour_array)}"
+                f"Ellipse fitting requires at least {min_points_ellipse} points, "
+                f"got {len(contour_array)}"
             )
 
-        if len(contour_array) < 3:
+        min_points_rotation = RotationDetectionDefaults.MIN_POINTS_FOR_ROTATION
+        if len(contour_array) < min_points_rotation:
             raise ValueError(
-                f"Rotation detection requires at least 3 points, got {len(contour_array)}"
+                f"Rotation detection requires at least {min_points_rotation} points, "
+                f"got {len(contour_array)}"
             )
 
         # Calculate rotation based on method
@@ -151,7 +155,7 @@ class RotationDetector:
             angle -= 360
 
         center = Point(x=float(center_tuple[0]), y=float(center_tuple[1]))
-        confidence = 1.0  # High confidence for geometric method
+        confidence = RotationDetectionDefaults.MIN_AREA_RECT_CONFIDENCE
 
         return float(angle), center, confidence
 
@@ -183,7 +187,7 @@ class RotationDetector:
 
         # Calculate confidence based on how well ellipse fits the contour
         # (simplified - could be improved with actual error metric)
-        confidence = 0.9
+        confidence = RotationDetectionDefaults.ELLIPSE_FIT_CONFIDENCE
 
         return float(angle), center, confidence
 
@@ -234,7 +238,7 @@ class RotationDetector:
         # Higher ratio = more elongated = more confident in rotation
         if eigenvalues[1] > 0:
             ratio = eigenvalues[0] / eigenvalues[1]
-            confidence = min(1.0, ratio / 10.0)  # Normalize (arbitrary scaling)
+            confidence = min(1.0, ratio / RotationDetectionDefaults.PCA_CONFIDENCE_SCALE)
         else:
             confidence = 1.0
 
@@ -285,9 +289,8 @@ class RotationDetector:
         center: Point,
         method: RotationMethod,
         roi: Optional[Dict[str, int]],
-    ) -> Dict[str, str]:
-        """Create visualization images."""
-        visualization = {}
+    ) -> Dict[str, np.ndarray]:
+        """Create visualization with overlay image (not base64)."""
 
         # If ROI provided, crop to ROI and adjust coordinates
         if roi:
@@ -320,24 +323,48 @@ class RotationDetector:
             center_roi = (int(center.x), int(center.y))
 
         # Draw contour
-        cv2.drawContours(overlay, [contour_roi.astype(np.int32)], -1, (0, 255, 255), 2)  # Cyan
+        cv2.drawContours(
+            overlay,
+            [contour_roi.astype(np.int32)],
+            -1,
+            RotationDetectionDefaults.CONTOUR_COLOR,
+            RotationDetectionDefaults.LINE_THICKNESS - 1,
+        )
 
         # Draw center point
-        cv2.circle(overlay, center_roi, 5, (0, 0, 255), -1)  # Red
+        cv2.circle(
+            overlay,
+            center_roi,
+            RotationDetectionDefaults.CENTER_RADIUS,
+            RotationDetectionDefaults.CENTER_COLOR,
+            -1,
+        )
 
         # Draw rotation indicator (line from center showing angle)
-        line_length = 50
+        line_length = RotationDetectionDefaults.ROTATION_LINE_LENGTH
         angle_rad = np.radians(angle)
         end_x = int(center_roi[0] + line_length * np.cos(angle_rad))
         end_y = int(center_roi[1] + line_length * np.sin(angle_rad))
-        cv2.arrowedLine(overlay, center_roi, (end_x, end_y), (0, 255, 0), 3, tipLength=0.3)
+        cv2.arrowedLine(
+            overlay,
+            center_roi,
+            (end_x, end_y),
+            RotationDetectionDefaults.ARROW_COLOR,
+            RotationDetectionDefaults.LINE_THICKNESS,
+            tipLength=RotationDetectionDefaults.ARROW_TIP_LENGTH,
+        )
 
         # Add text info
         text = f"Rotation: {angle:.1f}deg ({method.value})"
-        cv2.putText(overlay, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        cv2.putText(
+            overlay,
+            text,
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            RotationDetectionDefaults.TEXT_COLOR,
+            RotationDetectionDefaults.LINE_THICKNESS - 1,
+        )
 
-        # Encode to base64
-        _, buffer = cv2.imencode(".png", overlay)
-        visualization["overlay"] = base64.b64encode(buffer).decode("utf-8")
-
-        return visualization
+        # Return image directly (not base64) for consistency with other detectors
+        return {"image": overlay}

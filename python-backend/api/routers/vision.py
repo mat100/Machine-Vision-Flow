@@ -6,13 +6,7 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from api.dependencies import (
-    get_image_manager,
-    get_vision_service,
-    roi_to_dict,
-    validate_image_exists,
-    validate_roi_bounds,
-)
+from api.dependencies import get_image_manager, get_vision_service, validate_vision_request
 from api.exceptions import safe_endpoint
 from api.models import (
     ArucoDetectRequest,
@@ -44,17 +38,10 @@ async def template_match(
     OUTPUT results:
     - bounding_box: Location where template was found
     """
-    # Validate image exists
-    validate_image_exists(request.image_id, image_manager)
+    # Unified validation and ROI conversion
+    roi_dict = validate_vision_request(request.image_id, request.roi, image_manager)
 
-    # Validate ROI if provided
-    if request.roi:
-        validate_roi_bounds(request.roi, request.image_id, image_manager)
-
-    # Convert ROI using helper (eliminates manual dict construction)
-    roi_dict = roi_to_dict(request.roi)
-
-    # Service handles all template matching logic, history recording, and thumbnail creation
+    # Service handles all template matching logic, history recording, thumbnail
     detected_objects, thumbnail_base64, processing_time = vision_service.template_match(
         image_id=request.image_id,
         template_id=request.template_id,
@@ -88,54 +75,15 @@ async def edge_detect(
     - bounding_box: Bounding box of detected contour
     - contour: Actual contour points for precise shape representation
     """
-    # Validate image exists
-    validate_image_exists(request.image_id, image_manager)
+    # Unified validation and ROI conversion
+    roi_dict = validate_vision_request(request.image_id, request.roi, image_manager)
 
-    # Validate ROI if provided
-    if request.roi:
-        validate_roi_bounds(request.roi, request.image_id, image_manager)
+    # Extract parameters using helper methods (eliminates 34 lines)
+    params = request.get_detection_params()
+    preprocessing = request.get_preprocessing_params()
 
-    # Build params dict from explicit fields
-    params = {
-        # Method-specific parameters
-        "canny_low": request.canny_low,
-        "canny_high": request.canny_high,
-        "sobel_threshold": request.sobel_threshold,
-        "sobel_kernel": request.sobel_kernel,
-        "laplacian_threshold": request.laplacian_threshold,
-        "laplacian_kernel": request.laplacian_kernel,
-        "prewitt_threshold": request.prewitt_threshold,
-        "scharr_threshold": request.scharr_threshold,
-        "morph_threshold": request.morph_threshold,
-        "morph_kernel": request.morph_kernel,
-        # Filtering parameters
-        "min_contour_area": request.min_contour_area,
-        "max_contour_area": request.max_contour_area,
-        "min_contour_perimeter": request.min_contour_perimeter,
-        "max_contour_perimeter": request.max_contour_perimeter,
-        "max_contours": request.max_contours,
-        "show_centers": request.show_centers,
-    }
-
-    # Build preprocessing dict from explicit fields
-    preprocessing = {
-        "blur_enabled": request.blur_enabled,
-        "blur_kernel": request.blur_kernel,
-        "bilateral_enabled": request.bilateral_enabled,
-        "bilateral_d": request.bilateral_d,
-        "bilateral_sigma_color": request.bilateral_sigma_color,
-        "bilateral_sigma_space": request.bilateral_sigma_space,
-        "morphology_enabled": request.morphology_enabled,
-        "morphology_operation": request.morphology_operation,
-        "morphology_kernel": request.morphology_kernel,
-        "equalize_enabled": request.equalize_enabled,
-    }
-
-    # Convert ROI using helper
-    roi_dict = roi_to_dict(request.roi)
-
-    # Service handles all edge detection logic, history recording, and thumbnail creation
-    result, thumbnail_base64, processing_time = vision_service.edge_detect(
+    # Service handles all edge detection logic, history recording, thumbnail
+    detected_objects, thumbnail_base64, processing_time = vision_service.edge_detect(
         image_id=request.image_id,
         method=request.method.lower(),
         params=params,
@@ -145,7 +93,7 @@ async def edge_detect(
     )
 
     return VisionResponse(
-        objects=result["objects"],
+        objects=detected_objects,
         thumbnail_base64=thumbnail_base64,
         processing_time_ms=processing_time,
     )
@@ -168,15 +116,8 @@ async def color_detect(
     OUTPUT results:
     - bounding_box: Region where color was analyzed
     """
-    # Validate image exists
-    validate_image_exists(request.image_id, image_manager)
-
-    # Validate ROI if provided
-    if request.roi:
-        validate_roi_bounds(request.roi, request.image_id, image_manager)
-
-    # Convert ROI using helper
-    roi_dict = roi_to_dict(request.roi)
+    # Unified validation and ROI conversion
+    roi_dict = validate_vision_request(request.image_id, request.roi, image_manager)
 
     # Call vision service
     detected_object, thumbnail_base64, processing_time = vision_service.color_detect(
@@ -221,19 +162,19 @@ async def aruco_detect(
     - properties.corners: 4 corner points
     - rotation: Marker rotation in degrees (0-360)
     """
-    # Validate image exists
-    validate_image_exists(request.image_id, image_manager)
+    # Unified validation (keep ROI as Pydantic model for service compatibility)
+    validated_roi = validate_vision_request(
+        request.image_id,
+        request.roi,
+        image_manager,
+        convert_roi_to_dict=False,
+    )
 
-    # Validate ROI if provided
-    if request.roi:
-        validate_roi_bounds(request.roi, request.image_id, image_manager)
-
-    # Service handles all ArUco detection logic, history recording, and thumbnail creation
-    # Note: aruco_detect expects ROI as Pydantic model, not dict (different from other endpoints)
+    # Service handles all ArUco detection logic, history recording, thumbnail
     detected_objects, thumbnail_base64, processing_time = vision_service.aruco_detect(
         image_id=request.image_id,
         dictionary=request.dictionary,
-        roi=request.roi,
+        roi=validated_roi,
         params=request.params,
         record_history=True,
     )
@@ -262,17 +203,10 @@ async def rotation_detect(
     OUTPUT results:
     - rotation: Calculated rotation in degrees
     """
-    # Validate image exists (needed for visualization)
-    validate_image_exists(request.image_id, image_manager)
+    # Unified validation and ROI conversion
+    roi_dict = validate_vision_request(request.image_id, request.roi, image_manager)
 
-    # Validate ROI if provided (used for visualization context, not constraints)
-    if request.roi:
-        validate_roi_bounds(request.roi, request.image_id, image_manager)
-
-    # Convert ROI using helper
-    roi_dict = roi_to_dict(request.roi)
-
-    # Service handles all rotation detection logic, history recording, and thumbnail creation
+    # Service handles all rotation detection logic, history recording
     detected_object, thumbnail_base64, processing_time = vision_service.rotation_detect(
         image_id=request.image_id,
         contour=request.contour,

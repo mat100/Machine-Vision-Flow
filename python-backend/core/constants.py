@@ -304,3 +304,115 @@ class SuccessMessages:
     TEMPLATE_UPLOADED = "Successfully uploaded template {template_id}"
     TEMPLATE_DELETED = "Successfully deleted template {template_id}"
     PROCESSING_COMPLETE = "Processing completed successfully"
+
+
+# Edge Detection Default Parameters
+class EdgeDetectionDefaults:
+    """Default parameters for edge detection algorithms."""
+
+    # Canny edge detection
+    CANNY_LOW_THRESHOLD = 50
+    CANNY_HIGH_THRESHOLD = 150
+    CANNY_APERTURE_SIZE = 3
+    CANNY_L2_GRADIENT = False
+
+    # Sobel edge detection
+    SOBEL_KERNEL_SIZE = 3
+    SOBEL_SCALE = 1.0
+    SOBEL_DELTA = 0.0
+    SOBEL_THRESHOLD = 50.0
+
+    # Laplacian edge detection
+    LAPLACIAN_KERNEL_SIZE = 3
+    LAPLACIAN_SCALE = 1.0
+    LAPLACIAN_DELTA = 0.0
+    LAPLACIAN_THRESHOLD = 30.0
+
+    # Prewitt edge detection
+    PREWITT_THRESHOLD = 50.0
+
+    # Scharr edge detection
+    SCHARR_SCALE = 1.0
+    SCHARR_DELTA = 0.0
+    SCHARR_THRESHOLD = 50.0
+
+    # Morphological gradient
+    MORPH_KERNEL_SIZE = 3
+    MORPH_THRESHOLD = 30.0
+
+    # Preprocessing defaults
+    BLUR_KERNEL_SIZE = 5
+    BILATERAL_D = 9
+    BILATERAL_SIGMA_COLOR = 75.0
+    BILATERAL_SIGMA_SPACE = 75.0
+    MORPHOLOGY_KERNEL_SIZE = 3
+
+    # Contour filtering
+    MIN_CONTOUR_AREA = 10.0
+    MIN_CONTOUR_PERIMETER = 0.0
+    MAX_CONTOURS = 100
+    CONTOUR_APPROX_EPSILON = 0.02
+
+    # Visualization
+    SHOW_CENTERS = True
+    LINE_THICKNESS = 2
+
+
+# Color Detection Default Parameters
+class ColorDetectionDefaults:
+    """Default parameters for color detection algorithms."""
+
+    # Detection methods
+    DEFAULT_METHOD = "histogram"
+    KMEANS_CLUSTERS = 3
+    KMEANS_RANDOM_STATE = 42
+    KMEANS_N_INIT = 10
+
+    # Color matching
+    MIN_PERCENTAGE = 50.0
+
+    # Contour masking
+    USE_CONTOUR_MASK = True
+
+
+# ArUco Detection Default Parameters
+class ArucoDetectionDefaults:
+    """Default parameters for ArUco marker detection."""
+
+    # Default dictionary
+    DEFAULT_DICTIONARY = "DICT_4X4_50"
+
+    # Visualization
+    LINE_THICKNESS = 2
+    CENTER_RADIUS = 3
+    ROTATION_LINE_COLOR = (0, 255, 255)  # Yellow (BGR)
+    CENTER_COLOR = (0, 0, 255)  # Red (BGR)
+    TEXT_COLOR = (0, 255, 0)  # Green (BGR)
+
+
+# Rotation Detection Default Parameters
+class RotationDetectionDefaults:
+    """Default parameters for rotation detection algorithms."""
+
+    # Default settings
+    DEFAULT_METHOD = "min_area_rect"
+    DEFAULT_ANGLE_RANGE = "0_360"
+
+    # Method confidence defaults
+    MIN_AREA_RECT_CONFIDENCE = 1.0
+    ELLIPSE_FIT_CONFIDENCE = 0.9
+    PCA_CONFIDENCE_SCALE = 10.0  # Divisor for eigenvalue ratio normalization
+
+    # Ellipse fitting minimum points
+    MIN_POINTS_FOR_ELLIPSE = 5
+    MIN_POINTS_FOR_ROTATION = 3
+
+    # Visualization
+    ROTATION_LINE_LENGTH = 50
+    LINE_THICKNESS = 3
+    CENTER_RADIUS = 5
+    ARROW_TIP_LENGTH = 0.3
+    CONTOUR_COLOR = (0, 255, 255)  # Cyan (BGR)
+    CENTER_COLOR = (0, 0, 255)  # Red (BGR)
+    ARROW_COLOR = (0, 255, 0)  # Green (BGR)
+    TEXT_COLOR = (0, 255, 0)  # Green (BGR)

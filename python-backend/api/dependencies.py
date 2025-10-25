@@ -226,6 +226,46 @@ def roi_to_dict(roi: Optional[ROI]) -> Optional[Dict[str, int]]:
     return roi.to_dict()
 
 
+def validate_vision_request(
+    image_id: str,
+    roi: Optional[ROI],
+    image_manager: ImageManager,
+    convert_roi_to_dict: bool = True,
+):
+    """
+    Unified validation for vision detection endpoints.
+
+    Eliminates the repeated pattern of:
+    - validate_image_exists()
+    - validate_roi_bounds()
+    - roi_to_dict()
+
+    Args:
+        image_id: Image identifier to validate
+        roi: Optional ROI to validate
+        image_manager: ImageManager instance
+        convert_roi_to_dict: If True, returns dict; if False, returns ROI model
+
+    Returns:
+        ROI as dict or ROI model (based on convert_roi_to_dict), or None if roi is None
+
+    Raises:
+        HTTPException: If image not found or ROI invalid
+    """
+    # Validate image exists
+    validate_image_exists(image_id, image_manager)
+
+    # Validate ROI if provided
+    if roi:
+        validate_roi_bounds(roi, image_id, image_manager)
+
+    # Convert ROI to dict or return as-is
+    if convert_roi_to_dict:
+        return roi_to_dict(roi)
+    else:
+        return roi
+
+
 # Authentication dependency (placeholder for future implementation)
 def optional_auth(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),

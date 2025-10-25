@@ -401,6 +401,58 @@ class EdgeDetectRequest(BaseModel):
     morphology_kernel: Optional[int] = Field(3, ge=1, description="Morphological kernel size")
     equalize_enabled: Optional[bool] = Field(False, description="Enable histogram equalization")
 
+    def get_detection_params(self) -> Dict[str, Any]:
+        """
+        Extract detection parameters as dict.
+
+        Eliminates manual parameter dict construction in vision.py endpoint.
+
+        Returns:
+            Dictionary with method-specific and filtering parameters
+        """
+        return {
+            # Method-specific parameters
+            "canny_low": self.canny_low,
+            "canny_high": self.canny_high,
+            "sobel_threshold": self.sobel_threshold,
+            "sobel_kernel": self.sobel_kernel,
+            "laplacian_threshold": self.laplacian_threshold,
+            "laplacian_kernel": self.laplacian_kernel,
+            "prewitt_threshold": self.prewitt_threshold,
+            "scharr_threshold": self.scharr_threshold,
+            "morph_threshold": self.morph_threshold,
+            "morph_kernel": self.morph_kernel,
+            # Filtering parameters
+            "min_contour_area": self.min_contour_area,
+            "max_contour_area": self.max_contour_area,
+            "min_contour_perimeter": self.min_contour_perimeter,
+            "max_contour_perimeter": self.max_contour_perimeter,
+            "max_contours": self.max_contours,
+            "show_centers": self.show_centers,
+        }
+
+    def get_preprocessing_params(self) -> Dict[str, Any]:
+        """
+        Extract preprocessing parameters as dict.
+
+        Eliminates manual preprocessing dict construction in vision.py endpoint.
+
+        Returns:
+            Dictionary with preprocessing options
+        """
+        return {
+            "blur_enabled": self.blur_enabled,
+            "blur_kernel": self.blur_kernel,
+            "bilateral_enabled": self.bilateral_enabled,
+            "bilateral_d": self.bilateral_d,
+            "bilateral_sigma_color": self.bilateral_sigma_color,
+            "bilateral_sigma_space": self.bilateral_sigma_space,
+            "morphology_enabled": self.morphology_enabled,
+            "morphology_operation": self.morphology_operation,
+            "morphology_kernel": self.morphology_kernel,
+            "equalize_enabled": self.equalize_enabled,
+        }
+
 
 class ColorDetectRequest(BaseModel):
     """Request for color detection"""

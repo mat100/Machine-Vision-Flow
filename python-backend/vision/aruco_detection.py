@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 
 from api.models import ROI, Point, VisionObject, VisionObjectType
+from core.constants import ArucoDetectionDefaults
 
 
 class ArucoDict(str, Enum):
@@ -64,7 +65,7 @@ class ArucoDetector:
     def detect(
         self,
         image: np.ndarray,
-        dictionary: str = "DICT_4X4_50",
+        dictionary: str = ArucoDetectionDefaults.DEFAULT_DICTIONARY,
         params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
@@ -223,17 +224,31 @@ class ArucoDetector:
                     overlay,
                     (center_x, center_y),
                     (int(top_right[0]), int(top_right[1])),
-                    (0, 255, 255),  # Yellow line
-                    2,
+                    ArucoDetectionDefaults.ROTATION_LINE_COLOR,
+                    ArucoDetectionDefaults.LINE_THICKNESS,
                 )
 
                 # Draw center dot
-                cv2.circle(overlay, (center_x, center_y), 3, (0, 0, 255), -1)
+                cv2.circle(
+                    overlay,
+                    (center_x, center_y),
+                    ArucoDetectionDefaults.CENTER_RADIUS,
+                    ArucoDetectionDefaults.CENTER_COLOR,
+                    -1,
+                )
 
         # Add info text
         marker_count = len(ids) if ids is not None else 0
         text = f"Markers: {marker_count}"
-        cv2.putText(overlay, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.putText(
+            overlay,
+            text,
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            ArucoDetectionDefaults.TEXT_COLOR,
+            ArucoDetectionDefaults.LINE_THICKNESS,
+        )
 
         # Encode to base64
         _, buffer = cv2.imencode(".png", overlay)
