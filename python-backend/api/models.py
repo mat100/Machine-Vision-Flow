@@ -3,82 +3,32 @@ Pydantic models for API requests and responses
 """
 
 from datetime import datetime
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+# Import enums from centralized location
+# Re-export commonly used enums for convenience (backwards compatibility)
+from core.enums import (
+    AngleRange,
+    ArucoDict,
+    ColorMethod,
+    InspectionResult,
+    RotationMethod,
+    TemplateMethod,
+    VisionObjectType,
+)
 
-# Enums
-class TemplateMethod(str, Enum):
-    TM_CCOEFF = "TM_CCOEFF"
-    TM_CCOEFF_NORMED = "TM_CCOEFF_NORMED"
-    TM_CCORR = "TM_CCORR"
-    TM_CCORR_NORMED = "TM_CCORR_NORMED"
-    TM_SQDIFF = "TM_SQDIFF"
-    TM_SQDIFF_NORMED = "TM_SQDIFF_NORMED"
-
-
-class InspectionResult(str, Enum):
-    PASS = "PASS"
-    FAIL = "FAIL"
-    ERROR = "ERROR"
-
-
-class ColorMethod(str, Enum):
-    """Color detection methods"""
-
-    HISTOGRAM = "histogram"
-    KMEANS = "kmeans"
-
-
-class ArucoDict(str, Enum):
-    """ArUco dictionary types"""
-
-    DICT_4X4_50 = "DICT_4X4_50"
-    DICT_4X4_100 = "DICT_4X4_100"
-    DICT_4X4_250 = "DICT_4X4_250"
-    DICT_4X4_1000 = "DICT_4X4_1000"
-    DICT_5X5_50 = "DICT_5X5_50"
-    DICT_5X5_100 = "DICT_5X5_100"
-    DICT_5X5_250 = "DICT_5X5_250"
-    DICT_5X5_1000 = "DICT_5X5_1000"
-    DICT_6X6_50 = "DICT_6X6_50"
-    DICT_6X6_100 = "DICT_6X6_100"
-    DICT_6X6_250 = "DICT_6X6_250"
-    DICT_6X6_1000 = "DICT_6X6_1000"
-    DICT_7X7_50 = "DICT_7X7_50"
-    DICT_7X7_100 = "DICT_7X7_100"
-    DICT_7X7_250 = "DICT_7X7_250"
-    DICT_7X7_1000 = "DICT_7X7_1000"
-    DICT_ARUCO_ORIGINAL = "DICT_ARUCO_ORIGINAL"
-
-
-class RotationMethod(str, Enum):
-    """Rotation detection methods"""
-
-    MIN_AREA_RECT = "min_area_rect"
-    ELLIPSE_FIT = "ellipse_fit"
-    PCA = "pca"
-
-
-class AngleRange(str, Enum):
-    """Angle output range options"""
-
-    RANGE_0_360 = "0_360"  # 0 to 360 degrees
-    RANGE_NEG180_180 = "-180_180"  # -180 to +180 degrees
-    RANGE_0_180 = "0_180"  # 0 to 180 degrees (symmetric objects)
-
-
-class VisionObjectType(str, Enum):
-    """Types of vision objects"""
-
-    CAMERA_CAPTURE = "camera_capture"
-    EDGE_CONTOUR = "edge_contour"
-    TEMPLATE_MATCH = "template_match"
-    COLOR_REGION = "color_region"
-    ARUCO_MARKER = "aruco_marker"
-    ROTATION_ANALYSIS = "rotation_analysis"
+#  Explicitly declare public API for re-export
+__all__ = [
+    "AngleRange",
+    "ArucoDict",
+    "ColorMethod",
+    "InspectionResult",
+    "RotationMethod",
+    "TemplateMethod",
+    "VisionObjectType",
+]
 
 
 # Common models

@@ -2,7 +2,6 @@
 Edge detection algorithms for machine vision.
 """
 
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import cv2
@@ -10,19 +9,9 @@ import numpy as np
 
 from api.models import ROI, Point, VisionObject, VisionObjectType
 from core.constants import EdgeDetectionDefaults
+from core.enums import EdgeMethod
 from core.image_utils import ImageUtils
 from core.overlay_renderer import OverlayRenderer
-
-
-class EdgeMethod(str, Enum):
-    """Available edge detection methods."""
-
-    CANNY = "canny"
-    SOBEL = "sobel"
-    LAPLACIAN = "laplacian"
-    PREWITT = "prewitt"
-    SCHARR = "scharr"
-    MORPHOLOGICAL_GRADIENT = "morphological_gradient"
 
 
 class EdgeDetector:

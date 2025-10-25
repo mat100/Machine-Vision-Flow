@@ -409,7 +409,8 @@ class VisionService:
             ImageNotFoundException: If image not found
         """
         from core.constants import EdgeDetectionDefaults
-        from vision.edge_detection import EdgeDetector, EdgeMethod
+        from core.enums import EdgeMethod
+        from vision.edge_detection import EdgeDetector
 
         # Parse method
         try:
@@ -464,7 +465,7 @@ class VisionService:
         min_percentage: float = 50.0,
         method: Union[ColorMethod, str] = ColorMethod.HISTOGRAM,
         record_history: bool = True,
-    ) -> Tuple[VisionObject, str, int]:
+    ) -> Tuple[List[VisionObject], str, int]:
         """
         Perform color detection on an image.
 
@@ -479,7 +480,7 @@ class VisionService:
             record_history: Whether to record in history
 
         Returns:
-            Tuple of (detected_object, thumbnail_base64, processing_time_ms)
+            Tuple of (detected_objects, thumbnail_base64, processing_time_ms)
 
         Raises:
             ImageNotFoundException: If image not found
@@ -535,7 +536,7 @@ class VisionService:
             f"({detected_object.confidence*100:.1f}%) in {processing_time}ms"
         )
 
-        return detected_object, thumbnail_base64, processing_time
+        return [detected_object], thumbnail_base64, processing_time
 
     def aruco_detect(
         self,
@@ -598,7 +599,7 @@ class VisionService:
         angle_range: Union[AngleRange, str] = AngleRange.RANGE_0_360,
         roi: Optional[Dict[str, int]] = None,
         record_history: bool = True,
-    ) -> Tuple[VisionObject, str, int]:
+    ) -> Tuple[List[VisionObject], str, int]:
         """
         Detect rotation angle from contour.
 
@@ -611,7 +612,7 @@ class VisionService:
             record_history: Whether to record in history buffer
 
         Returns:
-            (detected_object, thumbnail_base64, processing_time_ms)
+            (detected_objects, thumbnail_base64, processing_time_ms)
 
         Raises:
             ImageNotFoundException: If image not found
@@ -674,4 +675,4 @@ class VisionService:
             f"({method}) in {processing_time}ms"
         )
 
-        return detected_object, thumbnail_base64, processing_time
+        return [detected_object], thumbnail_base64, processing_time

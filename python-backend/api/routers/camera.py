@@ -16,6 +16,7 @@ from api.dependencies import get_camera_manager  # Still needed for stream endpo
 from api.dependencies import camera_id_param, get_camera_service, optional_roi_params
 from api.exceptions import safe_endpoint
 from api.models import ROI, CameraCaptureResponse, CameraConnectRequest, CameraInfo, Size
+from core.camera_identifier import CameraIdentifier
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +50,8 @@ async def connect_camera(
     request: CameraConnectRequest, camera_service=Depends(get_camera_service)
 ) -> dict:
     """Connect to a camera"""
-    # Parse camera ID to get type and source
-    if request.camera_id.startswith("usb_"):
-        camera_type = "usb"
-        source = int(request.camera_id.split("_")[1])
-    else:
-        camera_type = "usb"  # Default
-        source = 0
+    # Parse camera ID using unified utility
+    camera_type, source = CameraIdentifier.parse(request.camera_id)
 
     resolution = None
     if request.resolution:

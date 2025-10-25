@@ -3,7 +3,6 @@ Rotation detection algorithms for machine vision.
 Calculates object orientation from contours using various methods.
 """
 
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import cv2
@@ -11,24 +10,9 @@ import numpy as np
 
 from api.models import ROI, Point, VisionObject, VisionObjectType
 from core.constants import RotationDetectionDefaults
+from core.enums import AngleRange, RotationMethod
 from core.image_utils import ImageUtils
 from core.overlay_renderer import OverlayRenderer
-
-
-class RotationMethod(str, Enum):
-    """Available rotation detection methods."""
-
-    MIN_AREA_RECT = "min_area_rect"
-    ELLIPSE_FIT = "ellipse_fit"
-    PCA = "pca"
-
-
-class AngleRange(str, Enum):
-    """Angle output range options."""
-
-    RANGE_0_360 = "0_360"  # 0 to 360 degrees
-    RANGE_NEG180_180 = "-180_180"  # -180 to +180 degrees
-    RANGE_0_180 = "0_180"  # 0 to 180 degrees (symmetric objects)
 
 
 class RotationDetector:

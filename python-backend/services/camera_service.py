@@ -13,6 +13,7 @@ import numpy as np
 
 from api.exceptions import CameraConnectionException, CameraNotFoundException
 from api.models import ROI
+from core.camera_identifier import CameraIdentifier
 from core.camera_manager import CameraManager
 from core.image_manager import ImageManager
 from core.roi_handler import ROIHandler
@@ -129,16 +130,9 @@ class CameraService:
         if not self.is_camera_connected(camera_id):
             logger.info(f"Camera {camera_id} not connected, attempting auto-connect")
             try:
-                # Handle test camera
-                if camera_id == "test":
-                    self.connect_camera(camera_id=camera_id, camera_type="test", source=None)
-                # Handle USB cameras
-                elif camera_id.startswith("usb_"):
-                    source = int(camera_id.split("_")[1])
-                    self.connect_camera(camera_id=camera_id, camera_type="usb", source=source)
-                # Default case
-                else:
-                    self.connect_camera(camera_id=camera_id, camera_type="usb", source=0)
+                # Parse camera ID using unified utility
+                camera_type, source = CameraIdentifier.parse(camera_id)
+                self.connect_camera(camera_id=camera_id, camera_type=camera_type, source=source)
                 logger.info(f"Camera {camera_id} auto-connected successfully")
             except Exception as e:
                 logger.warning(f"Failed to auto-connect camera {camera_id}: {e}")
