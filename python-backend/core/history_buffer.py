@@ -7,7 +7,7 @@ import uuid
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from threading import Lock
+from threading import RLock
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -48,8 +48,8 @@ class HistoryBuffer:
         self.error_count = 0
         self.total_processing_time = 0
 
-        # Thread safety
-        self.lock = Lock()
+        # Thread safety (RLock allows reentrant locking)
+        self.lock = RLock()
 
         logger.info(f"History Buffer initialized with max size: {max_size}")
 
