@@ -15,8 +15,7 @@ from api.dependencies import (
 )
 from api.dependencies import get_vision_service
 from api.exceptions import TemplateNotFoundException, safe_endpoint
-from api.models import Size, TemplateInfo, TemplateLearnRequest, TemplateUploadResponse
-from core.roi_handler import ROI
+from api.models import ROI, Size, TemplateInfo, TemplateLearnRequest, TemplateUploadResponse
 
 logger = logging.getLogger(__name__)
 

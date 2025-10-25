@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 from fastapi import Depends, HTTPException, Path, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from api.models import ROI
 from core.camera_manager import CameraManager
 from core.history_buffer import HistoryBuffer
 from core.image_manager import ImageManager
@@ -146,6 +147,83 @@ def validate_template_exists(
     if not any(t["id"] == template_id for t in templates):
         raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
     return template_id
+
+
+def validate_image_exists(
+    image_id: str,
+    image_manager: ImageManager,
+) -> str:
+    """
+    Validate that image exists in shared memory.
+
+    Args:
+        image_id: Image identifier
+        image_manager: ImageManager instance
+
+    Returns:
+        Validated image_id
+
+    Raises:
+        HTTPException: If image not found
+    """
+    # ImageManager.get() returns None if image doesn't exist
+    if image_manager.get(image_id) is None:
+        raise HTTPException(status_code=404, detail=f"Image {image_id} not found in cache")
+    return image_id
+
+
+def validate_roi_bounds(
+    roi: ROI,
+    image_id: str,
+    image_manager: ImageManager,
+) -> ROI:
+    """
+    Validate that ROI fits within image bounds.
+
+    Args:
+        roi: ROI to validate
+        image_id: Image identifier
+        image_manager: ImageManager instance
+
+    Returns:
+        Validated ROI
+
+    Raises:
+        HTTPException: If ROI exceeds image bounds or image not found
+    """
+    # Get image to check dimensions
+    image_data = image_manager.get(image_id)
+    if image_data is None:
+        raise HTTPException(status_code=404, detail=f"Image {image_id} not found")
+
+    img_height, img_width = image_data.shape[:2]
+
+    # Validate ROI against image dimensions
+    if not roi.is_valid(img_width, img_height):
+        raise HTTPException(
+            status_code=400,
+            detail=f"ROI {roi.to_dict()} exceeds image bounds ({img_width}x{img_height})",
+        )
+
+    return roi
+
+
+def roi_to_dict(roi: Optional[ROI]) -> Optional[Dict[str, int]]:
+    """
+    Convert Pydantic ROI model to dict for service layer compatibility.
+
+    This helper eliminates the repeated manual dict construction pattern
+    found throughout the vision routers.
+
+    Args:
+        roi: Optional ROI model
+
+    Returns:
+        ROI as dict or None if roi is None
+    """
+    if roi is None:
+        return None
+    return roi.to_dict()
 
 
 # Authentication dependency (placeholder for future implementation)

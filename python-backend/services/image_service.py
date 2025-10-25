@@ -11,9 +11,10 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 
 from api.exceptions import ImageNotFoundException
+from api.models import ROI
 from core.constants import ImageConstants
 from core.image_manager import ImageManager
-from core.roi_handler import ROI, ROIHandler
+from core.roi_handler import ROIHandler
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
-from core.roi_handler import ROI
+from api.models import ROI
 from services.vision_service import VisionService
 
 

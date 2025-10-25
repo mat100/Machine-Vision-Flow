@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from api.exceptions import CameraConnectionException, CameraNotFoundException
-from core.roi_handler import ROI
+from api.models import ROI
 from services.camera_service import CameraService
 
 

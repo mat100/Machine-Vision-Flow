@@ -1,5 +1,11 @@
 module.exports = function(RED) {
-    const axios = require('axios');
+    const {
+        setNodeStatus,
+        createVisionObjectMessage,
+        callVisionAPI,
+        getImageId,
+        getTimestamp
+    } = require('../lib/vision-utils');
 
     function MVTemplateMatchNode(config) {
         RED.nodes.createNode(this, config);
@@ -14,8 +20,8 @@ module.exports = function(RED) {
         node.multiScale = config.multiScale || false;
         node.scaleRange = config.scaleRange || [0.8, 1.2];
 
-        // Status
-        node.status({fill: "grey", shape: "ring", text: "ready"});
+        // Set initial status
+        setNodeStatus(node, 'ready');
 
         // Process input
         node.on('input', async function(msg, send, done) {
@@ -23,11 +29,11 @@ module.exports = function(RED) {
             send = send || function() { node.send.apply(node, arguments) };
             done = done || function(err) { if(err) node.error(err, msg) };
 
-            // Check for image_id
-            const imageId = msg.image_id || msg.payload?.image_id;
+            // Extract image_id using utility
+            const imageId = getImageId(msg);
             if (!imageId) {
                 node.error("No image_id provided", msg);
-                node.status({fill: "red", shape: "dot", text: "missing image_id"});
+                setNodeStatus(node, 'error', 'missing image_id');
                 return done(new Error("No image_id provided"));
             }
 
@@ -35,65 +41,56 @@ module.exports = function(RED) {
             const templateId = msg.templateId || node.templateId;
             if (!templateId) {
                 node.error("No template_id configured", msg);
-                node.status({fill: "red", shape: "dot", text: "missing template"});
+                setNodeStatus(node, 'error', 'missing template');
                 return done(new Error("No template_id configured"));
             }
 
-            node.status({fill: "blue", shape: "dot", text: "matching..."});
+            // Prepare request
+            // Map bounding_box from previous detection to roi parameter (INPUT constraint)
+            const requestData = {
+                image_id: imageId,
+                template_id: templateId,
+                method: node.method,
+                threshold: node.threshold,
+                roi: msg.payload?.bounding_box || null,  // Use bounding_box from VisionObject as roi constraint
+                multi_scale: node.multiScale,
+                scale_range: node.scaleRange
+            };
 
             try {
-                // Prepare request
-                // Map bounding_box from previous detection to roi parameter
-                const request = {
-                    image_id: imageId,
-                    template_id: templateId,
-                    method: node.method,
-                    threshold: node.threshold,
-                    roi: msg.payload?.bounding_box || null,  // Use bounding_box from VisionObject as roi constraint
-                    multi_scale: node.multiScale,
-                    scale_range: node.scaleRange
-                };
-
-                // Call API
-                const response = await axios.post(
-                    `${node.apiUrl}/api/vision/template-match`,
-                    request
-                );
-
-                const result = response.data;
+                // Call API with unified error handling
+                const result = await callVisionAPI({
+                    node: node,
+                    endpoint: '/api/vision/template-match',
+                    requestData: requestData,
+                    apiUrl: node.apiUrl,
+                    done: done
+                });
 
                 // 0 objects = send nothing
                 if (!result.objects || result.objects.length === 0) {
-                    node.status({
-                        fill: "yellow",
-                        shape: "ring",
-                        text: `not found | ${result.processing_time_ms}ms`
-                    });
+                    setNodeStatus(node, 'no_results', 'not found', result.processing_time_ms);
                     done();
                     return;
                 }
 
-                // Send N messages for N objects
-                const timestamp = msg.payload?.timestamp || new Date().toISOString();
+                // Send N messages for N objects using utility function
+                const timestamp = getTimestamp(msg);
 
                 for (let i = 0; i < result.objects.length; i++) {
                     const obj = result.objects[i];
-                    const outputMsg = RED.util.cloneMessage(msg);
 
-                    // Build VisionObject in payload
-                    outputMsg.payload = {
-                        object_id: obj.object_id,
-                        object_type: obj.object_type,
-                        image_id: imageId,
-                        timestamp: timestamp,
-                        bounding_box: obj.bounding_box,
-                        center: obj.center,
-                        confidence: obj.confidence,
-                        thumbnail: result.thumbnail_base64,  // MVP: same for all
-                        properties: obj.properties
-                    };
+                    // Use utility to create standardized VisionObject message
+                    const outputMsg = createVisionObjectMessage(
+                        obj,
+                        imageId,
+                        timestamp,
+                        result.thumbnail_base64,
+                        msg,
+                        RED
+                    );
 
-                    // Metadata in root
+                    // Add metadata in root
                     outputMsg.success = true;
                     outputMsg.processing_time_ms = result.processing_time_ms;
                     outputMsg.node_name = node.name || "Template Match";
@@ -101,19 +98,18 @@ module.exports = function(RED) {
                     send(outputMsg);
                 }
 
-                node.status({
-                    fill: "green",
-                    shape: "dot",
-                    text: `sent ${result.objects.length} messages | ${result.processing_time_ms}ms`
-                });
+                // Update status with count
+                const countMsg = `${result.objects.length} match${result.objects.length > 1 ? 'es' : ''}`;
+                setNodeStatus(node, 'success', countMsg, result.processing_time_ms);
 
                 done();
 
             } catch (error) {
-                const errorMsg = error.response?.data?.detail || error.message;
-                node.error(`Template matching failed: ${errorMsg}`, msg);
-                node.status({fill: "red", shape: "ring", text: "error"});
-                done(error);
+                // Error already handled by callVisionAPI
+                // Just ensure done is called (may have been called already)
+                if (!error.handledByUtils) {
+                    done(error);
+                }
             }
         });
 

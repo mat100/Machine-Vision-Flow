@@ -1,5 +1,11 @@
 module.exports = function(RED) {
-    const axios = require('axios');
+    const {
+        setNodeStatus,
+        createVisionObjectMessage,
+        callVisionAPI,
+        getImageId,
+        getTimestamp
+    } = require('../lib/vision-utils');
 
     function MVEdgeDetectNode(config) {
         RED.nodes.createNode(this, config);
@@ -25,112 +31,97 @@ module.exports = function(RED) {
         node.maxContourArea = config.maxContourArea || 100000;
         node.maxContours = config.maxContours || 20;
 
-        node.status({fill: "grey", shape: "ring", text: "ready"});
+        // Set initial status
+        setNodeStatus(node, 'ready');
 
         node.on('input', async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments) };
             done = done || function(err) { if(err) node.error(err, msg) };
 
+            // Extract image_id using utility
+            const imageId = getImageId(msg);
+            if (!imageId) {
+                node.error("No image_id provided", msg);
+                setNodeStatus(node, 'error', 'missing image_id');
+                return done(new Error("No image_id provided"));
+            }
+
+            // Prepare request with explicit fields
+            // Map bounding_box from previous detection to roi parameter (INPUT constraint)
+            const requestData = {
+                image_id: imageId,
+                method: node.method,
+                roi: msg.payload?.bounding_box || null,
+                // Canny parameters
+                canny_low: parseInt(node.cannyLow) || 50,
+                canny_high: parseInt(node.cannyHigh) || 150,
+                // Sobel parameters
+                sobel_threshold: parseInt(node.sobelThreshold) || 50,
+                sobel_kernel: 3,
+                // Laplacian parameters
+                laplacian_threshold: parseInt(node.laplacianThreshold) || 30,
+                laplacian_kernel: 3,
+                // Prewitt parameters
+                prewitt_threshold: 50,
+                // Scharr parameters
+                scharr_threshold: 50,
+                // Morphological gradient parameters
+                morph_threshold: 30,
+                morph_kernel: 3,
+                // Contour filtering parameters
+                min_contour_area: parseInt(node.minContourArea) || 10,
+                max_contour_area: parseInt(node.maxContourArea) || 100000,
+                min_contour_perimeter: 0,
+                max_contour_perimeter: 999999,
+                max_contours: parseInt(node.maxContours) || 20,
+                show_centers: true,
+                // Preprocessing options
+                blur_enabled: node.blurEnabled || false,
+                blur_kernel: parseInt(node.blurKernel) || 5,
+                bilateral_enabled: node.bilateralEnabled || false,
+                bilateral_d: 9,
+                bilateral_sigma_color: 75,
+                bilateral_sigma_space: 75,
+                morphology_enabled: node.morphologyEnabled || false,
+                morphology_operation: node.morphologyOperation || 'close',
+                morphology_kernel: 3,
+                equalize_enabled: false
+            };
+
             try {
-                // Get image_id from message payload
-                const imageId = msg.payload?.image_id;
-                if (!imageId) {
-                    throw new Error("No image_id in msg.payload");
-                }
-
-                node.status({fill: "blue", shape: "dot", text: "detecting edges..."});
-
-                // Prepare request with explicit fields
-                const requestData = {
-                    image_id: imageId,
-                    method: node.method,
-                    // Map bounding_box from previous detection to roi parameter
-                    roi: msg.payload?.bounding_box || null,
-                    // Canny parameters
-                    canny_low: parseInt(node.cannyLow) || 50,
-                    canny_high: parseInt(node.cannyHigh) || 150,
-                    // Sobel parameters
-                    sobel_threshold: parseInt(node.sobelThreshold) || 50,
-                    sobel_kernel: 3,
-                    // Laplacian parameters
-                    laplacian_threshold: parseInt(node.laplacianThreshold) || 30,
-                    laplacian_kernel: 3,
-                    // Prewitt parameters
-                    prewitt_threshold: 50,
-                    // Scharr parameters
-                    scharr_threshold: 50,
-                    // Morphological gradient parameters
-                    morph_threshold: 30,
-                    morph_kernel: 3,
-                    // Contour filtering parameters
-                    min_contour_area: parseInt(node.minContourArea) || 10,
-                    max_contour_area: parseInt(node.maxContourArea) || 100000,
-                    min_contour_perimeter: 0,
-                    max_contour_perimeter: 999999,
-                    max_contours: parseInt(node.maxContours) || 20,
-                    show_centers: true,
-                    // Preprocessing options
-                    blur_enabled: node.blurEnabled || false,
-                    blur_kernel: parseInt(node.blurKernel) || 5,
-                    bilateral_enabled: node.bilateralEnabled || false,
-                    bilateral_d: 9,
-                    bilateral_sigma_color: 75,
-                    bilateral_sigma_space: 75,
-                    morphology_enabled: node.morphologyEnabled || false,
-                    morphology_operation: node.morphologyOperation || 'close',
-                    morphology_kernel: 3,
-                    equalize_enabled: false
-                };
-
-                // Call API
-                const response = await axios.post(
-                    `${node.apiUrl}/api/vision/edge-detect`,
-                    requestData,
-                    {
-                        timeout: 30000,
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
-
-                const result = response.data;
+                // Call API with unified error handling
+                const result = await callVisionAPI({
+                    node: node,
+                    endpoint: '/api/vision/edge-detect',
+                    requestData: requestData,
+                    apiUrl: node.apiUrl,
+                    done: done
+                });
 
                 // 0 objects = send nothing
                 if (!result.objects || result.objects.length === 0) {
-                    node.status({
-                        fill: "yellow",
-                        shape: "ring",
-                        text: `no edges found | ${result.processing_time_ms}ms`
-                    });
+                    setNodeStatus(node, 'no_results', 'no edges', result.processing_time_ms);
                     done();
                     return;
                 }
 
-                // Send N messages for N objects
-                const timestamp = msg.payload?.timestamp || new Date().toISOString();
+                // Send N messages for N objects using utility function
+                const timestamp = getTimestamp(msg);
 
                 for (let i = 0; i < result.objects.length; i++) {
                     const obj = result.objects[i];
-                    const outputMsg = RED.util.cloneMessage(msg);
 
-                    // Build VisionObject in payload
-                    outputMsg.payload = {
-                        object_id: obj.object_id,
-                        object_type: obj.object_type,
-                        image_id: imageId,
-                        timestamp: timestamp,
-                        bounding_box: obj.bounding_box,
-                        center: obj.center,
-                        confidence: obj.confidence,
-                        area: obj.area,
-                        perimeter: obj.perimeter,
-                        thumbnail: result.thumbnail_base64,  // MVP: same for all
-                        properties: obj.properties,
-                        contour: obj.contour || obj.raw_contour  // Include contour points (support both names)
-                    };
+                    // Use utility to create standardized VisionObject message
+                    const outputMsg = createVisionObjectMessage(
+                        obj,
+                        imageId,
+                        timestamp,
+                        result.thumbnail_base64,
+                        msg,
+                        RED
+                    );
 
-                    // Metadata in root
+                    // Add metadata in root
                     outputMsg.success = true;
                     outputMsg.processing_time_ms = result.processing_time_ms;
                     outputMsg.node_name = node.name || "Edge Detection";
@@ -138,30 +129,17 @@ module.exports = function(RED) {
                     send(outputMsg);
                 }
 
-                node.status({
-                    fill: "green",
-                    shape: "dot",
-                    text: `sent ${result.objects.length} messages | ${result.processing_time_ms}ms`
-                });
+                // Update status with count
+                const countMsg = `${result.objects.length} contour${result.objects.length > 1 ? 's' : ''}`;
+                setNodeStatus(node, 'success', countMsg, result.processing_time_ms);
 
                 done();
 
             } catch (error) {
-                node.status({fill: "red", shape: "ring", text: "error"});
-
-                let errorMessage = "Edge detection failed: ";
-                if (error.response) {
-                    errorMessage += error.response.data?.detail || error.response.statusText;
-                    node.error(errorMessage, msg);
-                } else if (error.request) {
-                    errorMessage += "No response from server";
-                    node.error(errorMessage, msg);
-                } else {
-                    errorMessage += error.message;
-                    node.error(errorMessage, msg);
+                // Error already handled by callVisionAPI
+                if (!error.handledByUtils) {
+                    done(error);
                 }
-
-                done(error);
             }
         });
 

@@ -1,5 +1,11 @@
 module.exports = function(RED) {
-    const axios = require('axios');
+    const {
+        setNodeStatus,
+        createVisionObjectMessage,
+        callVisionAPI,
+        getImageId,
+        getTimestamp
+    } = require('../lib/vision-utils');
 
     function MVArucoDetectNode(config) {
         RED.nodes.createNode(this, config);
@@ -9,92 +15,76 @@ module.exports = function(RED) {
         node.apiUrl = config.apiUrl || 'http://localhost:8000';
         node.dictionary = config.dictionary || 'DICT_4X4_50';
 
-        node.status({fill: "grey", shape: "ring", text: "ready"});
+        setNodeStatus(node, 'ready');
 
         node.on('input', async function(msg, send, done) {
             send = send || function() { node.send.apply(node, arguments) };
             done = done || function(err) { if(err) node.error(err, msg) };
 
-            try {
-                // Get image_id from message
-                const imageId = msg.image_id || msg.payload?.image_id;
-                if (!imageId) {
-                    throw new Error("No image_id in message");
-                }
+            // Extract image_id using utility
+            const imageId = getImageId(msg);
+            if (!imageId) {
+                node.error("No image_id provided", msg);
+                setNodeStatus(node, 'error', 'missing image_id');
+                return done(new Error("No image_id provided"));
+            }
 
-                node.status({fill: "blue", shape: "dot", text: "detecting markers..."});
-
-                // Extract ROI from payload (like color-detect does)
-                let roi = null;
-                if (msg.payload?.bounding_box) {
-                    const bbox = msg.payload.bounding_box;
-                    roi = {
-                        x: bbox.x,
-                        y: bbox.y,
-                        width: bbox.width,
-                        height: bbox.height
-                    };
-                } else if (msg.roi) {
-                    roi = msg.roi;
-                }
-
-                // Prepare request
-                const requestData = {
-                    image_id: imageId,
-                    dictionary: node.dictionary,
-                    roi: roi,
-                    params: {}
+            // Extract ROI from payload.bounding_box (INPUT constraint)
+            let roi = null;
+            if (msg.payload?.bounding_box) {
+                const bbox = msg.payload.bounding_box;
+                roi = {
+                    x: bbox.x,
+                    y: bbox.y,
+                    width: bbox.width,
+                    height: bbox.height
                 };
+            } else if (msg.roi) {
+                roi = msg.roi;
+            }
 
-                // Call API
-                const response = await axios.post(
-                    `${node.apiUrl}/api/vision/aruco-detect`,
-                    requestData,
-                    {
-                        timeout: 30000,
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
+            // Prepare request
+            const requestData = {
+                image_id: imageId,
+                dictionary: node.dictionary,
+                roi: roi,
+                params: {}
+            };
 
-                const result = response.data;
+            try {
+                // Call API with unified error handling
+                const result = await callVisionAPI({
+                    node: node,
+                    endpoint: '/api/vision/aruco-detect',
+                    requestData: requestData,
+                    apiUrl: node.apiUrl,
+                    done: done
+                });
 
                 // 0 markers = send nothing
                 if (!result.objects || result.objects.length === 0) {
-                    node.status({
-                        fill: "yellow",
-                        shape: "ring",
-                        text: `no markers found | ${result.processing_time_ms}ms`
-                    });
+                    setNodeStatus(node, 'no_results', 'no markers', result.processing_time_ms);
                     done();
                     return;
                 }
 
-                // Send N messages for N markers
-                const timestamp = msg.payload?.timestamp || new Date().toISOString();
+                // Send N messages for N markers using utility function
+                const timestamp = getTimestamp(msg);
 
                 for (let i = 0; i < result.objects.length; i++) {
                     const obj = result.objects[i];
-                    const outputMsg = RED.util.cloneMessage(msg);
 
-                    // Build VisionObject in payload
-                    outputMsg.payload = {
-                        object_id: obj.object_id,
-                        object_type: obj.object_type,
-                        image_id: imageId,
-                        timestamp: timestamp,
-                        bounding_box: obj.bounding_box,
-                        center: obj.center,
-                        confidence: obj.confidence,
-                        area: obj.area,
-                        perimeter: obj.perimeter,
-                        rotation: obj.rotation,
-                        thumbnail: result.thumbnail_base64,  // Same for all
-                        properties: obj.properties
-                    };
+                    // Use utility to create standardized VisionObject message
+                    const outputMsg = createVisionObjectMessage(
+                        obj,
+                        imageId,
+                        timestamp,
+                        result.thumbnail_base64,
+                        msg,
+                        RED
+                    );
 
-                    // Set reference_object for first marker (primary reference)
+                    // Set reference_object for first marker (primary reference for rotation calculations)
                     if (i === 0) {
                         outputMsg.reference_object = {
                             rotation: obj.rotation,
@@ -104,18 +94,16 @@ module.exports = function(RED) {
                         };
                     } else {
                         // Preserve reference_object from first marker
-                        if (result.objects.length > 0) {
-                            const firstMarker = result.objects[0];
-                            outputMsg.reference_object = {
-                                rotation: firstMarker.rotation,
-                                center: firstMarker.center,
-                                marker_id: firstMarker.properties.marker_id,
-                                object_type: firstMarker.object_type
-                            };
-                        }
+                        const firstMarker = result.objects[0];
+                        outputMsg.reference_object = {
+                            rotation: firstMarker.rotation,
+                            center: firstMarker.center,
+                            marker_id: firstMarker.properties.marker_id,
+                            object_type: firstMarker.object_type
+                        };
                     }
 
-                    // Metadata in root
+                    // Add metadata in root
                     outputMsg.success = true;
                     outputMsg.processing_time_ms = result.processing_time_ms;
                     outputMsg.node_name = node.name || "ArUco Detection";
@@ -123,30 +111,17 @@ module.exports = function(RED) {
                     send(outputMsg);
                 }
 
-                node.status({
-                    fill: "green",
-                    shape: "dot",
-                    text: `found ${result.objects.length} markers | ${result.processing_time_ms}ms`
-                });
+                // Update status with count
+                const countMsg = `${result.objects.length} marker${result.objects.length > 1 ? 's' : ''}`;
+                setNodeStatus(node, 'success', countMsg, result.processing_time_ms);
 
                 done();
 
             } catch (error) {
-                node.status({fill: "red", shape: "ring", text: "error"});
-
-                let errorMessage = "ArUco detection failed: ";
-                if (error.response) {
-                    errorMessage += error.response.data?.detail || error.response.statusText;
-                    node.error(errorMessage, msg);
-                } else if (error.request) {
-                    errorMessage += "No response from server";
-                    node.error(errorMessage, msg);
-                } else {
-                    errorMessage += error.message;
-                    node.error(errorMessage, msg);
+                // Error already handled by callVisionAPI
+                if (!error.handledByUtils) {
+                    done(error);
                 }
-
-                done(error);
             }
         });
 

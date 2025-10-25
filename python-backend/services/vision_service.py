@@ -83,8 +83,6 @@ class VisionService:
             ImageNotFoundException: If image not found
             TemplateNotFoundException: If template not found
         """
-        from core.roi_handler import ROI as ROIDataclass
-
         with timer() as t:
             # Get image
             full_image = self.image_manager.get(image_id)
@@ -94,12 +92,7 @@ class VisionService:
             # Extract ROI if specified
             roi_offset = (0, 0)
             if roi:
-                roi_obj = ROIDataclass(
-                    x=roi.get("x", 0),
-                    y=roi.get("y", 0),
-                    width=roi.get("width", full_image.shape[1]),
-                    height=roi.get("height", full_image.shape[0]),
-                )
+                roi_obj = ROI.from_dict(roi)
                 image = ROIHandler.extract_roi(full_image, roi_obj, safe_mode=True)
                 roi_offset = (roi_obj.x, roi_obj.y)
             else:
@@ -287,7 +280,6 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
-        from core.roi_handler import ROI as ROIDataclass
         from vision.edge_detection import EdgeDetector, EdgeMethod
 
         with timer() as t:
@@ -299,12 +291,7 @@ class VisionService:
             # Extract ROI if specified
             roi_offset = (0, 0)
             if roi:
-                roi_obj = ROIDataclass(
-                    x=roi.get("x", 0),
-                    y=roi.get("y", 0),
-                    width=roi.get("width", full_image.shape[1]),
-                    height=roi.get("height", full_image.shape[0]),
-                )
+                roi_obj = ROI.from_dict(roi)
                 image = ROIHandler.extract_roi(full_image, roi_obj, safe_mode=True)
                 roi_offset = (roi_obj.x, roi_obj.y)
             else:

@@ -12,9 +12,10 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from api.exceptions import CameraConnectionException, CameraNotFoundException
+from api.models import ROI
 from core.camera_manager import CameraManager
 from core.image_manager import ImageManager
-from core.roi_handler import ROI, ROIHandler
+from core.roi_handler import ROIHandler
 
 logger = logging.getLogger(__name__)
 

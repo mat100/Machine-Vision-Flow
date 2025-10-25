@@ -6,7 +6,13 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from api.dependencies import get_vision_service
+from api.dependencies import (
+    get_image_manager,
+    get_vision_service,
+    roi_to_dict,
+    validate_image_exists,
+    validate_roi_bounds,
+)
 from api.exceptions import safe_endpoint
 from api.models import (
     ArucoDetectRequest,
@@ -25,18 +31,28 @@ router = APIRouter()
 @router.post("/template-match")
 @safe_endpoint
 async def template_match(
-    request: TemplateMatchRequest, vision_service=Depends(get_vision_service)
+    request: TemplateMatchRequest,
+    vision_service=Depends(get_vision_service),
+    image_manager=Depends(get_image_manager),
 ) -> VisionResponse:
-    """Perform template matching"""
-    # Convert roi to dict if present
-    roi_dict = None
+    """
+    Perform template matching on an image.
+
+    INPUT constraints:
+    - roi: Optional region to limit template search area
+
+    OUTPUT results:
+    - bounding_box: Location where template was found
+    """
+    # Validate image exists
+    validate_image_exists(request.image_id, image_manager)
+
+    # Validate ROI if provided
     if request.roi:
-        roi_dict = {
-            "x": request.roi.x,
-            "y": request.roi.y,
-            "width": request.roi.width,
-            "height": request.roi.height,
-        }
+        validate_roi_bounds(request.roi, request.image_id, image_manager)
+
+    # Convert ROI using helper (eliminates manual dict construction)
+    roi_dict = roi_to_dict(request.roi)
 
     # Service handles all template matching logic, history recording, and thumbnail creation
     detected_objects, thumbnail_base64, processing_time = vision_service.template_match(
@@ -58,9 +74,27 @@ async def template_match(
 @router.post("/edge-detect")
 @safe_endpoint
 async def edge_detect(
-    request: EdgeDetectRequest, vision_service=Depends(get_vision_service)
+    request: EdgeDetectRequest,
+    vision_service=Depends(get_vision_service),
+    image_manager=Depends(get_image_manager),
 ) -> VisionResponse:
-    """Perform edge detection with multiple methods"""
+    """
+    Perform edge detection with multiple methods.
+
+    INPUT constraints:
+    - roi: Optional region to limit edge detection area
+
+    OUTPUT results:
+    - bounding_box: Bounding box of detected contour
+    - contour: Actual contour points for precise shape representation
+    """
+    # Validate image exists
+    validate_image_exists(request.image_id, image_manager)
+
+    # Validate ROI if provided
+    if request.roi:
+        validate_roi_bounds(request.roi, request.image_id, image_manager)
+
     # Build params dict from explicit fields
     params = {
         # Method-specific parameters
@@ -97,15 +131,8 @@ async def edge_detect(
         "equalize_enabled": request.equalize_enabled,
     }
 
-    # Convert roi to dict if present
-    roi_dict = None
-    if request.roi:
-        roi_dict = {
-            "x": request.roi.x,
-            "y": request.roi.y,
-            "width": request.roi.width,
-            "height": request.roi.height,
-        }
+    # Convert ROI using helper
+    roi_dict = roi_to_dict(request.roi)
 
     # Service handles all edge detection logic, history recording, and thumbnail creation
     result, thumbnail_base64, processing_time = vision_service.edge_detect(
@@ -127,18 +154,29 @@ async def edge_detect(
 @router.post("/color-detect")
 @safe_endpoint
 async def color_detect(
-    request: ColorDetectRequest, vision_service=Depends(get_vision_service)
+    request: ColorDetectRequest,
+    vision_service=Depends(get_vision_service),
+    image_manager=Depends(get_image_manager),
 ) -> VisionResponse:
-    """Perform color detection with automatic dominant color recognition"""
-    # Convert ROI model to dict if provided
-    roi_dict = None
-    if request.roi is not None:
-        roi_dict = {
-            "x": request.roi.x,
-            "y": request.roi.y,
-            "width": request.roi.width,
-            "height": request.roi.height,
-        }
+    """
+    Perform color detection with automatic dominant color recognition.
+
+    INPUT constraints:
+    - roi: Optional region for color analysis
+    - contour: Optional contour points for precise masking (auto-used from msg.payload)
+
+    OUTPUT results:
+    - bounding_box: Region where color was analyzed
+    """
+    # Validate image exists
+    validate_image_exists(request.image_id, image_manager)
+
+    # Validate ROI if provided
+    if request.roi:
+        validate_roi_bounds(request.roi, request.image_id, image_manager)
+
+    # Convert ROI using helper
+    roi_dict = roi_to_dict(request.roi)
 
     # Call vision service
     detected_object, thumbnail_base64, processing_time = vision_service.color_detect(
@@ -167,10 +205,31 @@ async def color_detect(
 @router.post("/aruco-detect")
 @safe_endpoint
 async def aruco_detect(
-    request: ArucoDetectRequest, vision_service=Depends(get_vision_service)
+    request: ArucoDetectRequest,
+    vision_service=Depends(get_vision_service),
+    image_manager=Depends(get_image_manager),
 ) -> VisionResponse:
-    """Detect ArUco markers in image"""
+    """
+    Detect ArUco fiducial markers in image.
+
+    INPUT constraints:
+    - roi: Optional region to limit marker search area
+
+    OUTPUT results:
+    - bounding_box: Bounding box of detected marker
+    - properties.marker_id: Unique marker ID
+    - properties.corners: 4 corner points
+    - rotation: Marker rotation in degrees (0-360)
+    """
+    # Validate image exists
+    validate_image_exists(request.image_id, image_manager)
+
+    # Validate ROI if provided
+    if request.roi:
+        validate_roi_bounds(request.roi, request.image_id, image_manager)
+
     # Service handles all ArUco detection logic, history recording, and thumbnail creation
+    # Note: aruco_detect expects ROI as Pydantic model, not dict (different from other endpoints)
     detected_objects, thumbnail_base64, processing_time = vision_service.aruco_detect(
         image_id=request.image_id,
         dictionary=request.dictionary,
@@ -189,18 +248,29 @@ async def aruco_detect(
 @router.post("/rotation-detect")
 @safe_endpoint
 async def rotation_detect(
-    request: RotationDetectRequest, vision_service=Depends(get_vision_service)
+    request: RotationDetectRequest,
+    vision_service=Depends(get_vision_service),
+    image_manager=Depends(get_image_manager),
 ) -> VisionResponse:
-    """Detect rotation angle from contour"""
-    # Convert ROI model to dict if provided
-    roi_dict = None
-    if request.roi is not None:
-        roi_dict = {
-            "x": request.roi.x,
-            "y": request.roi.y,
-            "width": request.roi.width,
-            "height": request.roi.height,
-        }
+    """
+    Detect rotation angle from contour points.
+
+    INPUT constraints:
+    - roi: Optional ROI for visualization context only (not a constraint)
+    - contour: Required contour points from edge detection
+
+    OUTPUT results:
+    - rotation: Calculated rotation in degrees
+    """
+    # Validate image exists (needed for visualization)
+    validate_image_exists(request.image_id, image_manager)
+
+    # Validate ROI if provided (used for visualization context, not constraints)
+    if request.roi:
+        validate_roi_bounds(request.roi, request.image_id, image_manager)
+
+    # Convert ROI using helper
+    roi_dict = roi_to_dict(request.roi)
 
     # Service handles all rotation detection logic, history recording, and thumbnail creation
     detected_object, thumbnail_base64, processing_time = vision_service.rotation_detect(

@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends
 from api.dependencies import get_image_service
 from api.exceptions import safe_endpoint
 from api.models import ROIExtractRequest, ROIExtractResponse
-from core.roi_handler import ROI
 
 logger = logging.getLogger(__name__)
 
@@ -36,14 +35,10 @@ async def extract_roi(
         ROIExtractResponse with thumbnail and clipped bounding_box
     """
     # Extract ROI from source image (clipped to image bounds)
-    # Convert Pydantic ROI model to dataclass ROI
-    roi = ROI(
-        x=request.roi.x,
-        y=request.roi.y,
-        width=request.roi.width,
-        height=request.roi.height,
+    # request.roi is already a Pydantic ROI model - pass directly
+    roi_image = image_service.get_image_with_roi(
+        image_id=request.image_id, roi=request.roi, safe_mode=True
     )
-    roi_image = image_service.get_image_with_roi(image_id=request.image_id, roi=roi, safe_mode=True)
 
     # Create thumbnail directly from the cropped image
     import base64

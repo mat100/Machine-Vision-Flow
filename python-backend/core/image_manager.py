@@ -55,6 +55,10 @@ class ImageManager:
         # Reference counting
         self.ref_counts: Dict[str, int] = {}
 
+        # Thumbnail cache - stores base64 thumbnails to avoid regeneration
+        # Key: image_id, Value: base64 thumbnail string
+        self.thumbnail_cache: Dict[str, str] = {}
+
         logger.info(
             f"Image Manager initialized: {max_size_mb}MB, "
             f"max {max_images} images, thumbnail_width={thumbnail_width}px"
@@ -210,6 +214,9 @@ class ImageManager:
             del self.cache[image_id]
             del self.ref_counts[image_id]
 
+            # Remove from thumbnail cache
+            self.thumbnail_cache.pop(image_id, None)
+
             logger.debug(f"Deleted image {image_id}")
             return True
 
@@ -251,6 +258,7 @@ class ImageManager:
                 "max_size_mb": self.max_size_bytes / (1024 * 1024),
                 "usage_percent": (self.current_size / self.max_size_bytes) * 100,
                 "referenced_images": sum(1 for c in self.ref_counts.values() if c > 0),
+                "cached_thumbnails": len(self.thumbnail_cache),
             }
 
     def cleanup(self):
@@ -264,19 +272,21 @@ class ImageManager:
             self.cache.clear()
             self.shared_memories.clear()
             self.ref_counts.clear()
+            self.thumbnail_cache.clear()
             self.current_size = 0
 
             logger.info("Image Manager cleanup complete")
 
     def create_thumbnail(
-        self, image: np.ndarray, width: Optional[int] = None
+        self, image: np.ndarray, width: Optional[int] = None, image_id: Optional[str] = None
     ) -> Tuple[np.ndarray, str]:
         """
-        Create thumbnail from image
+        Create thumbnail from image with caching support.
 
         Args:
             image: Source image
             width: Target width (uses config value if None)
+            image_id: Optional image ID for caching (if provided, enables cache)
 
         Returns:
             Thumbnail array and base64 string
@@ -285,6 +295,16 @@ class ImageManager:
         if width is None:
             width = self.thumbnail_width
 
+        # Check cache if image_id provided and using default width
+        if image_id and width == self.thumbnail_width:
+            cached_thumbnail = self.thumbnail_cache.get(image_id)
+            if cached_thumbnail:
+                # Cache hit - return cached thumbnail
+                # Note: We don't have the array, so regenerate only if needed
+                # For now, return None for array when using cache
+                logger.debug(f"Thumbnail cache hit for {image_id}")
+                return None, cached_thumbnail
+
         # Use centralized ImageUtils for thumbnail creation
         thumbnail_array, thumbnail_base64 = ImageUtils.create_thumbnail(
             image=image, width=width, maintain_aspect=True
@@ -292,5 +312,11 @@ class ImageManager:
 
         # Add data URI prefix for compatibility
         thumbnail_base64_with_prefix = f"data:image/jpeg;base64,{thumbnail_base64}"
+
+        # Cache thumbnail if image_id provided and using default width
+        if image_id and width == self.thumbnail_width:
+            with self.lock:
+                self.thumbnail_cache[image_id] = thumbnail_base64_with_prefix
+                logger.debug(f"Cached thumbnail for {image_id}")
 
         return thumbnail_array, thumbnail_base64_with_prefix

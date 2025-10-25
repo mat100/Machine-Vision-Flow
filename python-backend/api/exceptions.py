@@ -203,12 +203,25 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
         )
 
 
+# Exception mapping for safe_endpoint decorator
+# Maps exception types to (status_code, error_message_template, log_level)
+EXCEPTION_MAPPING = {
+    ValidationError: (400, "Validation failed", "warning", lambda e: {"details": e.errors()}),
+    KeyError: (400, "Missing required field", "error", lambda e: {"field": str(e)}),
+    ValueError: (400, "Invalid value", "error", lambda e: {"details": str(e)}),
+    FileNotFoundError: (404, "File not found", "error", lambda e: {"details": str(e)}),
+    PermissionError: (403, "Permission denied", "error", lambda e: {"details": str(e)}),
+    TimeoutError: (504, "Operation timed out", "error", lambda e: {"details": str(e)}),
+}
+
+
 # Decorator for safe endpoint execution
 def safe_endpoint(func):
     """
     Decorator to wrap endpoint functions with error handling.
 
-    Automatically catches and handles common exceptions.
+    Automatically catches and handles common exceptions using EXCEPTION_MAPPING.
+    Reduces code duplication by using a configuration-based approach.
     """
 
     @wraps(func)
@@ -220,62 +233,38 @@ def safe_endpoint(func):
             else:
                 return func(*args, **kwargs)
 
-        except MVException:
+        except (MVException, HTTPException):
             # Re-raise custom exceptions (handled by exception handler)
             raise
 
-        except HTTPException:
-            # Re-raise HTTP exceptions
-            raise
-
-        except ValidationError as e:
-            # Convert pydantic validation errors
-            logger.warning(f"Validation error in {func.__name__}: {e}")
-            raise HTTPException(
-                status_code=400, detail={"error": "Validation failed", "details": e.errors()}
-            )
-
-        except KeyError as e:
-            # Handle missing keys
-            logger.error(f"KeyError in {func.__name__}: {e}")
-            raise HTTPException(
-                status_code=400, detail={"error": "Missing required field", "field": str(e)}
-            )
-
-        except ValueError as e:
-            # Handle value errors
-            logger.error(f"ValueError in {func.__name__}: {e}")
-            raise HTTPException(
-                status_code=400, detail={"error": "Invalid value", "details": str(e)}
-            )
-
-        except FileNotFoundError as e:
-            # Handle file not found
-            logger.error(f"FileNotFoundError in {func.__name__}: {e}")
-            raise HTTPException(
-                status_code=404, detail={"error": "File not found", "details": str(e)}
-            )
-
-        except PermissionError as e:
-            # Handle permission errors
-            logger.error(f"PermissionError in {func.__name__}: {e}")
-            raise HTTPException(
-                status_code=403, detail={"error": "Permission denied", "details": str(e)}
-            )
-
-        except TimeoutError as e:
-            # Handle timeouts
-            logger.error(f"TimeoutError in {func.__name__}: {e}")
-            raise HTTPException(
-                status_code=504, detail={"error": "Operation timed out", "details": str(e)}
-            )
-
         except Exception as e:
-            # Catch all other exceptions
-            logger.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500, detail={"error": "Internal server error", "details": str(e)}
-            )
+            # Check if exception type is in mapping
+            exception_type = type(e)
+
+            if exception_type in EXCEPTION_MAPPING:
+                status_code, error_msg, log_level, detail_builder = EXCEPTION_MAPPING[
+                    exception_type
+                ]
+
+                # Log with appropriate level
+                log_message = f"{exception_type.__name__} in {func.__name__}: {e}"
+                if log_level == "warning":
+                    logger.warning(log_message)
+                else:
+                    logger.error(log_message)
+
+                # Build response detail
+                detail = {"error": error_msg}
+                detail.update(detail_builder(e))
+
+                raise HTTPException(status_code=status_code, detail=detail)
+
+            else:
+                # Catch all other exceptions
+                logger.error(f"Unexpected error in {func.__name__}: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=500, detail={"error": "Internal server error", "details": str(e)}
+                )
 
     return wrapper
 
