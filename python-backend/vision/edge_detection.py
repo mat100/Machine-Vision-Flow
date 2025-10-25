@@ -312,7 +312,7 @@ class EdgeDetector:
                     "vertex_count": contour_dict["vertex_count"],
                     "is_closed": contour_dict["is_closed"],
                 },
-                raw_contour=contour_dict["contour"],
+                contour=contour_dict["contour"],
             )
             objects.append(obj)
         return objects

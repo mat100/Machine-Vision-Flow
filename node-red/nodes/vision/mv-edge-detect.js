@@ -124,7 +124,8 @@ module.exports = function(RED) {
                         area: obj.area,
                         perimeter: obj.perimeter,
                         thumbnail: result.thumbnail_base64,  // MVP: same for all
-                        properties: obj.properties
+                        properties: obj.properties,
+                        contour: obj.contour || obj.raw_contour  // Include contour points (support both names)
                     };
 
                     // Metadata in root

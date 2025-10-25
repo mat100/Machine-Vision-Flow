@@ -96,7 +96,7 @@ class VisionObject(BaseModel):
     properties: Dict[str, Any] = Field(default_factory=dict, description="Type-specific properties")
 
     # Raw data (optional)
-    raw_contour: Optional[List] = Field(None, description="Raw contour points for edge detection")
+    contour: Optional[List] = Field(None, description="Contour points for edge detection")
 
 
 class VisionResponse(BaseModel):
@@ -258,6 +258,12 @@ class ColorDetectRequest(BaseModel):
     )
     method: str = Field(
         "histogram", description="Detection method: histogram (fast) or kmeans (accurate)"
+    )
+    use_contour_mask: bool = Field(
+        True, description="Use contour mask instead of full bounding box when contour is available"
+    )
+    contour: Optional[List] = Field(
+        None, description="Contour points for masking (from edge detection)"
     )
 
 

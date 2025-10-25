@@ -237,6 +237,7 @@ class OverlayRenderer:
         image: np.ndarray,
         obj: VisionObject,
         expected_color: Optional[str] = None,
+        contour_points: Optional[list] = None,
     ) -> np.ndarray:
         """
         Render color detection results.
@@ -245,6 +246,7 @@ class OverlayRenderer:
             image: Input image
             obj: Detected color region object
             expected_color: Expected color (if color matching was performed)
+            contour_points: Optional contour points (to show analyzed region)
 
         Returns:
             Image with overlays
@@ -257,7 +259,16 @@ class OverlayRenderer:
         is_match = obj.properties.get("match", True)
         color = self.COLOR_SUCCESS if (is_match or expected_color is None) else self.COLOR_FAILURE
 
-        # Draw ROI rectangle
+        # Draw contour if used for masking
+        if contour_points is not None:
+            try:
+                contour = np.array(contour_points, dtype=np.int32)
+                # Draw cyan contour outline to show masked region (distinct from bbox)
+                cv2.drawContours(result, [contour], -1, (255, 255, 0), 2)  # Cyan
+            except Exception:
+                pass  # Fall back to just bbox if contour drawing fails
+
+        # Draw ROI rectangle (bounding box)
         self.draw_bounding_box(result, x, y, w, h, color)
 
         # Add text with dominant color

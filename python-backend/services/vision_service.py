@@ -317,6 +317,8 @@ class VisionService:
         self,
         image_id: str,
         roi: Optional[Dict[str, int]] = None,
+        contour: Optional[list] = None,
+        use_contour_mask: bool = True,
         expected_color: Optional[str] = None,
         min_percentage: float = 50.0,
         method: str = "histogram",
@@ -328,6 +330,8 @@ class VisionService:
         Args:
             image_id: Image identifier
             roi: Optional region of interest {x, y, width, height}
+            contour: Optional contour points for masking
+            use_contour_mask: Whether to use contour mask (if contour provided)
             expected_color: Expected color name (or None to just detect)
             min_percentage: Minimum percentage for color match
             method: Detection method ("histogram" or "kmeans")
@@ -349,6 +353,8 @@ class VisionService:
             result = self.color_detector.detect(
                 image=image,
                 roi=roi,
+                contour_points=contour,
+                use_contour_mask=use_contour_mask,
                 expected_color=expected_color,
                 min_percentage=min_percentage,
                 method=method,
@@ -377,7 +383,7 @@ class VisionService:
 
             # Create visualization with color overlay
             result_image = self.overlay_renderer.render_color_detection(
-                image, detected_object, expected_color
+                image, detected_object, expected_color, contour_points=contour
             )
 
             # Create thumbnail

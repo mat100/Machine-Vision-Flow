@@ -129,6 +129,13 @@ class TestVisionAPI:
         assert "processing_time_ms" in data
         assert "thumbnail_base64" in data
 
+        # Verify contour is included in objects
+        if data["objects"]:
+            obj = data["objects"][0]
+            assert "contour" in obj
+            assert isinstance(obj["contour"], list)
+            assert len(obj["contour"]) > 0  # Should have contour points
+
     def test_edge_detect_all_methods(self, client, captured_image_id):
         """Test all edge detection methods"""
         methods = ["canny", "sobel", "laplacian", "scharr", "prewitt", "roberts"]
@@ -416,3 +423,154 @@ class TestVisionAPI:
 
         # Verify we got color results for contours
         assert len(color_results) >= 0  # May be 0 if no contours found or no dominant colors
+
+    def test_color_detect_with_contour_mask(self, client, captured_image_id):
+        """Test color detection with contour mask enabled"""
+        # Create a simple square contour
+        contour = [[100, 100], [300, 100], [300, 300], [100, 300]]
+
+        color_request = {
+            "image_id": captured_image_id,
+            "contour": contour,
+            "use_contour_mask": True,
+            "method": "histogram",
+        }
+        response = client.post("/api/vision/color-detect", json=color_request)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "objects" in data
+        assert "thumbnail_base64" in data
+
+        # Verify that if object returned, it analyzed fewer pixels than full image
+        if data["objects"]:
+            obj = data["objects"][0]
+            assert "area" in obj  # area = analyzed_pixels
+            # Square contour should analyze approximately 200*200 = 40000 pixels
+            assert obj["area"] < 1920 * 1080  # Less than full image
+
+    def test_color_detect_without_contour_mask(self, client, captured_image_id):
+        """Test color detection with contour mask disabled"""
+        # Create a contour but disable mask
+        contour = [[100, 100], [300, 100], [300, 300], [100, 300]]
+        roi = {"x": 100, "y": 100, "width": 200, "height": 200}
+
+        color_request = {
+            "image_id": captured_image_id,
+            "roi": roi,
+            "contour": contour,
+            "use_contour_mask": False,  # Disabled
+            "method": "histogram",
+        }
+        response = client.post("/api/vision/color-detect", json=color_request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should analyze full bounding box (40000 pixels)
+        if data["objects"]:
+            obj = data["objects"][0]
+            # With mask disabled, should analyze full ROI
+            assert obj["area"] == pytest.approx(40000, rel=0.1)
+
+    def test_color_detect_mask_comparison(self, client, captured_image_id):
+        """Compare color detection with and without contour mask"""
+        # Create a triangular contour (half of bbox area)
+        contour = [[200, 100], [300, 300], [100, 300]]
+        roi = {"x": 100, "y": 100, "width": 200, "height": 200}
+
+        # Test with mask
+        with_mask_request = {
+            "image_id": captured_image_id,
+            "roi": roi,
+            "contour": contour,
+            "use_contour_mask": True,
+            "method": "histogram",
+        }
+        with_mask_response = client.post("/api/vision/color-detect", json=with_mask_request)
+
+        # Test without mask
+        without_mask_request = {
+            "image_id": captured_image_id,
+            "roi": roi,
+            "contour": contour,
+            "use_contour_mask": False,
+            "method": "histogram",
+        }
+        without_mask_response = client.post("/api/vision/color-detect", json=without_mask_request)
+
+        assert with_mask_response.status_code == 200
+        assert without_mask_response.status_code == 200
+
+        with_mask_data = with_mask_response.json()
+        without_mask_data = without_mask_response.json()
+
+        # Both should return objects
+        if with_mask_data["objects"] and without_mask_data["objects"]:
+            with_mask_pixels = with_mask_data["objects"][0]["area"]
+            without_mask_pixels = without_mask_data["objects"][0]["area"]
+
+            # With mask should analyze fewer pixels (triangle vs rectangle)
+            assert with_mask_pixels < without_mask_pixels
+
+    def test_color_detect_with_edge_contour(self, client, captured_image_id):
+        """Test realistic workflow: edge detection → color detection with contour"""
+        # Step 1: Edge detection to get real contour
+        edge_request = {
+            "image_id": captured_image_id,
+            "method": "canny",
+            "min_contour_area": 500,
+            "max_contours": 1,
+        }
+        edge_response = client.post("/api/vision/edge-detect", json=edge_request)
+
+        assert edge_response.status_code == 200
+        edge_data = edge_response.json()
+
+        # If we got a contour, test color detection with it
+        if edge_data["objects"]:
+            obj = edge_data["objects"][0]
+            contour = obj.get("contour")
+            bbox = obj["bounding_box"]
+
+            if contour:
+                # Step 2: Color detection using the real contour
+                color_request = {
+                    "image_id": captured_image_id,
+                    "roi": bbox,
+                    "contour": contour,
+                    "use_contour_mask": True,
+                    "method": "histogram",
+                }
+                color_response = client.post("/api/vision/color-detect", json=color_request)
+
+                assert color_response.status_code == 200
+                color_data = color_response.json()
+                assert "objects" in color_data
+
+                if color_data["objects"]:
+                    color_obj = color_data["objects"][0]
+                    assert "dominant_color" in color_obj["properties"]
+                    # Verify it analyzed contour pixels, not full bbox
+                    assert color_obj["area"] <= bbox["width"] * bbox["height"]
+
+    def test_color_detect_contour_default_behavior(self, client, captured_image_id):
+        """Test that use_contour_mask defaults to True when contour provided"""
+        contour = [[100, 100], [300, 100], [300, 300], [100, 300]]
+
+        # Don't specify use_contour_mask, should default to True
+        color_request = {
+            "image_id": captured_image_id,
+            "contour": contour,
+            "method": "histogram",
+        }
+        response = client.post("/api/vision/color-detect", json=color_request)
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Should have used mask by default
+        if data["objects"]:
+            obj = data["objects"][0]
+            # Should analyze contour area (40000 pixels for square)
+            assert obj["area"] < 1920 * 1080  # Less than full image

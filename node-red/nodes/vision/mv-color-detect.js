@@ -10,6 +10,7 @@ module.exports = function(RED) {
         node.expectedColor = config.expectedColor || '';  // Empty = any color
         node.minPercentage = parseFloat(config.minPercentage) || 50.0;
         node.method = config.method || 'histogram';
+        node.useContourMask = config.useContourMask !== false;  // Default true
 
         node.status({fill: "grey", shape: "ring", text: "ready"});
 
@@ -28,8 +29,10 @@ module.exports = function(RED) {
 
                 // Get ROI from payload.bounding_box (from previous detection) or explicit msg.roi
                 let roi = null;
+                let contour = null;
                 if (msg.payload?.bounding_box) {
                     roi = msg.payload.bounding_box;
+                    contour = msg.payload.contour;  // Extract contour from edge detection
                 } else if (msg.roi) {
                     roi = msg.roi;
                 }
@@ -38,6 +41,8 @@ module.exports = function(RED) {
                 const requestData = {
                     image_id: imageId,
                     roi: roi,
+                    contour: contour,
+                    use_contour_mask: node.useContourMask,
                     expected_color: node.expectedColor || null,
                     min_percentage: node.minPercentage,
                     method: node.method

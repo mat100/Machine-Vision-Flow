@@ -7,7 +7,8 @@
             apiUrl: {value: "http://localhost:8000"},
             expectedColor: {value: ""},
             minPercentage: {value: 50, validate: RED.validators.number()},
-            method: {value: "histogram"}
+            method: {value: "histogram"},
+            useContourMask: {value: true}
         },
         inputs: 1,
         outputs: 1,
@@ -60,6 +61,12 @@
             <option value="kmeans">K-means (Accurate)</option>
         </select>
     </div>
+
+    <div class="form-row">
+        <label for="node-input-useContourMask"><i class="fa fa-crop"></i> Use Contour Mask</label>
+        <input type="checkbox" id="node-input-useContourMask" style="width: auto; margin-left: 10px;">
+        <span style="margin-left: 5px; color: #666; font-size: 12px;">Analyze only pixels inside contour (more accurate)</span>
+    </div>
 </script>
 
 <script type="text/html" data-help-name="mv-color-detect">
@@ -96,6 +103,17 @@
             <ul>
                 <li><b>Histogram:</b> Fast histogram-based detection</li>
                 <li><b>K-means:</b> More accurate clustering method (slower)</li>
+            </ul>
+        </dd>
+        <dt>Use Contour Mask</dt>
+        <dd>
+            When enabled and a contour is available (from Edge Detection), analyzes only pixels
+            inside the contour shape, excluding background pixels within the bounding box.
+            This provides more accurate color detection by focusing on the actual object shape
+            rather than the rectangular region.
+            <ul>
+                <li><b>Enabled (default):</b> Accurate - analyzes only contour interior</li>
+                <li><b>Disabled:</b> Faster - analyzes full bounding box rectangle</li>
             </ul>
         </dd>
     </dl>

@@ -118,14 +118,15 @@ node-red
 ```
 [Camera Capture] → full image
        ↓
-[Edge Detect] → finds 3 contours, sends 3 messages (each with bounding_box)
+[Edge Detect] → finds 3 contours, sends 3 messages (each with bounding_box + contour)
        ↓ ↓ ↓
-  [Color Detect] → automatically analyzes bounding_box area from each message
+  [Color Detect] → automatically analyzes contour area from each message
        ↓ ↓ ↓
   [Application Logic] → counts red regions, decides PASS/FAIL
 
-Note: Color Detect automatically uses msg.payload.bounding_box if present,
-      otherwise analyzes full image. No ROI Extract node needed.
+Note: Color Detect automatically uses msg.payload.contour for precise masking,
+      falling back to bounding_box if contour not present. Analyzes only pixels
+      inside the actual contour shape, excluding background within the bbox.
 ```
 
 ### Unified Message Format
@@ -144,6 +145,7 @@ msg.payload = {
     confidence: 0.95,                 // 0.0-1.0
     area: 30000.0,                    // Optional
     perimeter: 700.0,                 // Optional
+    contour: [[x1,y1], [x2,y2], ...], // Optional - contour points (from edge detection)
     thumbnail: "base64...",           // 320px preview with overlays
     properties: {}                    // Node-specific data
 }
@@ -219,6 +221,13 @@ POST /api/templates/learn                   # Learn template from ROI
 **Detection Methods**:
 - `histogram` - Fast histogram peak detection
 - `kmeans` - K-means clustering (more accurate, slower)
+
+**Contour Masking** (NEW):
+- **Enabled (default)**: Analyzes only pixels inside contour shape - more accurate
+- **Disabled**: Analyzes full bounding box rectangle - faster but includes background
+- Automatically uses `msg.payload.contour` from edge detection
+- Falls back to bounding box if no contour available
+- Visualization: Cyan contour outline + colored bbox rectangle in thumbnails
 
 **Two Modes**:
 1. **Detection only**: Returns dominant color found (no expected color)

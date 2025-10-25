@@ -25,6 +25,8 @@ class ColorDetector:
         self,
         image: np.ndarray,
         roi: Optional[Dict[str, int]] = None,
+        contour_points: Optional[list] = None,
+        use_contour_mask: bool = True,
         expected_color: Optional[str] = None,
         min_percentage: float = 50.0,
         method: str = "histogram",
@@ -35,6 +37,8 @@ class ColorDetector:
         Args:
             image: Input image (BGR format)
             roi: Optional region of interest {x, y, width, height}
+            contour_points: Optional contour points for masking
+            use_contour_mask: Whether to use contour mask (if contour_points provided)
             expected_color: Expected color name (or None to just detect)
             min_percentage: Minimum percentage for color match
             method: Detection method ("histogram" or "kmeans")
@@ -53,11 +57,31 @@ class ColorDetector:
         # Convert to HSV
         hsv = cv2.cvtColor(roi_image, cv2.COLOR_BGR2HSV)
 
+        # Create contour mask if requested and available
+        mask = None
+        analyzed_pixels = roi_image.shape[0] * roi_image.shape[1]
+
+        if use_contour_mask and contour_points:
+            try:
+                # Convert contour to ROI-relative coordinates
+                contour_array = np.array(contour_points)
+                roi_contour = contour_array - [x, y]
+
+                # Create binary mask
+                mask = np.zeros(roi_image.shape[:2], dtype=np.uint8)
+                cv2.fillPoly(mask, [roi_contour.astype(np.int32)], 255)
+
+                # Count actual analyzed pixels
+                analyzed_pixels = cv2.countNonZero(mask)
+            except Exception:
+                # If mask creation fails, fall back to full ROI
+                mask = None
+
         # Detect dominant colors
         if method == "kmeans":
-            color_info = self._detect_kmeans(hsv)
+            color_info = self._detect_kmeans(hsv, mask)
         else:  # histogram (default)
-            color_info = self._detect_histogram(hsv)
+            color_info = self._detect_histogram(hsv, mask)
 
         # Check if it matches expected color
         match = False
@@ -72,14 +96,14 @@ class ColorDetector:
             "dominant_color": color_info["dominant_color"],
             "color_percentages": color_info["all_colors"],
             "hsv_mean": color_info.get("hsv_mean", [0, 0, 0]),
-            "analyzed_pixels": int(roi_image.shape[0] * roi_image.shape[1]),
+            "analyzed_pixels": int(analyzed_pixels),
             "expected_color": expected_color,
             "match": match,
             "confidence": color_info["color_percentages"].get(color_info["dominant_color"], 0)
             / 100.0,
         }
 
-    def _detect_histogram(self, hsv: np.ndarray) -> Dict:
+    def _detect_histogram(self, hsv: np.ndarray, mask: Optional[np.ndarray] = None) -> Dict:
         """
         Detect dominant color using histogram peak detection (fast).
 
@@ -88,15 +112,35 @@ class ColorDetector:
 
         Args:
             hsv: HSV image
+            mask: Optional binary mask (only analyze masked pixels)
 
         Returns:
             Dictionary with color information
         """
         h, s, v = cv2.split(hsv)
-        total_pixels = hsv.shape[0] * hsv.shape[1]
 
-        # Use vectorized color counting (much faster than pixel iteration)
-        color_counts = count_colors_vectorized(h, s, v)
+        # Apply mask if provided
+        if mask is not None:
+            # Extract only masked pixels to avoid counting zeros as black
+            masked_pixels = hsv[mask > 0]
+            if len(masked_pixels) == 0:
+                # Empty mask, return default
+                total_pixels = 1
+                color_counts = {"black": 0}
+            else:
+                h_masked = masked_pixels[:, 0]
+                s_masked = masked_pixels[:, 1]
+                v_masked = masked_pixels[:, 2]
+                total_pixels = len(masked_pixels)
+                # Reshape back to 2D for vectorized counting
+                h = h_masked.reshape(-1, 1)
+                s = s_masked.reshape(-1, 1)
+                v = v_masked.reshape(-1, 1)
+                color_counts = count_colors_vectorized(h, s, v)
+        else:
+            total_pixels = hsv.shape[0] * hsv.shape[1]
+            # Use vectorized color counting (much faster than pixel iteration)
+            color_counts = count_colors_vectorized(h, s, v)
 
         # Calculate percentages
         color_percentages = {
@@ -116,19 +160,26 @@ class ColorDetector:
             "hsv_mean": hsv_mean,
         }
 
-    def _detect_kmeans(self, hsv: np.ndarray, k: int = 3) -> Dict:
+    def _detect_kmeans(
+        self, hsv: np.ndarray, mask: Optional[np.ndarray] = None, k: int = 3
+    ) -> Dict:
         """
         Detect dominant colors using k-means clustering (more accurate, slower).
 
         Args:
             hsv: HSV image
+            mask: Optional binary mask (only analyze masked pixels)
             k: Number of clusters (dominant colors to find)
 
         Returns:
             Dictionary with color information
         """
         # Reshape image to list of pixels
-        pixels = hsv.reshape(-1, 3)
+        if mask is not None:
+            # Extract only masked pixels
+            pixels = hsv[mask > 0]
+        else:
+            pixels = hsv.reshape(-1, 3)
         pixels = np.float32(pixels)
 
         # Perform k-means clustering

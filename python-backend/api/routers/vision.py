@@ -115,6 +115,8 @@ async def color_detect(
     detected_object, thumbnail_base64, processing_time = vision_service.color_detect(
         image_id=request.image_id,
         roi=roi_dict,
+        contour=request.contour,
+        use_contour_mask=request.use_contour_mask,
         expected_color=request.expected_color,
         min_percentage=request.min_percentage,
         method=request.method,
