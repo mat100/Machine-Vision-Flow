@@ -67,12 +67,15 @@ module.exports = function(RED) {
                 // Use camera ID from msg or config
                 const cameraId = msg.cameraId || node.cameraId;
 
-                // Capture image
+                // Extract ROI from msg.roi if provided
+                const roi = msg.roi || null;
+
+                // Capture image with nested params structure
                 const response = await axios.post(
                     `${node.apiUrl}/api/camera/capture`,
-                    null,
                     {
-                        params: { camera_id: cameraId }
+                        camera_id: cameraId,
+                        params: roi ? { roi: roi } : null
                     }
                 );
 

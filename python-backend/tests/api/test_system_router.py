@@ -57,7 +57,7 @@ class TestSystemRouterAPI:
     def test_get_status_with_images(self, client):
         """Test system status with images in buffer"""
         # Capture an image to populate buffer
-        client.post("/api/camera/capture?camera_id=test")
+        client.post("/api/camera/capture", json={"camera_id": "test"})
 
         response = client.get("/api/system/status")
 
@@ -98,14 +98,16 @@ class TestSystemRouterAPI:
     def test_get_performance_with_history(self, client):
         """Test performance metrics (history tracking was removed, always returns defaults)"""
         # Capture an image
-        capture_response = client.post("/api/camera/capture?camera_id=test")
+        capture_response = client.post("/api/camera/capture", json={"camera_id": "test"})
         image_id = capture_response.json()["image_id"]
 
         # Perform a vision operation (but history is no longer tracked)
         edge_request = {
             "image_id": image_id,
-            "method": "canny",
-            "min_area": 100,
+            "params": {
+                "method": "canny",
+                "min_area": 100,
+            },
         }
         client.post("/api/vision/edge-detect", json=edge_request)
 
@@ -210,12 +212,12 @@ class TestSystemRouterAPI:
     def test_performance_operations_per_minute(self, client):
         """Test operations per minute (history tracking removed)"""
         # Capture image and run multiple operations
-        capture_response = client.post("/api/camera/capture?camera_id=test")
+        capture_response = client.post("/api/camera/capture", json={"camera_id": "test"})
         image_id = capture_response.json()["image_id"]
 
         # Run several edge detections (but history is no longer tracked)
         for _ in range(3):
-            edge_request = {"image_id": image_id, "method": "canny"}
+            edge_request = {"image_id": image_id, "params": {"method": "canny"}}
             client.post("/api/vision/edge-detect", json=edge_request)
 
         # Get performance (always returns default values now)

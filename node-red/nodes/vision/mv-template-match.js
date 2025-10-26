@@ -49,12 +49,14 @@ module.exports = function(RED) {
             // Map bounding_box from previous detection to roi parameter (INPUT constraint)
             const requestData = {
                 image_id: imageId,
-                template_id: templateId,
-                method: node.method,
-                threshold: node.threshold,
                 roi: msg.payload?.bounding_box || null,  // Use bounding_box from VisionObject as roi constraint
-                multi_scale: node.multiScale,
-                scale_range: node.scaleRange
+                params: {
+                    template_id: templateId,
+                    method: node.method,
+                    threshold: node.threshold,
+                    multi_scale: node.multiScale,
+                    scale_range: node.scaleRange
+                }
             };
 
             try {

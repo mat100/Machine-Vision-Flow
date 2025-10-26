@@ -41,9 +41,11 @@ module.exports = function(RED) {
             const requestData = {
                 image_id: imageId,
                 contour: contour,
-                method: node.method,
-                angle_range: node.angleRange,
-                roi: msg.payload?.bounding_box || null  // For visualization context
+                roi: msg.payload?.bounding_box || null,  // For visualization context
+                params: {
+                    method: node.method,
+                    angle_range: node.angleRange
+                }
             };
 
             try {

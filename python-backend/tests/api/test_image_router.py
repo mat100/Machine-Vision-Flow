@@ -13,7 +13,7 @@ class TestImageRouterAPI:
     @pytest.fixture
     def captured_image_id(self, client):
         """Capture a test image and return its ID"""
-        response = client.post("/api/camera/capture?camera_id=test")
+        response = client.post("/api/camera/capture", json={"camera_id": "test"})
         assert response.status_code == 200
         return response.json()["image_id"]
 
@@ -21,7 +21,7 @@ class TestImageRouterAPI:
     def large_image_id(self, client):
         """Create a large test image (>320px wide) for thumbnail scaling tests"""
         # Test camera generates 640x480 images by default
-        response = client.post("/api/camera/capture?camera_id=test")
+        response = client.post("/api/camera/capture", json={"camera_id": "test"})
         assert response.status_code == 200
         return response.json()["image_id"]
 

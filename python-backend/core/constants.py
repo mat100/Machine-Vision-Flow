@@ -366,6 +366,26 @@ class ArucoDetectionDefaults:
     TEXT_COLOR = (0, 255, 0)  # Green (BGR)
 
 
+# Template Matching Default Parameters
+class TemplateMatchDefaults:
+    """Default parameters for template matching."""
+
+    # Matching method and threshold
+    DEFAULT_METHOD = "TM_CCOEFF_NORMED"
+    DEFAULT_THRESHOLD = 0.8
+
+    # Multi-scale matching
+    MULTI_SCALE_ENABLED = False
+    SCALE_RANGE_MIN = 0.8
+    SCALE_RANGE_MAX = 1.2
+    SCALE_STEPS = 5
+
+    # Visualization
+    LINE_THICKNESS = 2
+    MATCH_COLOR = (0, 255, 0)  # Green (BGR)
+    TEXT_COLOR = (0, 255, 0)  # Green (BGR)
+
+
 # Rotation Detection Default Parameters
 class RotationDetectionDefaults:
     """Default parameters for rotation detection algorithms."""

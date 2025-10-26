@@ -6,16 +6,64 @@ and k-means clustering.
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import cv2
 import numpy as np
+from pydantic import BaseModel, Field
 from sklearn.cluster import KMeans
 
-from api.models import ROI, Point, VisionObject, VisionObjectType
+from api.models import ColorMethod
 from core.constants import ColorDetectionDefaults
-from core.overlay_renderer import OverlayRenderer
-from vision.color_definitions import count_colors_vectorized, hsv_to_color_name
+
+
+class ColorDetectionParams(BaseModel):
+    """
+    Color detection parameters.
+
+    Supports both histogram (fast) and kmeans (accurate) detection methods.
+    """
+
+    class Config:
+        extra = "forbid"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Export to dict for detector functions."""
+        return self.model_dump(exclude_none=True)
+
+    # === Common parameters ===
+    method: ColorMethod = Field(
+        default=ColorMethod.HISTOGRAM,
+        description="Detection method: histogram (fast) or kmeans (accurate)",
+    )
+    min_percentage: float = Field(
+        default=ColorDetectionDefaults.MIN_PERCENTAGE,
+        ge=0.0,
+        le=100.0,
+        description="Minimum percentage for color match",
+    )
+    use_contour_mask: bool = Field(
+        default=ColorDetectionDefaults.USE_CONTOUR_MASK,
+        description="Use contour mask instead of full bounding box when contour is available",
+    )
+
+    # === KMeans-specific parameters (ignored if method != kmeans) ===
+    kmeans_clusters: int = Field(
+        default=ColorDetectionDefaults.KMEANS_CLUSTERS,
+        ge=2,
+        le=10,
+        description="Number of color clusters for k-means",
+    )
+    kmeans_random_state: int = Field(
+        default=ColorDetectionDefaults.KMEANS_RANDOM_STATE,
+        ge=0,
+        description="Random state for reproducible k-means results",
+    )
+    kmeans_n_init: int = Field(
+        default=ColorDetectionDefaults.KMEANS_N_INIT,
+        ge=1,
+        description="Number of k-means initializations",
+    )
 
 
 class ColorDetector:
@@ -23,6 +71,8 @@ class ColorDetector:
 
     def __init__(self):
         """Initialize color detector."""
+        from core.overlay_renderer import OverlayRenderer
+
         self.logger = logging.getLogger(__name__)
         self.overlay_renderer = OverlayRenderer()
 
@@ -51,6 +101,8 @@ class ColorDetector:
         Returns:
             Dictionary with detection results
         """
+        from api.models import ROI, Point, VisionObject, VisionObjectType
+
         # Extract ROI if specified
         if roi is not None:
             x, y, w, h = roi["x"], roi["y"], roi["width"], roi["height"]
@@ -142,6 +194,8 @@ class ColorDetector:
         Returns:
             Dictionary with color information
         """
+        from vision.color_definitions import count_colors_vectorized
+
         h, s, v = cv2.split(hsv)
 
         # Apply mask if provided
@@ -202,6 +256,8 @@ class ColorDetector:
         Returns:
             Dictionary with color information
         """
+        from vision.color_definitions import hsv_to_color_name
+
         # Reshape image to list of pixels
         if mask is not None:
             # Extract only masked pixels

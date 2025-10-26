@@ -7,8 +7,9 @@ import numpy as np
 import pytest
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
-from api.models import ROI
+from api.models import ROI, TemplateMatchParams
 from services.vision_service import VisionService
+from vision.edge_detection import EdgeDetectionParams
 
 
 class TestVisionService:
@@ -27,8 +28,11 @@ class TestVisionService:
         mock_template_manager.get_template.return_value = test_template
         mock_image_manager.create_thumbnail.return_value = (test_image, "base64-thumb")
 
+        params = TemplateMatchParams(
+            template_id="test-tmpl", method="TM_CCOEFF_NORMED", threshold=0.8
+        )
         matches, thumbnail, processing_time = service.template_match(
-            image_id="test-img", template_id="test-tmpl", method="TM_CCOEFF_NORMED", threshold=0.8
+            image_id="test-img", template_id="test-tmpl", roi=None, params=params
         )
 
         assert thumbnail == "base64-thumb"
@@ -41,8 +45,11 @@ class TestVisionService:
 
         mock_image_manager.get.return_value = None
 
+        params = TemplateMatchParams(template_id="test-tmpl", threshold=0.8)
         with pytest.raises(ImageNotFoundException):
-            service.template_match(image_id="non-existent", template_id="test-tmpl", threshold=0.8)
+            service.template_match(
+                image_id="non-existent", template_id="test-tmpl", roi=None, params=params
+            )
 
     def test_template_match_template_not_found(self, mock_image_manager, mock_template_manager):
         """Test template matching with non-existent template"""
@@ -52,11 +59,14 @@ class TestVisionService:
         mock_image_manager.get.return_value = test_image
         mock_template_manager.get_template.return_value = None
 
+        params = TemplateMatchParams(template_id="non-existent", threshold=0.8)
         with pytest.raises(TemplateNotFoundException):
-            service.template_match(image_id="test-img", template_id="non-existent", threshold=0.8)
+            service.template_match(
+                image_id="test-img", template_id="non-existent", roi=None, params=params
+            )
 
     def test_template_match_with_roi(self, mock_image_manager, mock_template_manager):
-        """Test template matching without ROI (ROI removed from API)"""
+        """Test template matching with ROI"""
         service = VisionService(mock_image_manager, mock_template_manager)
 
         test_image = np.zeros((480, 640, 3), dtype=np.uint8)
@@ -66,9 +76,9 @@ class TestVisionService:
         mock_template_manager.get_template.return_value = test_template
         mock_image_manager.create_thumbnail.return_value = (test_image, "base64-thumb")
 
-        # ROI functionality removed - use full image
+        params = TemplateMatchParams(template_id="test-tmpl", threshold=0.8)
         matches, thumbnail, processing_time = service.template_match(
-            image_id="test-img", template_id="test-tmpl", threshold=0.8
+            image_id="test-img", template_id="test-tmpl", roi=None, params=params
         )
 
         assert thumbnail is not None
@@ -115,8 +125,9 @@ class TestVisionService:
         mock_image_manager.get.return_value = test_image
         mock_image_manager.create_thumbnail.return_value = (test_image, "base64-thumb")
 
+        params = EdgeDetectionParams(method="canny")
         detected_objects, thumbnail, processing_time = service.edge_detect(
-            image_id="test-img", method="canny"
+            image_id="test-img", method="canny", params=params
         )
 
         assert isinstance(detected_objects, list)
@@ -129,8 +140,9 @@ class TestVisionService:
 
         mock_image_manager.get.return_value = None
 
+        params = EdgeDetectionParams(method="canny")
         with pytest.raises(ImageNotFoundException):
-            service.edge_detect(image_id="non-existent", method="canny")
+            service.edge_detect(image_id="non-existent", method="canny", params=params)
 
     def test_edge_detect_with_params(self, mock_image_manager, mock_template_manager):
         """Test edge detection with custom parameters"""
@@ -140,7 +152,7 @@ class TestVisionService:
         mock_image_manager.get.return_value = test_image
         mock_image_manager.create_thumbnail.return_value = (test_image, "base64-thumb")
 
-        params = {"canny_low": 50, "canny_high": 150}
+        params = EdgeDetectionParams(method="canny", canny_low=50, canny_high=150)
         result, thumbnail, processing_time = service.edge_detect(
             image_id="test-img", method="canny", params=params
         )
@@ -157,8 +169,9 @@ class TestVisionService:
         mock_image_manager.create_thumbnail.return_value = (test_image, "base64-thumb")
 
         # Invalid method should default to canny
+        params = EdgeDetectionParams(method="invalid_method_name")
         result, thumbnail, processing_time = service.edge_detect(
-            image_id="test-img", method="invalid_method_name"
+            image_id="test-img", method="invalid_method_name", params=params
         )
 
         assert result is not None
@@ -177,8 +190,9 @@ class TestVisionServiceIntegration:
         template_id = template_manager.upload_template("test-template", test_template)
 
         # Perform template matching
+        params = TemplateMatchParams(template_id=template_id, threshold=0.5)
         matches, thumbnail, processing_time = vision_service.template_match(
-            image_id=image_id, template_id=template_id, threshold=0.5
+            image_id=image_id, template_id=template_id, roi=None, params=params
         )
 
         assert thumbnail is not None
@@ -191,8 +205,9 @@ class TestVisionServiceIntegration:
         image_id = image_manager.store(test_image, {})
 
         # Perform edge detection
+        params = EdgeDetectionParams(method="canny")
         detected_objects, thumbnail, processing_time = vision_service.edge_detect(
-            image_id=image_id, method="canny"
+            image_id=image_id, method="canny", params=params
         )
 
         assert isinstance(detected_objects, list)

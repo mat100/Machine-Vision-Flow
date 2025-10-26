@@ -39,7 +39,7 @@ class TestCameraAPI:
 
     def test_capture_image_from_test_camera(self, client):
         """Test capturing image from test camera"""
-        response = client.post("/api/camera/capture?camera_id=test")
+        response = client.post("/api/camera/capture", json={"camera_id": "test"})
 
         assert response.status_code == 200
         data = response.json()
@@ -56,14 +56,11 @@ class TestCameraAPI:
 
     def test_capture_image_with_roi(self, client):
         """Test capturing image with ROI"""
-        params = {
+        request_data = {
             "camera_id": "test",
-            "roi_x": 100,
-            "roi_y": 100,
-            "roi_width": 300,
-            "roi_height": 200,
+            "params": {"roi": {"x": 100, "y": 100, "width": 300, "height": 200}},
         }
-        response = client.post("/api/camera/capture", params=params)
+        response = client.post("/api/camera/capture", json=request_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -75,7 +72,7 @@ class TestCameraAPI:
 
     def test_capture_image_invalid_camera(self, client):
         """Test capturing from non-existent camera falls back to test"""
-        response = client.post("/api/camera/capture?camera_id=non_existent")
+        response = client.post("/api/camera/capture", json={"camera_id": "non_existent"})
 
         # Should still work because of fallback to test image
         assert response.status_code == 200
@@ -120,7 +117,7 @@ class TestCameraAPI:
         image_ids = []
 
         for i in range(3):
-            response = client.post("/api/camera/capture?camera_id=test")
+            response = client.post("/api/camera/capture", json={"camera_id": "test"})
             assert response.status_code == 200
             data = response.json()
             image_ids.append(data["image_id"])
@@ -130,23 +127,22 @@ class TestCameraAPI:
 
     def test_invalid_roi_parameters(self, client):
         """Test capture with invalid ROI parameters"""
-        params = {
+        request_data = {
             "camera_id": "test",
-            "roi_x": -100,  # Negative values
-            "roi_y": -100,
-            "roi_width": 50,
-            "roi_height": 50,
+            "params": {"roi": {"x": -100, "y": -100, "width": 50, "height": 50}},  # Negative values
         }
-        response = client.post("/api/camera/capture", params=params)
+        response = client.post("/api/camera/capture", json=request_data)
 
-        # Should handle invalid ROI gracefully
-        # Either return error or fall back to full image
-        assert response.status_code in [200, 400]
+        # Should reject invalid ROI with validation error
+        assert response.status_code == 422
 
     def test_capture_with_zero_dimensions(self, client):
         """Test capture with zero-dimension ROI"""
-        params = {"camera_id": "test", "roi_x": 100, "roi_y": 100, "roi_width": 0, "roi_height": 0}
-        response = client.post("/api/camera/capture", params=params)
+        request_data = {
+            "camera_id": "test",
+            "params": {"roi": {"x": 100, "y": 100, "width": 0, "height": 0}},
+        }
+        response = client.post("/api/camera/capture", json=request_data)
 
         # May accept zero dimensions and fall back to full image
         # or reject with 400/422

@@ -11,7 +11,7 @@ class TestArucoAPI:
     @pytest.fixture
     def captured_image_id(self, client):
         """Capture a test image with ArUco markers"""
-        response = client.post("/api/camera/capture?camera_id=test")
+        response = client.post("/api/camera/capture", json={"camera_id": "test"})
         assert response.status_code == 200
         return response.json()["image_id"]
 
@@ -87,7 +87,7 @@ class TestArucoAPI:
     def test_aruco_detect_no_markers(self, client):
         """Test ArUco detection on image without markers"""
         # Create a blank image without markers
-        response = client.post("/api/camera/capture?camera_id=test")
+        response = client.post("/api/camera/capture", json={"camera_id": "test"})
         image_id = response.json()["image_id"]
 
         # Try to detect markers in a small ROI with no markers
@@ -112,7 +112,7 @@ class TestRotationAPI:
     @pytest.fixture
     def captured_image_id(self, client):
         """Capture a test image"""
-        response = client.post("/api/camera/capture?camera_id=test")
+        response = client.post("/api/camera/capture", json={"camera_id": "test"})
         assert response.status_code == 200
         return response.json()["image_id"]
 
@@ -122,11 +122,13 @@ class TestRotationAPI:
         # Use lower thresholds to detect test shapes (rectangles, circle)
         request_data = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "canny_low": 30,
-            "canny_high": 100,
-            "min_contour_area": 500,
-            "max_contours": 10,
+            "params": {
+                "method": "canny",
+                "canny_low": 30,
+                "canny_high": 100,
+                "min_contour_area": 500,
+                "max_contours": 10,
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
         assert response.status_code == 200
@@ -179,8 +181,10 @@ class TestRotationAPI:
             request_data = {
                 "image_id": captured_image_id,
                 "contour": edge_contour,
-                "method": method,
-                "angle_range": "0_360",
+                "params": {
+                    "method": method,
+                    "angle_range": "0_360",
+                },
             }
             response = client.post("/api/vision/rotation-detect", json=request_data)
 
@@ -200,8 +204,10 @@ class TestRotationAPI:
             request_data = {
                 "image_id": captured_image_id,
                 "contour": edge_contour,
-                "method": "min_area_rect",
-                "angle_range": angle_range,
+                "params": {
+                    "method": "min_area_rect",
+                    "angle_range": angle_range,
+                },
             }
             response = client.post("/api/vision/rotation-detect", json=request_data)
 
@@ -273,7 +279,7 @@ class TestArucoRotationIntegration:
     @pytest.fixture
     def captured_image_id(self, client):
         """Capture a test image"""
-        response = client.post("/api/camera/capture?camera_id=test")
+        response = client.post("/api/camera/capture", json={"camera_id": "test"})
         assert response.status_code == 200
         return response.json()["image_id"]
 
@@ -292,8 +298,10 @@ class TestArucoRotationIntegration:
             "/api/vision/edge-detect",
             json={
                 "image_id": captured_image_id,
-                "method": "canny",
-                "min_contour_area": 1000,
+                "params": {
+                    "method": "canny",
+                    "min_contour_area": 1000,
+                },
             },
         )
         assert edge_response.status_code == 200

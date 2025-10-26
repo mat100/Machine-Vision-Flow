@@ -6,16 +6,16 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 import cv2
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from api.dependencies import get_camera_manager  # Still needed for stream endpoint
-from api.dependencies import camera_id_param, get_camera_service, optional_roi_params
+from api.dependencies import get_camera_service
 from api.exceptions import safe_endpoint
-from api.models import ROI, CameraCaptureResponse, CameraConnectRequest, CameraInfo, Size
+from api.models import CameraCaptureResponse, CameraConnectRequest, CameraInfo, CaptureRequest, Size
 from core.camera_identifier import CameraIdentifier
 
 logger = logging.getLogger(__name__)
@@ -68,17 +68,18 @@ async def connect_camera(
 @router.post("/capture")
 @safe_endpoint
 async def capture_image(
-    camera_id: str = Depends(camera_id_param),
-    roi: Optional[dict] = Depends(optional_roi_params),
+    request: CaptureRequest,
     camera_service=Depends(get_camera_service),
 ) -> CameraCaptureResponse:
     """Capture image from camera"""
-    # Convert ROI dict to ROI object if provided
-    roi_obj = ROI.from_dict(roi) if roi else None
+    # Extract ROI from params if provided
+    roi_obj = None
+    if request.params and request.params.roi:
+        roi_obj = request.params.roi
 
     # Service handles capture, ROI extraction, storage, and thumbnail creation
     image_id, thumbnail_base64, metadata = camera_service.capture_and_store(
-        camera_id=camera_id, roi=roi_obj
+        camera_id=request.camera_id, roi=roi_obj
     )
 
     return CameraCaptureResponse(

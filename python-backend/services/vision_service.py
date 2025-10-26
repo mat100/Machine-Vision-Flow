@@ -6,21 +6,10 @@ template matching, edge detection, and other computer vision tasks.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple, Union
-
-import cv2
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
-from api.models import (
-    ROI,
-    AngleRange,
-    ArucoDict,
-    ColorMethod,
-    Point,
-    RotationMethod,
-    VisionObject,
-    VisionObjectType,
-)
+from api.models import ROI, VisionObject
 from core.decorators import timer
 from core.image_manager import ImageManager
 from core.overlay_renderer import OverlayRenderer
@@ -29,6 +18,13 @@ from core.template_manager import TemplateManager
 from vision.aruco_detection import ArucoDetector
 from vision.color_detection import ColorDetector
 from vision.rotation_detection import RotationDetector
+
+if TYPE_CHECKING:
+    from api.models import TemplateMatchParams
+    from vision.aruco_detection import ArucoDetectionParams
+    from vision.color_detection import ColorDetectionParams
+    from vision.edge_detection import EdgeDetectionParams
+    from vision.rotation_detection import RotationDetectionParams
 
 logger = logging.getLogger(__name__)
 
@@ -203,19 +199,19 @@ class VisionService:
         self,
         image_id: str,
         template_id: str,
-        method: str = "TM_CCOEFF_NORMED",
-        threshold: float = 0.8,
-        roi: Optional[Dict] = None,
+        roi: Optional[Dict],
+        params: "TemplateMatchParams",
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Perform template matching on an image.
 
         Args:
             image_id: Image identifier
-            template_id: Template identifier
-            method: OpenCV matching method
-            threshold: Match threshold (0-1)
-            roi: Optional region of interest to limit search area (dict with x, y, width, height)
+            template_id: Template identifier (extracted from params for
+                backward compat in service layer)
+            roi: Optional region of interest to limit search area
+                (dict with x, y, width, height)
+            params: Template matching parameters (includes template_id)
 
         Returns:
             Tuple of (detected_objects, thumbnail_base64, processing_time_ms)
@@ -224,86 +220,22 @@ class VisionService:
             ImageNotFoundException: If image not found
             TemplateNotFoundException: If template not found
         """
+        from vision.template_matching import TemplateDetector
+
         # Get template first (before detector function)
         template = self.template_manager.get_template(template_id)
         if template is None:
             raise TemplateNotFoundException(template_id)
 
-        # Create detector function that performs template matching
+        # Convert params to dict (all defaults already applied by Pydantic!)
+        params_dict = params.to_dict()
+
+        # Create detector function
         def detect_func(image):
-            # Convert to grayscale if needed
-            if len(image.shape) == 3:
-                search_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            else:
-                search_gray = image
-
-            if len(template.shape) == 3:
-                template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-            else:
-                template_gray = template
-
-            # Perform template matching
-            cv_method = getattr(cv2, method)
-            result = cv2.matchTemplate(search_gray, template_gray, cv_method)
-
-            # Find matches above threshold
-            detected_objects = []
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-
-            # For SQDIFF methods, lower is better
-            if method in ["TM_SQDIFF", "TM_SQDIFF_NORMED"]:
-                if min_val <= (1 - threshold):
-                    score = 1 - min_val
-                    loc = min_loc
-                else:
-                    score = 0
-                    loc = None
-            else:
-                if max_val >= threshold:
-                    score = max_val
-                    loc = max_loc
-                else:
-                    score = 0
-                    loc = None
-
-            # Create DetectedObject if match found (with local coordinates)
-            if loc is not None:
-                x = loc[0]
-                y = loc[1]
-                w = template.shape[1]
-                h = template.shape[0]
-
-                detected_objects.append(
-                    VisionObject(
-                        object_id="match_0",
-                        object_type=VisionObjectType.TEMPLATE_MATCH.value,
-                        bounding_box=ROI(x=x, y=y, width=w, height=h),
-                        center=Point(x=float(x + w // 2), y=float(y + h // 2)),
-                        confidence=min(float(score), 1.0),
-                        rotation=0.0,
-                        properties={
-                            "template_id": template_id,
-                            "method": method,
-                            "scale": 1.0,
-                            "raw_score": float(score),
-                        },
-                    )
-                )
-
-            # Create visualization
-            if detected_objects:
-                result_image = self.overlay_renderer.render_template_matches(
-                    image, detected_objects
-                )
-            else:
-                result_image = image.copy()
-
-            # Return result in unified format (consistent with other detectors)
-            return {
-                "success": True,
-                "objects": detected_objects,
-                "image": result_image,
-            }
+            detector = TemplateDetector()
+            return detector.detect(
+                image=image, template=template, template_id=template_id, params=params_dict
+            )
 
         # Execute using template method - it handles ROI, coordinate adjustment, thumbnail
         result, thumbnail_base64, processing_time = self._execute_detection(
@@ -359,8 +291,8 @@ class VisionService:
     def edge_detect(
         self,
         image_id: str,
-        method: str = "canny",
-        params: Optional[Dict] = None,
+        method: str,
+        params: "EdgeDetectionParams",
         roi: Optional[Dict] = None,
     ) -> Tuple[List[VisionObject], str, int]:
         """
@@ -368,8 +300,9 @@ class VisionService:
 
         Args:
             image_id: Image identifier
-            method: Edge detection method (canny, sobel, laplacian, etc.)
-            params: Method-specific and preprocessing parameters (unified)
+            method: Edge detection method (extracted from params for
+                backward compat in service layer)
+            params: Edge detection parameters (includes method)
             roi: Optional region of interest to limit detection area
 
         Returns:
@@ -378,29 +311,19 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
-        from core.constants import EdgeDetectionDefaults
         from core.enums import EdgeMethod
         from vision.edge_detection import EdgeDetector
 
-        # Parse method using helper (unified enum parsing)
+        # Parse method string to enum
         edge_method = self._parse_enum(method, EdgeMethod, EdgeMethod.CANNY, normalize=True)
 
-        # Ensure params is dict (unified params initialization)
-        params = self._ensure_params_dict(params)
-
-        # Set method-specific defaults using constants
-        if edge_method == EdgeMethod.CANNY:
-            params.setdefault("canny_low", EdgeDetectionDefaults.CANNY_LOW_THRESHOLD)
-            params.setdefault("canny_high", EdgeDetectionDefaults.CANNY_HIGH_THRESHOLD)
-        elif edge_method == EdgeMethod.SOBEL:
-            params.setdefault("sobel_threshold", EdgeDetectionDefaults.SOBEL_THRESHOLD)
-        elif edge_method == EdgeMethod.LAPLACIAN:
-            params.setdefault("laplacian_threshold", EdgeDetectionDefaults.LAPLACIAN_THRESHOLD)
+        # Convert params to dict (all defaults already applied by Pydantic!)
+        params_dict = params.to_dict()
 
         # Create detector function
         def detect_func(image):
             detector = EdgeDetector()
-            return detector.detect(image=image, method=edge_method, params=params)
+            return detector.detect(image=image, method=edge_method, params=params_dict)
 
         # Execute using template method
         result, thumbnail_base64, processing_time = self._execute_detection(
@@ -419,12 +342,10 @@ class VisionService:
     def color_detect(
         self,
         image_id: str,
-        roi: Optional[Dict[str, int]] = None,
-        contour: Optional[list] = None,
-        use_contour_mask: bool = True,
-        expected_color: Optional[str] = None,
-        min_percentage: float = 50.0,
-        method: Union[ColorMethod, str] = ColorMethod.HISTOGRAM,
+        roi: Optional[Dict[str, int]],
+        contour: Optional[list],
+        expected_color: Optional[str],
+        params: Optional["ColorDetectionParams"],
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Perform color detection on an image.
@@ -433,10 +354,8 @@ class VisionService:
             image_id: Image identifier
             roi: Optional region of interest {x, y, width, height}
             contour: Optional contour points for masking
-            use_contour_mask: Whether to use contour mask (if contour provided)
             expected_color: Expected color name (or None to just detect)
-            min_percentage: Minimum percentage for color match
-            method: Detection method ("histogram" or "kmeans")
+            params: Color detection parameters (validated Pydantic model, or None for defaults)
 
         Returns:
             Tuple of (detected_objects, thumbnail_base64, processing_time_ms)
@@ -444,11 +363,19 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
+        # Create default params if not provided
+        from vision.color_detection import ColorDetectionParams
+
+        if params is None:
+            params = ColorDetectionParams()
+
+        # Extract individual params for ColorDetector.detect()
+        method_str = self._enum_to_string(params.method)
+        use_contour_mask = params.use_contour_mask
+        min_percentage = params.min_percentage
 
         # Create detector function
         def detect_func(image):
-            # Convert ColorMethod enum to string using helper (unified enum → string conversion)
-            method_str = self._enum_to_string(method)
             return self.color_detector.detect(
                 image=image,
                 roi=roi,
@@ -485,18 +412,16 @@ class VisionService:
     def aruco_detect(
         self,
         image_id: str,
-        dictionary: Union[ArucoDict, str] = ArucoDict.DICT_4X4_50,
-        roi: Optional[Dict] = None,
-        params: Optional[Dict] = None,
+        roi: Optional[Dict],
+        params: Optional["ArucoDetectionParams"],
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Detect ArUco markers in image.
 
         Args:
             image_id: ID of the image to process
-            dictionary: ArUco dictionary type
             roi: Optional region of interest to search in (dict with x, y, width, height)
-            params: Detection parameters
+            params: ArUco detection parameters (validated Pydantic model, or None for defaults)
 
         Returns:
             (detected_objects, thumbnail_base64, processing_time_ms)
@@ -504,22 +429,21 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
-        from core.constants import ArucoDetectionDefaults
+        # Create default params if not provided
+        from vision.aruco_detection import ArucoDetectionParams
 
-        # Use default dictionary if None (or use helper for parsing)
-        dictionary = (
-            dictionary if dictionary is not None else ArucoDetectionDefaults.DEFAULT_DICTIONARY
-        )
+        if params is None:
+            params = ArucoDetectionParams()
 
-        # Convert ArucoDict enum to string using helper (unified enum → string conversion)
-        dictionary_str = self._enum_to_string(dictionary)
+        # Convert params to dict (all defaults already applied by Pydantic!)
+        params_dict = params.to_dict()
 
-        # Ensure params is dict (unified params initialization)
-        params = self._ensure_params_dict(params)
+        # Extract dictionary parameter
+        dictionary_str = self._enum_to_string(params.dictionary)
 
         # Create detector function
         def detect_func(image):
-            return self.aruco_detector.detect(image, dictionary=dictionary_str, params=params)
+            return self.aruco_detector.detect(image, dictionary=dictionary_str, params=params_dict)
 
         # Execute using template method
         result, thumbnail_base64, processing_time = self._execute_detection(
@@ -539,9 +463,8 @@ class VisionService:
         self,
         image_id: str,
         contour: List,
-        method: Union[RotationMethod, str] = RotationMethod.MIN_AREA_RECT,
-        angle_range: Union[AngleRange, str] = AngleRange.RANGE_0_360,
-        roi: Optional[Dict[str, int]] = None,
+        roi: Optional[Dict[str, int]],
+        params: Optional["RotationDetectionParams"],
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Detect rotation angle from contour.
@@ -549,9 +472,8 @@ class VisionService:
         Args:
             image_id: ID of the image (for visualization)
             contour: Contour points [[x1,y1], [x2,y2], ...]
-            method: Detection method (min_area_rect, ellipse_fit, pca)
-            angle_range: Output angle range (0_360, -180_180, 0_180)
             roi: Optional ROI for visualization context
+            params: Rotation detection parameters (validated Pydantic model, or None for defaults)
 
         Returns:
             (detected_objects, thumbnail_base64, processing_time_ms)
@@ -559,9 +481,15 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
-        # Parse enums using helper (unified enum parsing with backwards compatibility)
-        method_enum = self._parse_enum(method, RotationMethod, RotationMethod.MIN_AREA_RECT)
-        range_enum = self._parse_enum(angle_range, AngleRange, AngleRange.RANGE_0_360)
+        # Create default params if not provided
+        from vision.rotation_detection import RotationDetectionParams
+
+        if params is None:
+            params = RotationDetectionParams()
+
+        # Extract params (all defaults already applied by Pydantic!)
+        method_enum = params.method
+        range_enum = params.angle_range
 
         # Create detector function
         def detect_func(image):
@@ -580,7 +508,7 @@ class VisionService:
 
         logger.debug(
             f"Rotation detection completed: {detected_object.rotation:.1f}° "
-            f"({method}) in {processing_time}ms"
+            f"({params.method.value}) in {processing_time}ms"
         )
 
         return result["objects"], thumbnail_base64, processing_time

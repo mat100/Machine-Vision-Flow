@@ -7,12 +7,35 @@ from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
+from pydantic import BaseModel, Field
 
-from api.models import ROI, Point, VisionObject, VisionObjectType
 from core.constants import RotationDetectionDefaults
 from core.enums import AngleRange, RotationMethod
-from core.image_utils import ImageUtils
-from core.overlay_renderer import OverlayRenderer
+
+
+class RotationDetectionParams(BaseModel):
+    """
+    Rotation detection parameters.
+
+    Calculates object orientation using minimum area rectangle,
+    ellipse fitting, or PCA analysis.
+    """
+
+    class Config:
+        extra = "forbid"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Export to dict for detector functions."""
+        return self.model_dump(exclude_none=True)
+
+    method: RotationMethod = Field(
+        default=RotationMethod.MIN_AREA_RECT,
+        description="Rotation calculation method (min_area_rect, ellipse_fit, pca)",
+    )
+    angle_range: AngleRange = Field(
+        default=AngleRange.RANGE_0_360,
+        description="Output angle range format (0_360, -180_180, or 0_180)",
+    )
 
 
 class RotationDetector:
@@ -20,6 +43,8 @@ class RotationDetector:
 
     def __init__(self):
         """Initialize rotation detector."""
+        from core.overlay_renderer import OverlayRenderer
+
         self.overlay_renderer = OverlayRenderer()
 
     def detect(
@@ -43,6 +68,9 @@ class RotationDetector:
         Returns:
             Dictionary with rotation detection results
         """
+        from api.models import ROI, VisionObject, VisionObjectType
+        from core.image_utils import ImageUtils
+
         # Convert contour to numpy array
         contour_array = np.array(contour, dtype=np.float32)
 
@@ -124,6 +152,9 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
+        from api.models import Point
+        from core.image_utils import ImageUtils
+
         # Fit minimum area rectangle
         rect = cv2.minAreaRect(contour)
         center_tuple, (width, height), angle = rect
@@ -155,6 +186,9 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
+        from api.models import Point
+        from core.image_utils import ImageUtils
+
         # Fit ellipse
         ellipse = cv2.fitEllipse(contour)
         center_tuple, axes, angle = ellipse
@@ -185,6 +219,9 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
+        from api.models import Point
+        from core.image_utils import ImageUtils
+
         # Reshape contour to 2D array of points
         points = contour.reshape(-1, 2).astype(np.float32)
 
@@ -234,6 +271,8 @@ class RotationDetector:
         Returns:
             Angle in requested range
         """
+        from core.image_utils import ImageUtils
+
         # Map AngleRange enum to ImageUtils format strings
         format_map = {
             AngleRange.RANGE_0_360: "0_360",

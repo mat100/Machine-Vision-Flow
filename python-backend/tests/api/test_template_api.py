@@ -15,7 +15,7 @@ class TestTemplateAPI:
     @pytest.fixture
     def captured_image_id(self, client):
         """Capture an image for template learning"""
-        response = client.post("/api/camera/capture?camera_id=test")
+        response = client.post("/api/camera/capture", json={"camera_id": "test"})
         return response.json()["image_id"]
 
     def test_list_templates_empty(self, client):
@@ -194,7 +194,7 @@ class TestTemplateAPI:
     def test_template_workflow(self, client):
         """Test complete template workflow: capture -> learn -> match -> delete"""
         # 1. Capture image
-        capture_response = client.post("/api/camera/capture?camera_id=test")
+        capture_response = client.post("/api/camera/capture", json={"camera_id": "test"})
         image_id = capture_response.json()["image_id"]
 
         # 2. Learn template
@@ -209,7 +209,10 @@ class TestTemplateAPI:
         assert learn_response.status_code == 200
 
         # 3. Match template
-        match_data = {"image_id": image_id, "template_id": template_id, "threshold": 0.5}
+        match_data = {
+            "image_id": image_id,
+            "params": {"template_id": template_id, "threshold": 0.5},
+        }
         match_response = client.post("/api/vision/template-match", json=match_data)
 
         assert match_response.status_code == 200

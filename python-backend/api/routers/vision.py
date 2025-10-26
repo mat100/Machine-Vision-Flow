@@ -91,10 +91,9 @@ async def template_match(
         image_manager,
         lambda roi: vision_service.template_match(
             image_id=request.image_id,
-            template_id=request.template_id,
-            method=request.method.value,
-            threshold=request.threshold,
+            template_id=request.params.template_id,
             roi=roi,
+            params=request.params,
         ),
     )
 
@@ -116,16 +115,14 @@ async def edge_detect(
     - bounding_box: Bounding box of detected contour
     - contour: Actual contour points for precise shape representation
     """
-    params = request.get_detection_params()
-
     return execute_vision_detection(
         request.image_id,
         request.roi,
         image_manager,
         lambda roi: vision_service.edge_detect(
             image_id=request.image_id,
-            method=request.method.lower(),
-            params=params,
+            method=request.params.method,
+            params=request.params,
             roi=roi,
         ),
     )
@@ -156,10 +153,8 @@ async def color_detect(
             image_id=request.image_id,
             roi=roi,
             contour=request.contour,
-            use_contour_mask=request.use_contour_mask,
             expected_color=request.expected_color,
-            min_percentage=request.min_percentage,
-            method=request.method,
+            params=request.params,
         ),
     )
 
@@ -189,7 +184,6 @@ async def aruco_detect(
         image_manager,
         lambda roi: vision_service.aruco_detect(
             image_id=request.image_id,
-            dictionary=request.dictionary,
             roi=roi,
             params=request.params,
         ),
@@ -220,8 +214,7 @@ async def rotation_detect(
         lambda roi: vision_service.rotation_detect(
             image_id=request.image_id,
             contour=request.contour,
-            method=request.method,
-            angle_range=request.angle_range,
             roi=roi,
+            params=request.params,
         ),
     )

@@ -18,6 +18,14 @@ from core.enums import (
     VisionObjectType,
 )
 
+# Import detection params from vision layer
+# Safe to import now because vision modules use late imports (after class definitions)
+from vision.aruco_detection import ArucoDetectionParams
+from vision.color_detection import ColorDetectionParams
+from vision.edge_detection import EdgeDetectionParams
+from vision.rotation_detection import RotationDetectionParams
+from vision.template_matching import TemplateMatchParams
+
 #  Explicitly declare public API for re-export
 __all__ = [
     "AngleRange",
@@ -26,6 +34,10 @@ __all__ = [
     "RotationMethod",
     "TemplateMethod",
     "VisionObjectType",
+    "EdgeDetectionParams",
+    "ColorDetectionParams",
+    "ArucoDetectionParams",
+    "RotationDetectionParams",
 ]
 
 
@@ -273,6 +285,27 @@ class CameraConnectRequest(BaseModel):
     resolution: Optional[Size] = None
 
 
+class CaptureParams(BaseModel):
+    """Camera capture parameters."""
+
+    class Config:
+        extra = "forbid"
+
+    roi: Optional[ROI] = Field(
+        None, description="Region of interest to extract from captured image"
+    )
+    # Future parameters could include: resolution, format, exposure, etc.
+
+
+class CaptureRequest(BaseModel):
+    """Request to capture image from camera"""
+
+    camera_id: str = Field(
+        description="Camera identifier (e.g., 'usb_0', 'ip_192.168.1.100', 'test')"
+    )
+    params: Optional[CaptureParams] = Field(None, description="Capture parameters (ROI, etc.)")
+
+
 class CameraCaptureResponse(BaseModel):
     """Response from camera capture"""
 
@@ -317,123 +350,21 @@ class TemplateMatchRequest(BaseModel):
     """Request for template matching"""
 
     image_id: str
-    template_id: str
-    method: TemplateMethod = TemplateMethod.TM_CCOEFF_NORMED
-    threshold: float = Field(0.8, ge=0.0, le=1.0)
     roi: Optional[ROI] = Field(None, description="Region of interest to limit search area")
-    multi_scale: bool = False
-    scale_range: Optional[List[float]] = [0.8, 1.2]
-    rotation: bool = False
-    rotation_range: Optional[List[float]] = [-10, 10]
+    params: TemplateMatchParams = Field(
+        description="Template matching parameters (template_id is required)"
+    )
 
 
 class EdgeDetectRequest(BaseModel):
     """Request for edge detection"""
 
     image_id: str
-    method: str = "canny"
     roi: Optional[ROI] = Field(None, description="Region of interest to limit search area")
-
-    # Canny parameters
-    canny_low: Optional[int] = Field(50, ge=0, le=255, description="Canny low threshold")
-    canny_high: Optional[int] = Field(150, ge=0, le=255, description="Canny high threshold")
-
-    # Sobel parameters
-    sobel_threshold: Optional[float] = Field(50, ge=0, description="Sobel threshold")
-    sobel_kernel: Optional[int] = Field(3, ge=1, description="Sobel kernel size")
-
-    # Laplacian parameters
-    laplacian_threshold: Optional[float] = Field(30, ge=0, description="Laplacian threshold")
-    laplacian_kernel: Optional[int] = Field(3, ge=1, description="Laplacian kernel size")
-
-    # Prewitt parameters
-    prewitt_threshold: Optional[float] = Field(50, ge=0, description="Prewitt threshold")
-
-    # Scharr parameters
-    scharr_threshold: Optional[float] = Field(50, ge=0, description="Scharr threshold")
-
-    # Morphological gradient parameters
-    morph_threshold: Optional[float] = Field(
-        30, ge=0, description="Morphological gradient threshold"
+    params: EdgeDetectionParams = Field(
+        default_factory=EdgeDetectionParams,
+        description="Edge detection parameters (method, filtering, preprocessing)",
     )
-    morph_kernel: Optional[int] = Field(3, ge=1, description="Morphological gradient kernel size")
-
-    # Contour filtering parameters
-    min_contour_area: Optional[float] = Field(10, ge=0, description="Minimum contour area")
-    max_contour_area: Optional[float] = Field(100000, ge=0, description="Maximum contour area")
-    min_contour_perimeter: Optional[float] = Field(0, ge=0, description="Minimum contour perimeter")
-    max_contour_perimeter: Optional[float] = Field(
-        float("inf"), description="Maximum contour perimeter"
-    )
-    max_contours: Optional[int] = Field(
-        100, ge=1, description="Maximum number of contours to return"
-    )
-    show_centers: Optional[bool] = Field(True, description="Show contour centers in visualization")
-
-    # Preprocessing options
-    blur_enabled: Optional[bool] = Field(False, description="Enable Gaussian blur preprocessing")
-    blur_kernel: Optional[int] = Field(
-        5, ge=3, description="Gaussian blur kernel size (odd number)"
-    )
-    bilateral_enabled: Optional[bool] = Field(
-        False, description="Enable bilateral filter preprocessing"
-    )
-    bilateral_d: Optional[int] = Field(9, ge=1, description="Bilateral filter diameter")
-    bilateral_sigma_color: Optional[float] = Field(
-        75, ge=0, description="Bilateral filter sigma color"
-    )
-    bilateral_sigma_space: Optional[float] = Field(
-        75, ge=0, description="Bilateral filter sigma space"
-    )
-    morphology_enabled: Optional[bool] = Field(
-        False, description="Enable morphological preprocessing"
-    )
-    morphology_operation: Optional[str] = Field(
-        "close", description="Morphological operation (close/open/gradient)"
-    )
-    morphology_kernel: Optional[int] = Field(3, ge=1, description="Morphological kernel size")
-    equalize_enabled: Optional[bool] = Field(False, description="Enable histogram equalization")
-
-    def get_detection_params(self) -> Dict[str, Any]:
-        """
-        Extract all parameters as dict (detection + preprocessing unified).
-
-        Eliminates manual parameter dict construction in vision.py endpoint.
-
-        Returns:
-            Dictionary with method-specific, filtering, and preprocessing parameters
-        """
-        return {
-            # Method-specific parameters
-            "canny_low": self.canny_low,
-            "canny_high": self.canny_high,
-            "sobel_threshold": self.sobel_threshold,
-            "sobel_kernel": self.sobel_kernel,
-            "laplacian_threshold": self.laplacian_threshold,
-            "laplacian_kernel": self.laplacian_kernel,
-            "prewitt_threshold": self.prewitt_threshold,
-            "scharr_threshold": self.scharr_threshold,
-            "morph_threshold": self.morph_threshold,
-            "morph_kernel": self.morph_kernel,
-            # Filtering parameters
-            "min_contour_area": self.min_contour_area,
-            "max_contour_area": self.max_contour_area,
-            "min_contour_perimeter": self.min_contour_perimeter,
-            "max_contour_perimeter": self.max_contour_perimeter,
-            "max_contours": self.max_contours,
-            "show_centers": self.show_centers,
-            # Preprocessing parameters (unified)
-            "blur_enabled": self.blur_enabled,
-            "blur_kernel": self.blur_kernel,
-            "bilateral_enabled": self.bilateral_enabled,
-            "bilateral_d": self.bilateral_d,
-            "bilateral_sigma_color": self.bilateral_sigma_color,
-            "bilateral_sigma_space": self.bilateral_sigma_space,
-            "morphology_enabled": self.morphology_enabled,
-            "morphology_operation": self.morphology_operation,
-            "morphology_kernel": self.morphology_kernel,
-            "equalize_enabled": self.equalize_enabled,
-        }
 
 
 class ColorDetectRequest(BaseModel):
@@ -444,17 +375,15 @@ class ColorDetectRequest(BaseModel):
     expected_color: Optional[str] = Field(
         None, description="Expected color name (red, blue, green, etc.) or None to just detect"
     )
-    min_percentage: float = Field(
-        50.0, ge=0.0, le=100.0, description="Minimum percentage for match"
-    )
-    method: ColorMethod = Field(
-        ColorMethod.HISTOGRAM, description="Detection method: histogram (fast) or kmeans (accurate)"
-    )
-    use_contour_mask: bool = Field(
-        True, description="Use contour mask instead of full bounding box when contour is available"
-    )
     contour: Optional[List] = Field(
         None, description="Contour points for masking (from edge detection)"
+    )
+    params: Optional[ColorDetectionParams] = Field(
+        None,
+        description=(
+            "Color detection parameters (method, thresholds, "
+            "kmeans settings, defaults applied if None)"
+        ),
     )
 
 
@@ -507,9 +436,14 @@ class ArucoDetectRequest(BaseModel):
     """Request for ArUco marker detection"""
 
     image_id: str = Field(..., description="ID of the image to analyze")
-    dictionary: ArucoDict = Field(ArucoDict.DICT_4X4_50, description="ArUco dictionary type")
     roi: Optional[ROI] = Field(None, description="Region of interest to search in")
-    params: Optional[Dict[str, Any]] = Field(None, description="Detection parameters")
+    params: Optional[ArucoDetectionParams] = Field(
+        None,
+        description=(
+            "ArUco detection parameters (dictionary type, "
+            "detector settings, defaults applied if None)"
+        ),
+    )
 
 
 class RotationDetectRequest(BaseModel):
@@ -517,14 +451,11 @@ class RotationDetectRequest(BaseModel):
 
     image_id: str = Field(..., description="ID of the image for visualization")
     contour: List = Field(..., description="Contour points [[x1,y1], [x2,y2], ...]", min_length=5)
-    method: RotationMethod = Field(
-        RotationMethod.MIN_AREA_RECT,
-        description="Detection method: min_area_rect, ellipse_fit, pca",
-    )
-    angle_range: AngleRange = Field(
-        AngleRange.RANGE_0_360, description="Angle output range: 0_360, -180_180, or 0_180"
-    )
     roi: Optional[ROI] = Field(None, description="Optional ROI for visualization context")
+    params: Optional[RotationDetectionParams] = Field(
+        None,
+        description="Rotation detection parameters (method, angle range, defaults applied if None)",
+    )
 
     @field_validator("contour")
     @classmethod

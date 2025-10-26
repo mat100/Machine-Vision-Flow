@@ -11,7 +11,7 @@ class TestVisionAPI:
     @pytest.fixture
     def captured_image_id(self, client):
         """Capture an image and return its ID"""
-        response = client.post("/api/camera/capture?camera_id=test")
+        response = client.post("/api/camera/capture", json={"camera_id": "test"})
         return response.json()["image_id"]
 
     @pytest.fixture
@@ -30,9 +30,11 @@ class TestVisionAPI:
         """Test basic template matching"""
         request_data = {
             "image_id": captured_image_id,
-            "template_id": template_id,
-            "method": "TM_CCOEFF_NORMED",
-            "threshold": 0.5,
+            "params": {
+                "template_id": template_id,
+                "method": "TM_CCOEFF_NORMED",
+                "threshold": 0.5,
+            },
         }
         response = client.post("/api/vision/template-match", json=request_data)
 
@@ -49,11 +51,12 @@ class TestVisionAPI:
         """Test template matching with additional options"""
         request_data = {
             "image_id": captured_image_id,
-            "template_id": template_id,
-            "method": "TM_CCOEFF_NORMED",
-            "threshold": 0.7,
-            "multi_scale": False,
-            "rotation": False,
+            "params": {
+                "template_id": template_id,
+                "method": "TM_CCOEFF_NORMED",
+                "threshold": 0.7,
+                "multi_scale": False,
+            },
         }
         response = client.post("/api/vision/template-match", json=request_data)
 
@@ -64,9 +67,11 @@ class TestVisionAPI:
         """Test template matching with very high threshold"""
         request_data = {
             "image_id": captured_image_id,
-            "template_id": template_id,
-            "method": "TM_CCOEFF_NORMED",
-            "threshold": 0.99,  # Very high threshold
+            "params": {
+                "template_id": template_id,
+                "method": "TM_CCOEFF_NORMED",
+                "threshold": 0.99,  # Very high threshold
+            },
         }
         response = client.post("/api/vision/template-match", json=request_data)
 
@@ -78,7 +83,10 @@ class TestVisionAPI:
 
     def test_template_match_invalid_image(self, client, template_id):
         """Test template matching with non-existent image"""
-        request_data = {"image_id": "non-existent-id", "template_id": template_id, "threshold": 0.8}
+        request_data = {
+            "image_id": "non-existent-id",
+            "params": {"template_id": template_id, "threshold": 0.8},
+        }
         response = client.post("/api/vision/template-match", json=request_data)
 
         assert response.status_code == 404
@@ -89,8 +97,7 @@ class TestVisionAPI:
         """Test template matching with non-existent template"""
         request_data = {
             "image_id": captured_image_id,
-            "template_id": "non-existent-template",
-            "threshold": 0.8,
+            "params": {"template_id": "non-existent-template", "threshold": 0.8},
         }
         response = client.post("/api/vision/template-match", json=request_data)
 
@@ -105,9 +112,11 @@ class TestVisionAPI:
         for method in methods:
             request_data = {
                 "image_id": captured_image_id,
-                "template_id": template_id,
-                "method": method,
-                "threshold": 0.5,
+                "params": {
+                    "template_id": template_id,
+                    "method": method,
+                    "threshold": 0.5,
+                },
             }
             response = client.post("/api/vision/template-match", json=request_data)
 
@@ -116,7 +125,7 @@ class TestVisionAPI:
 
     def test_edge_detect_canny(self, client, captured_image_id):
         """Test Canny edge detection"""
-        request_data = {"image_id": captured_image_id, "method": "canny"}
+        request_data = {"image_id": captured_image_id, "params": {"method": "canny"}}
         response = client.post("/api/vision/edge-detect", json=request_data)
 
         assert response.status_code == 200
@@ -141,7 +150,7 @@ class TestVisionAPI:
         methods = ["canny", "sobel", "laplacian", "scharr", "prewitt", "roberts"]
 
         for method in methods:
-            request_data = {"image_id": captured_image_id, "method": method}
+            request_data = {"image_id": captured_image_id, "params": {"method": method}}
             response = client.post("/api/vision/edge-detect", json=request_data)
 
             assert response.status_code == 200
@@ -153,11 +162,13 @@ class TestVisionAPI:
         """Test edge detection with custom parameters (explicit fields)"""
         request_data = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "canny_low": 50,
-            "canny_high": 150,
-            "min_contour_area": 100,
-            "max_contour_area": 5000,
+            "params": {
+                "method": "canny",
+                "canny_low": 50,
+                "canny_high": 150,
+                "min_contour_area": 100,
+                "max_contour_area": 5000,
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -168,10 +179,12 @@ class TestVisionAPI:
         """Test edge detection with contour area filtering"""
         request_data = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "min_contour_area": 500,
-            "max_contour_area": 10000,
-            "max_contours": 10,
+            "params": {
+                "method": "canny",
+                "min_contour_area": 500,
+                "max_contour_area": 10000,
+                "max_contours": 10,
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -183,7 +196,7 @@ class TestVisionAPI:
 
     def test_edge_detect_invalid_image(self, client):
         """Test edge detection with non-existent image"""
-        request_data = {"image_id": "non-existent-id", "method": "canny"}
+        request_data = {"image_id": "non-existent-id", "params": {"method": "canny"}}
         response = client.post("/api/vision/edge-detect", json=request_data)
 
         assert response.status_code == 404
@@ -192,11 +205,13 @@ class TestVisionAPI:
         """Test edge detection with preprocessing options (explicit fields)"""
         request_data = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "blur_enabled": True,
-            "blur_kernel": 5,
-            "morphology_enabled": True,
-            "morphology_operation": "close",
+            "params": {
+                "method": "canny",
+                "blur_enabled": True,
+                "blur_kernel": 5,
+                "morphology_enabled": True,
+                "morphology_operation": "close",
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -205,11 +220,13 @@ class TestVisionAPI:
 
     def test_edge_detect_field_validation(self, client, captured_image_id):
         """Test edge detection field validation"""
-        # Test with invalid canny_low (should be 0-255)
+        # Test with invalid canny_low (should be 0-500)
         request_data = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "canny_low": 300,  # Invalid - exceeds max
+            "params": {
+                "method": "canny",
+                "canny_low": 600,  # Invalid - exceeds max
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -221,8 +238,10 @@ class TestVisionAPI:
         # Test negative min_contour_area
         request_data = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "min_contour_area": -100,  # Invalid - negative
+            "params": {
+                "method": "canny",
+                "min_contour_area": -100,  # Invalid - negative
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
         assert response.status_code == 422
@@ -230,8 +249,10 @@ class TestVisionAPI:
         # Test negative sobel_threshold
         request_data = {
             "image_id": captured_image_id,
-            "method": "sobel",
-            "sobel_threshold": -50,  # Invalid - negative
+            "params": {
+                "method": "sobel",
+                "sobel_threshold": -50,  # Invalid - negative
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
         assert response.status_code == 422
@@ -241,8 +262,10 @@ class TestVisionAPI:
         # Test invalid sobel_kernel (must be >= 1)
         request_data = {
             "image_id": captured_image_id,
-            "method": "sobel",
-            "sobel_kernel": 0,  # Invalid - must be >= 1
+            "params": {
+                "method": "sobel",
+                "sobel_kernel": 0,  # Invalid - must be >= 1
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
         assert response.status_code == 422
@@ -250,9 +273,11 @@ class TestVisionAPI:
         # Test invalid blur_kernel (must be >= 3)
         request_data = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "blur_enabled": True,
-            "blur_kernel": 2,  # Invalid - must be >= 3
+            "params": {
+                "method": "canny",
+                "blur_enabled": True,
+                "blur_kernel": 2,  # Invalid - must be >= 3
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
         assert response.status_code == 422
@@ -262,8 +287,10 @@ class TestVisionAPI:
         # Test invalid max_contours (must be >= 1)
         request_data = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "max_contours": 0,  # Invalid - must be >= 1
+            "params": {
+                "method": "canny",
+                "max_contours": 0,  # Invalid - must be >= 1
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
         assert response.status_code == 422
@@ -272,10 +299,12 @@ class TestVisionAPI:
         """Test Sobel edge detection with specific parameters"""
         request_data = {
             "image_id": captured_image_id,
-            "method": "sobel",
-            "sobel_threshold": 75,
-            "sobel_kernel": 3,
-            "min_contour_area": 200,
+            "params": {
+                "method": "sobel",
+                "sobel_threshold": 75,
+                "sobel_kernel": 3,
+                "min_contour_area": 200,
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -286,10 +315,12 @@ class TestVisionAPI:
         """Test Laplacian edge detection with specific parameters"""
         request_data = {
             "image_id": captured_image_id,
-            "method": "laplacian",
-            "laplacian_threshold": 40,
-            "laplacian_kernel": 5,
-            "min_contour_area": 150,
+            "params": {
+                "method": "laplacian",
+                "laplacian_threshold": 40,
+                "laplacian_kernel": 5,
+                "min_contour_area": 150,
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -302,9 +333,11 @@ class TestVisionAPI:
         """Test Prewitt edge detection with specific parameters"""
         request_data = {
             "image_id": captured_image_id,
-            "method": "prewitt",
-            "prewitt_threshold": 60,
-            "min_contour_area": 100,
+            "params": {
+                "method": "prewitt",
+                "prewitt_threshold": 60,
+                "min_contour_area": 100,
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -316,9 +349,11 @@ class TestVisionAPI:
         """Test Scharr edge detection with specific parameters"""
         request_data = {
             "image_id": captured_image_id,
-            "method": "scharr",
-            "scharr_threshold": 55,
-            "min_contour_area": 120,
+            "params": {
+                "method": "scharr",
+                "scharr_threshold": 55,
+                "min_contour_area": 120,
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -332,10 +367,12 @@ class TestVisionAPI:
         """Test edge detection with perimeter-based filtering"""
         request_data = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "min_contour_perimeter": 50,
-            "max_contour_perimeter": 1000,
-            "max_contours": 15,
+            "params": {
+                "method": "canny",
+                "min_contour_perimeter": 50,
+                "max_contour_perimeter": 1000,
+                "max_contours": 15,
+            },
         }
         response = client.post("/api/vision/edge-detect", json=request_data)
 
@@ -354,9 +391,11 @@ class TestVisionAPI:
         # First run edge detection to get a bounding box
         edge_request = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "min_contour_area": 100,
-            "max_contours": 1,
+            "params": {
+                "method": "canny",
+                "min_contour_area": 100,
+                "max_contours": 1,
+            },
         }
         edge_response = client.post("/api/vision/edge-detect", json=edge_request)
 
@@ -372,7 +411,9 @@ class TestVisionAPI:
                 "image_id": captured_image_id,
                 "roi": bbox,  # Use bounding_box from edge detection
                 "expected_color": None,  # Just detect dominant color
-                "method": "histogram",
+                "params": {
+                    "method": "histogram",
+                },
             }
             color_response = client.post("/api/vision/color-detect", json=color_request)
 
@@ -398,9 +439,11 @@ class TestVisionAPI:
         # Step 1: Edge detection
         edge_request = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "min_contour_area": 200,
-            "max_contours": 3,
+            "params": {
+                "method": "canny",
+                "min_contour_area": 200,
+                "max_contours": 3,
+            },
         }
         edge_response = client.post("/api/vision/edge-detect", json=edge_request)
 
@@ -416,7 +459,9 @@ class TestVisionAPI:
                 "image_id": captured_image_id,
                 "roi": bbox,
                 "expected_color": None,
-                "method": "histogram",
+                "params": {
+                    "method": "histogram",
+                },
             }
             color_response = client.post("/api/vision/color-detect", json=color_request)
 
@@ -436,8 +481,10 @@ class TestVisionAPI:
         color_request = {
             "image_id": captured_image_id,
             "contour": contour,
-            "use_contour_mask": True,
-            "method": "histogram",
+            "params": {
+                "use_contour_mask": True,
+                "method": "histogram",
+            },
         }
         response = client.post("/api/vision/color-detect", json=color_request)
 
@@ -463,8 +510,10 @@ class TestVisionAPI:
             "image_id": captured_image_id,
             "roi": roi,
             "contour": contour,
-            "use_contour_mask": False,  # Disabled
-            "method": "histogram",
+            "params": {
+                "use_contour_mask": False,  # Disabled
+                "method": "histogram",
+            },
         }
         response = client.post("/api/vision/color-detect", json=color_request)
 
@@ -488,8 +537,10 @@ class TestVisionAPI:
             "image_id": captured_image_id,
             "roi": roi,
             "contour": contour,
-            "use_contour_mask": True,
-            "method": "histogram",
+            "params": {
+                "use_contour_mask": True,
+                "method": "histogram",
+            },
         }
         with_mask_response = client.post("/api/vision/color-detect", json=with_mask_request)
 
@@ -498,8 +549,10 @@ class TestVisionAPI:
             "image_id": captured_image_id,
             "roi": roi,
             "contour": contour,
-            "use_contour_mask": False,
-            "method": "histogram",
+            "params": {
+                "use_contour_mask": False,
+                "method": "histogram",
+            },
         }
         without_mask_response = client.post("/api/vision/color-detect", json=without_mask_request)
 
@@ -522,9 +575,11 @@ class TestVisionAPI:
         # Step 1: Edge detection to get real contour
         edge_request = {
             "image_id": captured_image_id,
-            "method": "canny",
-            "min_contour_area": 500,
-            "max_contours": 1,
+            "params": {
+                "method": "canny",
+                "min_contour_area": 500,
+                "max_contours": 1,
+            },
         }
         edge_response = client.post("/api/vision/edge-detect", json=edge_request)
 
@@ -543,8 +598,10 @@ class TestVisionAPI:
                     "image_id": captured_image_id,
                     "roi": bbox,
                     "contour": contour,
-                    "use_contour_mask": True,
-                    "method": "histogram",
+                    "params": {
+                        "use_contour_mask": True,
+                        "method": "histogram",
+                    },
                 }
                 color_response = client.post("/api/vision/color-detect", json=color_request)
 
@@ -562,11 +619,13 @@ class TestVisionAPI:
         """Test that use_contour_mask defaults to True when contour provided"""
         contour = [[100, 100], [300, 100], [300, 300], [100, 300]]
 
-        # Don't specify use_contour_mask, should default to True
+        # Don't specify use_contour_mask in params, should use default (True)
         color_request = {
             "image_id": captured_image_id,
             "contour": contour,
-            "method": "histogram",
+            "params": {
+                "method": "histogram",
+            },
         }
         response = client.post("/api/vision/color-detect", json=color_request)
 

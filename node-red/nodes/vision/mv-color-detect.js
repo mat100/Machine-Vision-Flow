@@ -47,10 +47,12 @@ module.exports = function(RED) {
                 image_id: imageId,
                 roi: roi,
                 contour: contour,
-                use_contour_mask: node.useContourMask,
-                expected_color: node.expectedColor || null,
-                min_percentage: node.minPercentage,
-                method: node.method
+                params: {
+                    use_contour_mask: node.useContourMask,
+                    expected_color: node.expectedColor || null,
+                    min_percentage: node.minPercentage,
+                    method: node.method
+                }
             };
 
             try {

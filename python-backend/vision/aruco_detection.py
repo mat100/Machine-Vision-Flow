@@ -7,11 +7,35 @@ from typing import Any, Dict, Optional
 
 import cv2
 import numpy as np
+from pydantic import BaseModel, Field
 
-from api.models import ROI, Point, VisionObject, VisionObjectType
+from api.models import ArucoDict
 from core.constants import ArucoDetectionDefaults
-from core.image_utils import ImageUtils
-from core.overlay_renderer import OverlayRenderer
+
+
+class ArucoDetectionParams(BaseModel):
+    """
+    ArUco marker detection parameters.
+
+    ArUco markers are fiducial markers used for camera calibration,
+    object tracking, and pose estimation.
+    """
+
+    class Config:
+        extra = "forbid"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Export to dict for detector functions."""
+        return self.model_dump(exclude_none=True)
+
+    dictionary: ArucoDict = Field(
+        default=ArucoDict.DICT_4X4_50,
+        description="ArUco dictionary type (defines marker set and size)",
+    )
+    # Future: můžeme přidat detector params:
+    # adaptive_thresh_constant: float = Field(default=7.0, ge=0)
+    # min_marker_perimeter_rate: float = Field(default=0.03, ge=0, le=1)
+    # ...
 
 
 class ArucoDetector:
@@ -19,6 +43,8 @@ class ArucoDetector:
 
     def __init__(self):
         """Initialize ArUco detector."""
+        from core.overlay_renderer import OverlayRenderer
+
         self.overlay_renderer = OverlayRenderer()
         # Dictionary mapping for OpenCV ArUco
         self.aruco_dicts = {
@@ -97,7 +123,7 @@ class ArucoDetector:
             "image": image_result,
         }
 
-    def _process_marker(self, corners: np.ndarray, marker_id: int, index: int) -> VisionObject:
+    def _process_marker(self, corners: np.ndarray, marker_id: int, index: int):
         """
         Process single marker corners into VisionObject.
 
@@ -109,6 +135,9 @@ class ArucoDetector:
         Returns:
             VisionObject with marker information
         """
+        from api.models import ROI, Point, VisionObject, VisionObjectType
+        from core.image_utils import ImageUtils
+
         # Calculate center point
         center_x = float(np.mean(corners[:, 0]))
         center_y = float(np.mean(corners[:, 1]))

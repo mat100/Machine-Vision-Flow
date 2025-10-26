@@ -2,16 +2,194 @@
 Edge detection algorithms for machine vision.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import cv2
 import numpy as np
+from pydantic import BaseModel, Field
 
-from api.models import ROI, Point, VisionObject, VisionObjectType
 from core.constants import EdgeDetectionDefaults
 from core.enums import EdgeMethod
-from core.image_utils import ImageUtils
-from core.overlay_renderer import OverlayRenderer
+
+
+class EdgeDetectionParams(BaseModel):
+    """
+    Unified edge detection parameters (flat structure).
+
+    Contains all preprocessing, filtering, and method-specific parameters
+    for all edge detection algorithms with validation and defaults.
+    """
+
+    class Config:
+        extra = "forbid"  # Prevent typos in parameter names
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Export to dict for detector functions."""
+        return self.model_dump(exclude_none=True)
+
+    # === Method selection ===
+    method: str = Field(
+        default="canny",
+        description=(
+            "Edge detection method (canny, sobel, laplacian, "
+            "prewitt, scharr, roberts, morphgrad)"
+        ),
+    )
+
+    # === Preprocessing parameters (common to all methods) ===
+    blur_enabled: bool = Field(default=False, description="Enable Gaussian blur preprocessing")
+    blur_kernel: int = Field(
+        default=EdgeDetectionDefaults.BLUR_KERNEL_SIZE,
+        ge=3,
+        description="Gaussian blur kernel size (must be odd)",
+    )
+    bilateral_enabled: bool = Field(
+        default=False, description="Enable bilateral filter (edge-preserving blur)"
+    )
+    bilateral_d: int = Field(
+        default=EdgeDetectionDefaults.BILATERAL_D, ge=1, description="Bilateral filter diameter"
+    )
+    bilateral_sigma_color: float = Field(
+        default=EdgeDetectionDefaults.BILATERAL_SIGMA_COLOR,
+        ge=0,
+        description="Bilateral filter sigma in color space",
+    )
+    bilateral_sigma_space: float = Field(
+        default=EdgeDetectionDefaults.BILATERAL_SIGMA_SPACE,
+        ge=0,
+        description="Bilateral filter sigma in coordinate space",
+    )
+    morphology_enabled: bool = Field(
+        default=False, description="Enable morphological preprocessing"
+    )
+    morphology_operation: str = Field(
+        default="close", description="Morphological operation (close/open/gradient)"
+    )
+    morphology_kernel: int = Field(
+        default=EdgeDetectionDefaults.MORPHOLOGY_KERNEL_SIZE,
+        ge=1,
+        description="Morphological kernel size",
+    )
+    equalize_enabled: bool = Field(default=False, description="Enable histogram equalization")
+
+    # === Contour filtering parameters (common to all methods) ===
+    min_contour_area: float = Field(
+        default=EdgeDetectionDefaults.MIN_CONTOUR_AREA,
+        ge=0,
+        description="Minimum contour area in pixels",
+    )
+    max_contour_area: float = Field(
+        default=100000.0, ge=0, description="Maximum contour area in pixels"
+    )
+    min_contour_perimeter: float = Field(
+        default=EdgeDetectionDefaults.MIN_CONTOUR_PERIMETER,
+        ge=0,
+        description="Minimum contour perimeter in pixels",
+    )
+    max_contour_perimeter: float = Field(
+        default=float("inf"), description="Maximum contour perimeter in pixels"
+    )
+    max_contours: int = Field(
+        default=EdgeDetectionDefaults.MAX_CONTOURS,
+        ge=1,
+        description="Maximum number of contours to return",
+    )
+    show_centers: bool = Field(
+        default=EdgeDetectionDefaults.SHOW_CENTERS,
+        description="Show contour centers in visualization",
+    )
+
+    # === Canny edge detection parameters ===
+    canny_low: int = Field(
+        default=EdgeDetectionDefaults.CANNY_LOW_THRESHOLD,
+        ge=0,
+        le=500,
+        description="Canny low threshold",
+    )
+    canny_high: int = Field(
+        default=EdgeDetectionDefaults.CANNY_HIGH_THRESHOLD,
+        ge=0,
+        le=500,
+        description="Canny high threshold",
+    )
+    canny_aperture: int = Field(
+        default=EdgeDetectionDefaults.CANNY_APERTURE_SIZE,
+        ge=3,
+        le=7,
+        description="Canny aperture size (must be odd)",
+    )
+    canny_l2_gradient: bool = Field(
+        default=EdgeDetectionDefaults.CANNY_L2_GRADIENT,
+        description="Use L2 gradient norm (more accurate but slower)",
+    )
+
+    # === Sobel edge detection parameters ===
+    sobel_threshold: float = Field(
+        default=EdgeDetectionDefaults.SOBEL_THRESHOLD, ge=0, description="Sobel edge threshold"
+    )
+    sobel_kernel: int = Field(
+        default=EdgeDetectionDefaults.SOBEL_KERNEL_SIZE,
+        ge=1,
+        le=31,
+        description="Sobel kernel size (must be odd)",
+    )
+    sobel_scale: float = Field(
+        default=EdgeDetectionDefaults.SOBEL_SCALE, ge=0, description="Sobel scale factor"
+    )
+    sobel_delta: float = Field(
+        default=EdgeDetectionDefaults.SOBEL_DELTA, ge=0, description="Sobel delta (added to result)"
+    )
+
+    # === Laplacian edge detection parameters ===
+    laplacian_threshold: float = Field(
+        default=EdgeDetectionDefaults.LAPLACIAN_THRESHOLD,
+        ge=0,
+        description="Laplacian edge threshold",
+    )
+    laplacian_kernel: int = Field(
+        default=EdgeDetectionDefaults.LAPLACIAN_KERNEL_SIZE,
+        ge=1,
+        le=31,
+        description="Laplacian kernel size (must be odd)",
+    )
+    laplacian_scale: float = Field(
+        default=EdgeDetectionDefaults.LAPLACIAN_SCALE, ge=0, description="Laplacian scale factor"
+    )
+    laplacian_delta: float = Field(
+        default=EdgeDetectionDefaults.LAPLACIAN_DELTA,
+        ge=0,
+        description="Laplacian delta (added to result)",
+    )
+
+    # === Prewitt edge detection parameters ===
+    prewitt_threshold: float = Field(
+        default=EdgeDetectionDefaults.PREWITT_THRESHOLD, ge=0, description="Prewitt edge threshold"
+    )
+
+    # === Scharr edge detection parameters ===
+    scharr_threshold: float = Field(
+        default=EdgeDetectionDefaults.SCHARR_THRESHOLD, ge=0, description="Scharr edge threshold"
+    )
+    scharr_scale: float = Field(
+        default=EdgeDetectionDefaults.SCHARR_SCALE, ge=0, description="Scharr scale factor"
+    )
+    scharr_delta: float = Field(
+        default=EdgeDetectionDefaults.SCHARR_DELTA,
+        ge=0,
+        description="Scharr delta (added to result)",
+    )
+
+    # === Morphological gradient parameters ===
+    morph_threshold: float = Field(
+        default=EdgeDetectionDefaults.MORPH_THRESHOLD,
+        ge=0,
+        description="Morphological gradient threshold",
+    )
+    morph_kernel: int = Field(
+        default=EdgeDetectionDefaults.MORPH_KERNEL_SIZE,
+        ge=1,
+        description="Morphological gradient kernel size",
+    )
 
 
 class EdgeDetector:
@@ -19,6 +197,8 @@ class EdgeDetector:
 
     def __init__(self):
         """Initialize edge detector."""
+        from core.overlay_renderer import OverlayRenderer
+
         self.overlay_renderer = OverlayRenderer()
 
     def detect(
@@ -38,6 +218,8 @@ class EdgeDetector:
         Returns:
             Dictionary with edge detection results
         """
+        from core.image_utils import ImageUtils
+
         if params is None:
             params = {}
 
@@ -265,6 +447,8 @@ class EdgeDetector:
 
     def _filter_contours(self, contours: list, params: Dict[str, Any]) -> list:
         """Filter contours based on parameters."""
+        from core.image_utils import ImageUtils
+
         min_area = float(params.get("min_contour_area", EdgeDetectionDefaults.MIN_CONTOUR_AREA))
         max_area = float(params.get("max_contour_area", float("inf")))
         min_perimeter = float(
@@ -318,8 +502,10 @@ class EdgeDetector:
         max_contours = int(params.get("max_contours", EdgeDetectionDefaults.MAX_CONTOURS))
         return filtered[:max_contours]
 
-    def _contours_to_objects(self, contours: list, method: str) -> List[VisionObject]:
+    def _contours_to_objects(self, contours: list, method: str):
         """Convert contour dicts to VisionObject instances."""
+        from api.models import ROI, Point, VisionObject, VisionObjectType
+
         objects = []
         for i, contour_dict in enumerate(contours):
             obj = VisionObject(
