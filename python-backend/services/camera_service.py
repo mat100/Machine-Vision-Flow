@@ -13,9 +13,9 @@ import numpy as np
 
 from api.exceptions import CameraConnectionException, CameraNotFoundException
 from core.camera_manager import CameraManager
+from core.image import extract_roi
 from core.image_manager import ImageManager
-from core.utils.camera_identifier import CameraIdentifier
-from core.utils.roi_handler import ROIHandler
+from core.utils.camera_identifier import parse as parse_camera_id
 from schemas import ROI
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ class CameraService:
             logger.info(f"Camera {camera_id} not connected, attempting auto-connect")
             try:
                 # Parse camera ID using unified utility
-                camera_type, source = CameraIdentifier.parse(camera_id)
+                camera_type, source = parse_camera_id(camera_id)
                 self.connect_camera(camera_id=camera_id, camera_type=camera_type, source=source)
                 logger.info(f"Camera {camera_id} auto-connected successfully")
             except Exception as e:
@@ -147,7 +147,7 @@ class CameraService:
 
         # Apply ROI if specified
         if roi:
-            image = ROIHandler.extract_roi(image, roi, safe_mode=True)
+            image = extract_roi(image, roi, safe_mode=True)
             if image is None:
                 raise ValueError("Invalid ROI parameters")
 

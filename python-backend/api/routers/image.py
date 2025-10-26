@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends
 
 from api.dependencies import get_image_service
 from api.exceptions import safe_endpoint
-from core.utils.image_utils import ImageUtils
+from core.image.converters import encode_image_to_base64
 from schemas import ROIExtractRequest, ROIExtractResponse
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ async def extract_roi(
         thumbnail_image = roi_image
 
     # Encode to base64 using utility function
-    thumbnail = ImageUtils.encode_image_to_base64(thumbnail_image, ".jpg")
+    thumbnail = encode_image_to_base64(thumbnail_image, ".jpg")
 
     # Get actual clipped bounding box
     original_image = image_service.get_image(request.image_id)

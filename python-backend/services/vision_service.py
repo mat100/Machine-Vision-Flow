@@ -9,13 +9,10 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
+from core.image import extract_roi, validate_roi
 from core.image_manager import ImageManager
-from core.overlay_renderer import OverlayRenderer
 from core.template_manager import TemplateManager
-from core.utils.coordinate_adjuster import CoordinateAdjuster
-from core.utils.decorators import timer
-from core.utils.enum_converter import EnumConverter
-from core.utils.roi_handler import ROIHandler
+from core.utils import adjust_for_roi_offset, enum_to_string, parse_enum, timer
 from schemas import ROI, TemplateMatchParams, VisionObject
 from vision.aruco_detection import ArucoDetectionParams, ArucoDetector
 from vision.color_detection import ColorDetectionParams, ColorDetector
@@ -50,7 +47,6 @@ class VisionService:
         self.color_detector = ColorDetector()
         self.aruco_detector = ArucoDetector()
         self.rotation_detector = RotationDetector()
-        self.overlay_renderer = OverlayRenderer()
 
     def _execute_detection(
         self,
@@ -88,7 +84,7 @@ class VisionService:
             roi_offset = (0, 0)
             if roi:
                 roi_obj = ROI.from_dict(roi) if isinstance(roi, dict) else roi
-                image = ROIHandler.extract_roi(full_image, roi_obj, safe_mode=True)
+                image = extract_roi(full_image, roi_obj, safe_mode=True)
                 roi_offset = (roi_obj.x, roi_obj.y)
             else:
                 image = full_image
@@ -97,7 +93,7 @@ class VisionService:
             result = detector_func(image, **detector_kwargs)
 
             # Adjust coordinates if ROI was used
-            CoordinateAdjuster.adjust_for_roi_offset(result["objects"], roi_offset)
+            adjust_for_roi_offset(result["objects"], roi_offset)
 
             # Generate thumbnail (inline - used only here)
             _, thumbnail_base64 = self.image_manager.create_thumbnail(result["image"])
@@ -258,7 +254,7 @@ class VisionService:
             raise ImageNotFoundException(image_id)
 
         # Validate ROI
-        is_valid, error_msg = ROIHandler.validate_roi(roi, source_image.shape)
+        is_valid, error_msg = validate_roi(roi, source_image.shape)
         if not is_valid:
             raise ValueError(error_msg)
 
@@ -300,7 +296,7 @@ class VisionService:
         from vision.edge_detection import EdgeDetector
 
         # Parse method string to enum
-        edge_method = EnumConverter.parse_enum(method, EdgeMethod, EdgeMethod.CANNY, normalize=True)
+        edge_method = parse_enum(method, EdgeMethod, EdgeMethod.CANNY, normalize=True)
 
         # Convert params to dict (all defaults already applied by Pydantic!)
         params_dict = params.to_dict()
@@ -353,7 +349,7 @@ class VisionService:
             params = ColorDetectionParams()
 
         # Extract individual params for ColorDetector.detect()
-        method_str = EnumConverter.enum_to_string(params.method)
+        method_str = enum_to_string(params.method)
         use_contour_mask = params.use_contour_mask
         min_percentage = params.min_percentage
 
@@ -420,7 +416,7 @@ class VisionService:
         params_dict = params.to_dict()
 
         # Extract dictionary parameter
-        dictionary_str = EnumConverter.enum_to_string(params.dictionary)
+        dictionary_str = enum_to_string(params.dictionary)
 
         # Create detector function
         def detect_func(image):

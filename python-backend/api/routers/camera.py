@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from api.dependencies import get_camera_manager  # Still needed for stream endpoint
 from api.dependencies import get_camera_service
 from api.exceptions import safe_endpoint
-from core.utils.camera_identifier import CameraIdentifier
+from core.utils.camera_identifier import parse as parse_camera_id
 from schemas import CameraCaptureResponse, CameraConnectRequest, CameraInfo, CaptureRequest
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ async def connect_camera(
 ) -> dict:
     """Connect to a camera"""
     # Parse camera ID using unified utility
-    camera_type, source = CameraIdentifier.parse(request.camera_id)
+    camera_type, source = parse_camera_id(request.camera_id)
 
     resolution = None
     if request.resolution:

@@ -12,8 +12,8 @@ import numpy as np
 
 from api.exceptions import ImageNotFoundException
 from core.constants import ImageConstants
+from core.image import extract_roi
 from core.image_manager import ImageManager
-from core.utils.roi_handler import ROIHandler
 from schemas import ROI
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ class ImageService:
         """
         image = self.get_image(image_id)
 
-        roi_image = ROIHandler.extract_roi(image, roi, safe_mode=safe_mode)
+        roi_image = extract_roi(image, roi, safe_mode=safe_mode)
         if roi_image is None:
             raise ValueError("Invalid ROI parameters")
 

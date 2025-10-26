@@ -174,9 +174,7 @@ class EdgeDetector:
 
     def __init__(self):
         """Initialize edge detector."""
-        from core.overlay_renderer import OverlayRenderer
-
-        self.overlay_renderer = OverlayRenderer()
+        pass  # No initialization needed for stateless detector
 
     def detect(
         self,
@@ -195,7 +193,7 @@ class EdgeDetector:
         Returns:
             Dictionary with edge detection results
         """
-        from core.utils.image_utils import ImageUtils
+        from core.image.converters import ensure_grayscale
 
         if params is None:
             params = {}
@@ -204,7 +202,7 @@ class EdgeDetector:
         processed_image = self._preprocess(image, params)
 
         # Convert to grayscale if needed
-        gray = ImageUtils.ensure_grayscale(processed_image)
+        gray = ensure_grayscale(processed_image)
 
         # Apply edge detection
         if method == EdgeMethod.CANNY:
@@ -231,11 +229,11 @@ class EdgeDetector:
         # Convert to DetectedObject instances
         objects = self._contours_to_objects(filtered_contours, method.value)
 
-        # Create visualization using OverlayRenderer
+        # Create visualization using overlay rendering function
+        from core.image.overlay import render_edge_detection
+
         show_centers = params.get("show_centers", True)
-        image = self.overlay_renderer.render_edge_detection(
-            processed_image, objects, show_centers=show_centers
-        )
+        image = render_edge_detection(processed_image, objects, show_centers=show_centers)
 
         return {
             "success": True,
@@ -420,7 +418,7 @@ class EdgeDetector:
 
     def _filter_contours(self, contours: list, params: Dict[str, Any]) -> list:
         """Filter contours based on parameters."""
-        from core.utils.image_utils import ImageUtils
+        from core.image.geometry import calculate_contour_properties
 
         min_area = float(params.get("min_contour_area", 10.0))
         max_area = float(params.get("max_contour_area", float("inf")))
@@ -435,7 +433,7 @@ class EdgeDetector:
         filtered = []
         for contour in contours:
             # Calculate all contour properties using utility function
-            props = ImageUtils.calculate_contour_properties(contour)
+            props = calculate_contour_properties(contour)
             area = props["area"]
             perimeter = props["perimeter"]
 

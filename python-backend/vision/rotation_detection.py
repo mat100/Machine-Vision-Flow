@@ -36,9 +36,6 @@ class RotationDetector:
 
     def __init__(self):
         """Initialize rotation detector."""
-        from core.overlay_renderer import OverlayRenderer
-
-        self.overlay_renderer = OverlayRenderer()
 
     def detect(
         self,
@@ -61,7 +58,7 @@ class RotationDetector:
         Returns:
             Dictionary with rotation detection results
         """
-        from core.utils.image_utils import ImageUtils
+        from core.image.geometry import calculate_contour_properties
         from schemas import ROI, VisionObject, VisionObjectType
 
         # Convert contour to numpy array
@@ -100,7 +97,7 @@ class RotationDetector:
         angle = self._convert_angle_range(angle, angle_range)
 
         # Calculate contour properties using utility function
-        props = ImageUtils.calculate_contour_properties(contour_array)
+        props = calculate_contour_properties(contour_array)
         x, y, w, h = props["bounding_box"]
         area = props["area"]
         perimeter = props["perimeter"]
@@ -123,8 +120,10 @@ class RotationDetector:
             contour=contour,  # Preserve original contour
         )
 
-        # Create visualization using OverlayRenderer
-        image_result = self.overlay_renderer.render_rotation_analysis(
+        # Create visualization using overlay rendering function
+        from core.image.overlay import render_rotation_analysis
+
+        image_result = render_rotation_analysis(
             image, obj, contour=contour_array, method=method.value
         )
 
@@ -145,7 +144,7 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
-        from core.utils.image_utils import ImageUtils
+        from core.image.geometry import normalize_angle
         from schemas import Point
 
         # Fit minimum area rectangle
@@ -162,7 +161,7 @@ class RotationDetector:
 
         # Normalize to 0-360 (convert to radians first for utility function)
         angle_rad = np.radians(angle)
-        angle = ImageUtils.normalize_angle(angle_rad, angle_format="0_360")
+        angle = normalize_angle(angle_rad, angle_format="0_360")
 
         center = Point(x=float(center_tuple[0]), y=float(center_tuple[1]))
         confidence = 1.0
@@ -179,7 +178,7 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
-        from core.utils.image_utils import ImageUtils
+        from core.image.geometry import normalize_angle
         from schemas import Point
 
         # Fit ellipse
@@ -191,7 +190,7 @@ class RotationDetector:
 
         # Normalize to 0-360 (convert to radians first for utility function)
         angle_rad = np.radians(angle)
-        angle = ImageUtils.normalize_angle(angle_rad, angle_format="0_360")
+        angle = normalize_angle(angle_rad, angle_format="0_360")
 
         center = Point(x=float(center_tuple[0]), y=float(center_tuple[1]))
 
@@ -212,7 +211,7 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
-        from core.utils.image_utils import ImageUtils
+        from core.image.geometry import normalize_angle
         from schemas import Point
 
         # Reshape contour to 2D array of points
@@ -241,7 +240,7 @@ class RotationDetector:
 
         # Calculate angle from principal axis (normalized to 0-360)
         angle_rad = np.arctan2(principal_axis[1], principal_axis[0])
-        angle = ImageUtils.normalize_angle(angle_rad, angle_format="0_360")
+        angle = normalize_angle(angle_rad, angle_format="0_360")
 
         # Calculate confidence from eigenvalue ratio
         # Higher ratio = more elongated = more confident in rotation
@@ -264,9 +263,9 @@ class RotationDetector:
         Returns:
             Angle in requested range
         """
-        from core.utils.image_utils import ImageUtils
+        from core.image.geometry import normalize_angle
 
-        # Map AngleRange enum to ImageUtils format strings
+        # Map AngleRange enum to ImageGeometry format strings
         format_map = {
             AngleRange.RANGE_0_360: "0_360",
             AngleRange.RANGE_NEG180_180: "-180_180",
@@ -275,4 +274,4 @@ class RotationDetector:
 
         # Convert to radians, normalize, and return
         angle_rad = np.radians(angle)
-        return ImageUtils.normalize_angle(angle_rad, angle_format=format_map[range_type])
+        return normalize_angle(angle_rad, angle_format=format_map[range_type])

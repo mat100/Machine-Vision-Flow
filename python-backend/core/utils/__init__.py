@@ -1,50 +1,49 @@
 """
-Utility modules for core functionality.
+Utility modules for core functionality - functional architecture.
 
-This package contains reusable utility classes and helper functions
-to reduce code duplication and improve maintainability.
+This package contains reusable utility functions for domain-agnostic operations.
 
 Modules:
 - camera_identifier: Parse camera ID strings
-- color_utils: HSV color definitions and utilities
 - coordinate_adjuster: ROI coordinate adjustment
 - decorators: Utility decorators (timer, etc.)
 - enum_converter: Enum parsing and conversion
-- image_utils: Deprecated image utilities wrapper
 - params_processor: Parameter processing utilities
-- roi_handler: ROI extraction and validation
 """
 
-from .camera_identifier import CameraIdentifier
-from .color_utils import (
-    COLOR_DEFINITIONS,
-    count_colors_vectorized,
-    create_color_mask_vectorized,
-    get_available_colors,
-    hsv_to_color_name,
-    is_achromatic,
-    is_color_match,
-)
-from .coordinate_adjuster import CoordinateAdjuster
+# Camera identifier functions
+from .camera_identifier import TYPE_IP, TYPE_TEST, TYPE_USB, format, parse
+
+# Coordinate adjuster functions
+from .coordinate_adjuster import adjust_for_roi_offset, extract_roi_offset
+
+# Decorators
 from .decorators import timer
-from .enum_converter import EnumConverter
-from .image_utils import ImageUtils
-from .params_processor import ParamsProcessor
-from .roi_handler import ROIHandler
+
+# Enum converter functions
+from .enum_converter import enum_to_string, parse_enum
+
+# Params processor functions
+from .params_processor import extract_param, merge_params, params_to_dict, prepare_params
 
 __all__ = [
-    "CameraIdentifier",
-    "COLOR_DEFINITIONS",
-    "count_colors_vectorized",
-    "create_color_mask_vectorized",
-    "get_available_colors",
-    "hsv_to_color_name",
-    "is_achromatic",
-    "is_color_match",
-    "CoordinateAdjuster",
+    # Camera identifier
+    "parse",
+    "format",
+    "TYPE_USB",
+    "TYPE_TEST",
+    "TYPE_IP",
+    # Coordinate adjuster
+    "adjust_for_roi_offset",
+    "extract_roi_offset",
+    # Decorators
     "timer",
-    "EnumConverter",
-    "ImageUtils",
-    "ParamsProcessor",
-    "ROIHandler",
+    # Enum converter
+    "parse_enum",
+    "enum_to_string",
+    # Params processor
+    "prepare_params",
+    "params_to_dict",
+    "extract_param",
+    "merge_params",
 ]

@@ -64,10 +64,8 @@ class ColorDetector:
 
     def __init__(self):
         """Initialize color detector."""
-        from core.overlay_renderer import OverlayRenderer
 
         self.logger = logging.getLogger(__name__)
-        self.overlay_renderer = OverlayRenderer()
 
     def detect(
         self,
@@ -161,8 +159,10 @@ class ColorDetector:
             },
         )
 
-        # Create visualization using OverlayRenderer
-        image_result = self.overlay_renderer.render_color_detection(
+        # Create visualization using overlay rendering function
+        from core.image.overlay import render_color_detection
+
+        image_result = render_color_detection(
             image, vision_object, expected_color=expected_color, contour_points=contour_points
         )
 
@@ -187,7 +187,7 @@ class ColorDetector:
         Returns:
             Dictionary with color information
         """
-        from core.utils.color_utils import count_colors_vectorized
+        from core.image import count_colors_vectorized
 
         h, s, v = cv2.split(hsv)
 
@@ -249,7 +249,7 @@ class ColorDetector:
         Returns:
             Dictionary with color information
         """
-        from core.utils.color_utils import hsv_to_color_name
+        from core.image import hsv_to_color_name
 
         # Reshape image to list of pixels
         if mask is not None:

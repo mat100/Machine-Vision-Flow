@@ -36,9 +36,7 @@ class ArucoDetector:
 
     def __init__(self):
         """Initialize ArUco detector."""
-        from core.overlay_renderer import OverlayRenderer
 
-        self.overlay_renderer = OverlayRenderer()
         # Dictionary mapping for OpenCV ArUco
         self.aruco_dicts = {
             "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
@@ -104,10 +102,10 @@ class ArucoDetector:
                 marker_obj = self._process_marker(corner[0], int(marker_id), i)
                 objects.append(marker_obj)
 
-        # Create visualization using OverlayRenderer
-        image_result = self.overlay_renderer.render_aruco_markers(
-            image, objects, show_ids=True, show_rotation=True
-        )
+        # Create visualization using overlay rendering function
+        from core.image.overlay import render_aruco_markers
+
+        image_result = render_aruco_markers(image, objects, show_ids=True, show_rotation=True)
 
         return {
             "success": True,
@@ -128,7 +126,7 @@ class ArucoDetector:
         Returns:
             VisionObject with marker information
         """
-        from core.utils.image_utils import ImageUtils
+        from core.image.geometry import normalize_angle
         from schemas import ROI, Point, VisionObject, VisionObjectType
 
         # Calculate center point
@@ -153,7 +151,7 @@ class ArucoDetector:
 
         # Calculate angle (0° = right, normalized to 0-360°)
         angle_rad = np.arctan2(dy, dx)
-        angle_deg = ImageUtils.normalize_angle(angle_rad, angle_format="0_360")
+        angle_deg = normalize_angle(angle_rad, angle_format="0_360")
 
         # Calculate area
         # Using shoelace formula for polygon area

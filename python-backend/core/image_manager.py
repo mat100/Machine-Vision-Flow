@@ -13,7 +13,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 
 from core.constants import ImageConstants
-from core.utils.image_utils import ImageUtils
+from core.image.processors import create_thumbnail
 
 logger = logging.getLogger(__name__)
 
@@ -305,8 +305,8 @@ class ImageManager:
                 logger.debug(f"Thumbnail cache hit for {image_id}")
                 return None, cached_thumbnail
 
-        # Use centralized ImageUtils for thumbnail creation
-        thumbnail_array, thumbnail_base64 = ImageUtils.create_thumbnail(
+        # Use centralized create_thumbnail function
+        thumbnail_array, thumbnail_base64 = create_thumbnail(
             image=image, width=width, maintain_aspect=True
         )
 

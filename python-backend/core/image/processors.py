@@ -4,8 +4,6 @@ Image processing operations.
 Handles image manipulation tasks:
 - Thumbnail creation
 - Resizing
-- ROI extraction
-- Drawing overlays
 """
 
 import logging
@@ -15,140 +13,93 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from core.image.converters import ImageConverters
+from core.image.converters import numpy_to_pil, pil_to_numpy, to_base64
 
 logger = logging.getLogger(__name__)
 
 
-class ImageProcessors:
-    """Utilities for image processing operations."""
+def create_thumbnail(
+    image: Union[np.ndarray, Image.Image], width: int = 320, maintain_aspect: bool = True
+) -> Tuple[np.ndarray, str]:
+    """
+    Create thumbnail from image.
 
-    @staticmethod
-    def create_thumbnail(
-        image: Union[np.ndarray, Image.Image], width: int = 320, maintain_aspect: bool = True
-    ) -> Tuple[np.ndarray, str]:
-        """
-        Create thumbnail from image.
+    Args:
+        image: Input image (NumPy array or PIL Image)
+        width: Target width in pixels
+        maintain_aspect: If True, maintain aspect ratio
 
-        Args:
-            image: Input image (NumPy array or PIL Image)
-            width: Target width in pixels
-            maintain_aspect: If True, maintain aspect ratio
+    Returns:
+        Tuple of (thumbnail as NumPy array, thumbnail as base64 string)
+    """
+    try:
+        # Convert to PIL if needed
+        if isinstance(image, np.ndarray):
+            pil_image = numpy_to_pil(image)
+        else:
+            pil_image = image.copy()
 
-        Returns:
-            Tuple of (thumbnail as NumPy array, thumbnail as base64 string)
-        """
-        try:
-            # Convert to PIL if needed
-            if isinstance(image, np.ndarray):
-                pil_image = ImageConverters.numpy_to_pil(image)
-            else:
-                pil_image = image.copy()
+        # Calculate new size
+        if maintain_aspect:
+            aspect_ratio = pil_image.height / pil_image.width
+            height = int(width * aspect_ratio)
+        else:
+            height = width
 
-            # Calculate new size
-            if maintain_aspect:
-                aspect_ratio = pil_image.height / pil_image.width
-                height = int(width * aspect_ratio)
-            else:
-                height = width
+        # Resize image
+        pil_image.thumbnail((width, height), Image.Resampling.LANCZOS)
 
-            # Resize image
-            pil_image.thumbnail((width, height), Image.Resampling.LANCZOS)
+        # Convert to numpy array
+        thumb_array = pil_to_numpy(pil_image)
 
-            # Convert to numpy array
-            thumb_array = ImageConverters.pil_to_numpy(pil_image)
+        # Convert to base64
+        thumb_base64 = to_base64(pil_image, format="JPEG", quality=70)
 
-            # Convert to base64
-            thumb_base64 = ImageConverters.to_base64(pil_image, format="JPEG", quality=70)
+        return thumb_array, thumb_base64
 
-            return thumb_array, thumb_base64
+    except Exception as e:
+        logger.error(f"Failed to create thumbnail: {e}")
+        raise
 
-        except Exception as e:
-            logger.error(f"Failed to create thumbnail: {e}")
-            raise
 
-    @staticmethod
-    def resize_image(
-        image: np.ndarray,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-        max_dimension: Optional[int] = None,
-    ) -> np.ndarray:
-        """
-        Resize image with various options.
+def resize_image(
+    image: np.ndarray,
+    width: Optional[int] = None,
+    height: Optional[int] = None,
+    max_dimension: Optional[int] = None,
+) -> np.ndarray:
+    """
+    Resize image with various options.
 
-        Args:
-            image: Input image as NumPy array
-            width: Target width (if height not specified, maintains aspect)
-            height: Target height (if width not specified, maintains aspect)
-            max_dimension: Maximum dimension (width or height)
+    Args:
+        image: Input image as NumPy array
+        width: Target width (if height not specified, maintains aspect)
+        height: Target height (if width not specified, maintains aspect)
+        max_dimension: Maximum dimension (width or height)
 
-        Returns:
-            Resized image as NumPy array
-        """
-        h, w = image.shape[:2]
+    Returns:
+        Resized image as NumPy array
+    """
+    h, w = image.shape[:2]
 
-        if max_dimension:
-            # Scale to fit within max_dimension
-            scale = min(max_dimension / w, max_dimension / h)
-            if scale < 1:
-                width = int(w * scale)
-                height = int(h * scale)
-            else:
-                return image
-
-        elif width and not height:
-            # Scale by width, maintain aspect
-            height = int(h * width / w)
-
-        elif height and not width:
-            # Scale by height, maintain aspect
-            width = int(w * height / h)
-
-        elif not width and not height:
+    if max_dimension:
+        # Scale to fit within max_dimension
+        scale = min(max_dimension / w, max_dimension / h)
+        if scale < 1:
+            width = int(w * scale)
+            height = int(h * scale)
+        else:
             return image
 
-        return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
+    elif width and not height:
+        # Scale by width, maintain aspect
+        height = int(h * width / w)
 
-    @staticmethod
-    def extract_roi(
-        image: np.ndarray, x: int, y: int, width: int, height: int, safe: bool = True
-    ) -> Optional[np.ndarray]:
-        """
-        Extract Region of Interest from image.
+    elif height and not width:
+        # Scale by height, maintain aspect
+        width = int(w * height / h)
 
-        Args:
-            image: Input image
-            x: ROI x coordinate
-            y: ROI y coordinate
-            width: ROI width
-            height: ROI height
-            safe: If True, clip ROI to image bounds
+    elif not width and not height:
+        return image
 
-        Returns:
-            ROI as NumPy array or None if invalid
-        """
-        img_height, img_width = image.shape[:2]
-
-        if safe:
-            # Clip ROI to image bounds
-            x = max(0, min(x, img_width))
-            y = max(0, min(y, img_height))
-            x2 = max(0, min(x + width, img_width))
-            y2 = max(0, min(y + height, img_height))
-
-            if x2 <= x or y2 <= y:
-                logger.warning(f"Invalid ROI after clipping: {x},{y},{x2},{y2}")
-                return None
-
-            return image[y:y2, x:x2].copy()
-        else:
-            # Strict bounds checking
-            if x < 0 or y < 0 or x + width > img_width or y + height > img_height:
-                logger.warning(
-                    f"ROI out of bounds: {x},{y},{width},{height} "
-                    f"for image {img_width}x{img_height}"
-                )
-                return None
-
-            return image[y : y + height, x : x + width].copy()
+    return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)

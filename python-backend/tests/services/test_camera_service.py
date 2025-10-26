@@ -92,8 +92,8 @@ class TestCameraService:
 
         roi = ROI(x=100, y=100, width=200, height=150)
 
-        # Mock ROIHandler.extract_roi to return the ROI image
-        with patch("services.camera_service.ROIHandler.extract_roi", return_value=roi_image):
+        # Mock extract_roi to return the ROI image
+        with patch("services.camera_service.extract_roi", return_value=roi_image):
             image_id, thumbnail, metadata = service.capture_and_store(camera_id="test", roi=roi)
 
         assert image_id == "test-image-id"
@@ -110,8 +110,8 @@ class TestCameraService:
 
         roi = ROI(x=1000, y=1000, width=200, height=150)  # Out of bounds
 
-        # Mock ROIHandler to return None for invalid ROI
-        with patch("services.camera_service.ROIHandler.extract_roi", return_value=None):
+        # Mock extract_roi to return None for invalid ROI
+        with patch("services.camera_service.extract_roi", return_value=None):
             with pytest.raises(ValueError, match="Invalid ROI parameters"):
                 service.capture_and_store(camera_id="test", roi=roi)
 

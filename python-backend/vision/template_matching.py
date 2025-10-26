@@ -46,10 +46,8 @@ class TemplateDetector:
 
     def __init__(self):
         """Initialize template detector."""
-        from core.overlay_renderer import OverlayRenderer
 
         self.logger = logging.getLogger(__name__)
-        self.overlay_renderer = OverlayRenderer()
 
     def detect(
         self,
@@ -135,9 +133,11 @@ class TemplateDetector:
                 )
             )
 
-        # Create visualization
+        # Create visualization using overlay rendering function
+        from core.image.overlay import render_template_matches
+
         if detected_objects:
-            result_image = self.overlay_renderer.render_template_matches(image, detected_objects)
+            result_image = render_template_matches(image, detected_objects)
         else:
             result_image = image.copy()
 
