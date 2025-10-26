@@ -9,10 +9,10 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
-from core.image import extract_roi, validate_roi
+from core.image import extract_roi
 from core.image_manager import ImageManager
 from core.template_manager import TemplateManager
-from core.utils import adjust_for_roi_offset, enum_to_string, parse_enum, timer
+from core.utils import enum_to_string, parse_enum, timer
 from schemas import ROI, TemplateMatchParams, VisionObject
 from vision.aruco_detection import ArucoDetectionParams, ArucoDetector
 from vision.color_detection import ColorDetectionParams, ColorDetector
@@ -47,6 +47,36 @@ class VisionService:
         self.color_detector = ColorDetector()
         self.aruco_detector = ArucoDetector()
         self.rotation_detector = RotationDetector()
+
+    @staticmethod
+    def _adjust_for_roi_offset(objects: List[VisionObject], roi_offset: Tuple[int, int]) -> None:
+        """
+        Adjust object coordinates to account for ROI offset.
+
+        Modifies VisionObject instances in-place by adding the ROI offset
+        to all coordinate values (bounding_box, center, contour points).
+
+        Args:
+            objects: List of VisionObject instances to adjust
+            roi_offset: Tuple of (x_offset, y_offset) from ROI position
+        """
+        if roi_offset == (0, 0):
+            return  # No adjustment needed
+
+        x_offset, y_offset = roi_offset
+
+        for obj in objects:
+            # Adjust bounding box position
+            obj.bounding_box.x += x_offset
+            obj.bounding_box.y += y_offset
+
+            # Adjust center point
+            obj.center.x += x_offset
+            obj.center.y += y_offset
+
+            # Adjust contour points if present
+            if hasattr(obj, "contour") and obj.contour:
+                obj.contour = [[x + x_offset, y + y_offset] for x, y in obj.contour]
 
     def _execute_detection(
         self,
@@ -93,7 +123,7 @@ class VisionService:
             result = detector_func(image, **detector_kwargs)
 
             # Adjust coordinates if ROI was used
-            adjust_for_roi_offset(result["objects"], roi_offset)
+            self._adjust_for_roi_offset(result["objects"], roi_offset)
 
             # Generate thumbnail (inline - used only here)
             _, thumbnail_base64 = self.image_manager.create_thumbnail(result["image"])
@@ -102,79 +132,6 @@ class VisionService:
         processing_time_ms = t["ms"]
 
         return result, thumbnail_base64, processing_time_ms
-
-    @staticmethod
-    def _parse_enum(value: any, enum_class: type, default: any, normalize: bool = False) -> any:
-        """
-        Parse value to enum with fallback to default.
-
-        Unifies enum parsing logic across all detection methods.
-
-        Args:
-            value: Value to parse (string, enum, or None)
-            enum_class: Enum class to parse to
-            default: Default enum value if parsing fails
-            normalize: Whether to lowercase string before parsing (for case-insensitive matching)
-
-        Returns:
-            Parsed enum value or default
-
-        Example:
-            method = _parse_enum("CANNY", EdgeMethod, EdgeMethod.CANNY, normalize=True)
-            # Returns EdgeMethod.CANNY even if input is "canny", "Canny", "CANNY"
-        """
-        # Already an enum instance
-        if isinstance(value, enum_class):
-            return value
-
-        # None or missing value
-        if value is None:
-            return default
-
-        # String value - try to parse
-        try:
-            str_value = value.lower() if normalize else value
-            return enum_class(str_value)
-        except (ValueError, AttributeError):
-            return default
-
-    @staticmethod
-    def _enum_to_string(value: any) -> str:
-        """
-        Convert enum to string value, or pass through if already string.
-
-        Unifies enum → string conversion across all detection methods.
-
-        Args:
-            value: Enum instance or string
-
-        Returns:
-            String value (enum.value if enum, otherwise the value itself)
-
-        Example:
-            dictionary_str = _enum_to_string(ArucoDict.DICT_4X4_50)
-            # Returns "DICT_4X4_50"
-        """
-        return value.value if hasattr(value, "value") else value
-
-    @staticmethod
-    def _ensure_params_dict(params: Optional[Dict]) -> Dict:
-        """
-        Ensure params is a dict (create empty dict if None).
-
-        Unifies params initialization across all detection methods.
-
-        Args:
-            params: Optional parameters dict
-
-        Returns:
-            Dict (original if not None, empty dict otherwise)
-
-        Example:
-            params = _ensure_params_dict(None)  # Returns {}
-            params = _ensure_params_dict({"key": "value"})  # Returns {"key": "value"}
-        """
-        return params if params is not None else {}
 
     def template_match(
         self,
@@ -254,9 +211,8 @@ class VisionService:
             raise ImageNotFoundException(image_id)
 
         # Validate ROI
-        is_valid, error_msg = validate_roi(roi, source_image.shape)
-        if not is_valid:
-            raise ValueError(error_msg)
+        img_height, img_width = source_image.shape[:2]
+        roi.validate_with_constraints(image_width=img_width, image_height=img_height)
 
         # Learn template
         template_id = self.template_manager.learn_template(

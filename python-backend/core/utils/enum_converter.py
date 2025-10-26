@@ -5,7 +5,7 @@ Provides standardized methods for converting between enums and strings,
 with support for case-insensitive parsing and fallback defaults.
 """
 
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Type, TypeVar
 
 T = TypeVar("T")
 
@@ -65,50 +65,3 @@ def enum_to_string(value: Any) -> str:
         >>> # Returns "DICT_4X4_50"
     """
     return value.value if hasattr(value, "value") else value
-
-
-def ensure_dict(params: Optional[Dict]) -> Dict:
-    """
-    Ensure params is a dict (create empty dict if None).
-
-    Unifies params initialization across all detection methods.
-
-    Args:
-        params: Parameters dict or None
-
-    Returns:
-        Dict (original or empty if None)
-
-    Example:
-        >>> params = EnumConverter.ensure_dict(None)
-        >>> # Returns {}
-        >>> params = EnumConverter.ensure_dict({"key": "value"})
-        >>> # Returns {"key": "value"}
-    """
-    return params if params is not None else {}
-
-
-def convert_enums_to_strings(data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Convert all enum values in a dictionary to strings.
-
-    Useful for preparing parameters for functions that expect string values.
-
-    Args:
-        data: Dictionary potentially containing enum values
-
-    Returns:
-        New dictionary with all enums converted to strings
-
-    Example:
-        >>> data = {"method": EdgeMethod.CANNY, "threshold": 100}
-        >>> result = EnumConverter.convert_enums_to_strings(data)
-        >>> # Returns {"method": "canny", "threshold": 100}
-    """
-    result = {}
-    for key, value in data.items():
-        if hasattr(value, "value"):
-            result[key] = value.value
-        else:
-            result[key] = value
-    return result

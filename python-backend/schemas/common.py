@@ -179,6 +179,42 @@ class ROI(BaseModel):
 
         return True
 
+    def validate_with_constraints(
+        self,
+        image_width: Optional[int] = None,
+        image_height: Optional[int] = None,
+        min_size: int = 1,
+        max_size: Optional[int] = None,
+    ) -> None:
+        """
+        Validate ROI with size constraints.
+
+        Args:
+            image_width: Optional image width for bounds checking
+            image_height: Optional image height for bounds checking
+            min_size: Minimum width/height (default: 1)
+            max_size: Optional maximum width/height
+
+        Raises:
+            ValueError: If ROI is invalid with descriptive error message
+        """
+        # Check basic validity (coordinates and dimensions)
+        if self.width < min_size or self.height < min_size:
+            raise ValueError(f"ROI too small: {self.width}x{self.height} (min: {min_size})")
+
+        if max_size and (self.width > max_size or self.height > max_size):
+            raise ValueError(f"ROI too large: {self.width}x{self.height} (max: {max_size})")
+
+        if self.x < 0 or self.y < 0:
+            raise ValueError(f"ROI has negative coordinates: ({self.x}, {self.y})")
+
+        # Image bounds validation if provided
+        if image_width is not None or image_height is not None:
+            if not self.is_valid(image_width, image_height):
+                raise ValueError(
+                    f"ROI {self.to_dict()} exceeds image bounds {image_width}x{image_height}"
+                )
+
 
 class Point(BaseModel):
     """2D Point"""

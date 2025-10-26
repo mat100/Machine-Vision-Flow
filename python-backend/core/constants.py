@@ -114,42 +114,35 @@ class VisionConstants:
     BILATERAL_FILTER_D_DEFAULT = 9
     MEDIAN_BLUR_SIZE_DEFAULT = 5
 
+    # Contour approximation
+    CONTOUR_APPROX_EPSILON_FACTOR = 0.02  # 2% of perimeter for polygon approximation
 
-# ROI Constants
-class ROIConstants:
-    """Constants for Region of Interest operations."""
+    # Rotation detection
+    MIN_POINTS_ROTATION = 3  # Minimum points required for rotation detection
+    MIN_POINTS_ELLIPSE_FIT = 5  # Minimum points required for ellipse fitting
+    CONFIDENCE_FULL = 1.0  # Full confidence score
+    CONFIDENCE_HIGH = 0.9  # High confidence score
+    CONFIDENCE_SCALING_FACTOR = 10.0  # Factor for ratio-based confidence scaling
 
-    MIN_ROI_SIZE = 1
-    MAX_ROI_SIZE = 4096
-    DEFAULT_ROI_EXPAND_PIXELS = 10
-    ROI_OVERLAP_THRESHOLD = 0.5
+    # Color detection
+    KMEANS_DEFAULT_CLUSTERS = 3  # Default number of clusters for k-means color detection
 
 
 # API Constants
 class APIConstants:
     """Constants for API endpoints."""
 
-    # Pagination
-    DEFAULT_OFFSET = 0
-    DEFAULT_LIMIT = 100
-    MAX_LIMIT = 1000
-    MIN_LIMIT = 1
-
     # Rate limiting
     REQUESTS_PER_MINUTE = 100
-    REQUESTS_PER_HOUR = 1000
 
     # Timeouts
     REQUEST_TIMEOUT_SECONDS = 30
-    LONG_POLL_TIMEOUT_SECONDS = 60
 
     # File uploads
     MAX_UPLOAD_SIZE_MB = 50
-    ALLOWED_UPLOAD_EXTENSIONS = [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]
 
     # API versions
     API_VERSION = "v1"
-    MIN_CLIENT_VERSION = "1.0.0"
 
 
 # System Constants
@@ -199,25 +192,3 @@ class Colors:
     INFO = BLUE
     PRIMARY = BLUE
     SECONDARY = CYAN
-
-
-# Drawing Constants
-class DrawingConstants:
-    """Constants for drawing operations."""
-
-    # Line thickness
-    DEFAULT_LINE_THICKNESS = 2
-    THIN_LINE = 1
-    THICK_LINE = 3
-    BOLD_LINE = 5
-
-    # Font settings
-    DEFAULT_FONT = 0  # cv2.FONT_HERSHEY_SIMPLEX
-    DEFAULT_FONT_SCALE = 1.0
-    SMALL_FONT_SCALE = 0.5
-    LARGE_FONT_SCALE = 1.5
-
-    # Marker sizes
-    DEFAULT_MARKER_SIZE = 5
-    SMALL_MARKER_SIZE = 3
-    LARGE_MARKER_SIZE = 10

@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from pydantic import Field
 
+from core.constants import VisionConstants
 from core.enums import AngleRange, RotationMethod
 from schemas.base import BaseDetectionParams
 
@@ -69,18 +70,19 @@ class RotationDetector:
             contour_array = contour_array.reshape((-1, 1, 2))
 
         # Validate contour has enough points
-        min_points_ellipse = 5
-        if len(contour_array) < min_points_ellipse and method == RotationMethod.ELLIPSE_FIT:
+        if (
+            len(contour_array) < VisionConstants.MIN_POINTS_ELLIPSE_FIT
+            and method == RotationMethod.ELLIPSE_FIT
+        ):
             raise ValueError(
-                f"Ellipse fitting requires at least {min_points_ellipse} points, "
-                f"got {len(contour_array)}"
+                f"Ellipse fitting requires at least {VisionConstants.MIN_POINTS_ELLIPSE_FIT} "
+                f"points, got {len(contour_array)}"
             )
 
-        min_points_rotation = 3
-        if len(contour_array) < min_points_rotation:
+        if len(contour_array) < VisionConstants.MIN_POINTS_ROTATION:
             raise ValueError(
-                f"Rotation detection requires at least {min_points_rotation} points, "
-                f"got {len(contour_array)}"
+                f"Rotation detection requires at least {VisionConstants.MIN_POINTS_ROTATION} "
+                f"points, got {len(contour_array)}"
             )
 
         # Calculate rotation based on method
@@ -164,7 +166,7 @@ class RotationDetector:
         angle = normalize_angle(angle_rad, angle_format="0_360")
 
         center = Point(x=float(center_tuple[0]), y=float(center_tuple[1]))
-        confidence = 1.0
+        confidence = VisionConstants.CONFIDENCE_FULL
 
         return float(angle), center, confidence
 
@@ -196,7 +198,7 @@ class RotationDetector:
 
         # Calculate confidence based on how well ellipse fits the contour
         # (simplified - could be improved with actual error metric)
-        confidence = 0.9
+        confidence = VisionConstants.CONFIDENCE_HIGH
 
         return float(angle), center, confidence
 
@@ -246,9 +248,11 @@ class RotationDetector:
         # Higher ratio = more elongated = more confident in rotation
         if eigenvalues[1] > 0:
             ratio = eigenvalues[0] / eigenvalues[1]
-            confidence = min(1.0, ratio / 10.0)
+            confidence = min(
+                VisionConstants.CONFIDENCE_FULL, ratio / VisionConstants.CONFIDENCE_SCALING_FACTOR
+            )
         else:
-            confidence = 1.0
+            confidence = VisionConstants.CONFIDENCE_FULL
 
         return angle, center, confidence
 

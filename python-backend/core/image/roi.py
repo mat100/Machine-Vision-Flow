@@ -8,59 +8,13 @@ NOTE: ROI geometric operations (intersection, union, etc.) are in the ROI model 
 """
 
 import logging
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Union
 
 import numpy as np
 
 from schemas import ROI
 
 logger = logging.getLogger(__name__)
-
-
-def validate_roi(
-    roi: Union[ROI, Dict],
-    image_shape: Optional[Tuple[int, ...]] = None,
-    min_size: int = 1,
-    max_size: Optional[int] = None,
-) -> Tuple[bool, Optional[str]]:
-    """
-    Validate ROI parameters.
-
-    Args:
-        roi: ROI object or dictionary
-        image_shape: Optional image shape (height, width, ...)
-        min_size: Minimum width/height
-        max_size: Maximum width/height
-
-    Returns:
-        Tuple of (is_valid, error_message)
-    """
-    # Convert to ROI object if needed
-    if isinstance(roi, dict):
-        try:
-            roi = ROI.from_dict(roi)
-        except (KeyError, ValueError) as e:
-            return False, f"Invalid ROI format: {e}"
-
-    # Check basic validity
-    if roi.width < min_size or roi.height < min_size:
-        return False, f"ROI too small: {roi.width}x{roi.height} (min: {min_size})"
-
-    if max_size and (roi.width > max_size or roi.height > max_size):
-        return False, f"ROI too large: {roi.width}x{roi.height} (max: {max_size})"
-
-    if roi.x < 0 or roi.y < 0:
-        return False, f"ROI has negative coordinates: ({roi.x}, {roi.y})"
-
-    # Check against image bounds if provided
-    if image_shape:
-        img_height = image_shape[0]
-        img_width = image_shape[1] if len(image_shape) > 1 else image_shape[0]
-
-        if not roi.is_valid(img_width, img_height):
-            return False, f"ROI {roi.to_dict()} exceeds image bounds {img_width}x{img_height}"
-
-    return True, None
 
 
 def extract_roi(
@@ -96,9 +50,10 @@ def extract_roi(
 
     else:
         # Strict mode - check bounds
-        is_valid, error_msg = validate_roi(roi, image.shape)
-        if not is_valid:
-            logger.warning(f"Invalid ROI: {error_msg}")
+        try:
+            roi.validate_with_constraints(image_width=img_width, image_height=img_height)
+        except ValueError as e:
+            logger.warning(f"Invalid ROI: {e}")
             return None
 
         return image[roi.y : roi.y2, roi.x : roi.x2].copy()

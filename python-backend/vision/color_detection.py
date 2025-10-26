@@ -13,6 +13,7 @@ import numpy as np
 from pydantic import Field
 from sklearn.cluster import KMeans
 
+from core.constants import VisionConstants
 from core.enums import ColorMethod
 from schemas.base import BaseDetectionParams
 
@@ -236,7 +237,7 @@ class ColorDetector:
         self,
         hsv: np.ndarray,
         mask: Optional[np.ndarray] = None,
-        k: int = 3,
+        k: int = VisionConstants.KMEANS_DEFAULT_CLUSTERS,
     ) -> Dict:
         """
         Detect dominant colors using k-means clustering (more accurate, slower).

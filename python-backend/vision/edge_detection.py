@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from pydantic import Field
 
+from core.constants import VisionConstants
 from core.enums import EdgeMethod
 from schemas.base import BaseDetectionParams
 
@@ -448,7 +449,7 @@ class EdgeDetector:
             x, y, w, h = props["bounding_box"]
 
             # Approximated contour
-            epsilon = 0.02 * perimeter
+            epsilon = VisionConstants.CONTOUR_APPROX_EPSILON_FACTOR * perimeter
             approx = cv2.approxPolyDP(contour, epsilon, True)
 
             # Flatten contour from shape (N, 1, 2) to [[x, y], [x, y], ...]

@@ -52,7 +52,7 @@ from core.image.overlay import (
 from core.image.processors import create_thumbnail, resize_image
 
 # ROI functions
-from core.image.roi import extract_roi, validate_roi
+from core.image.roi import extract_roi
 
 __all__ = [
     # Converter functions
@@ -70,7 +70,6 @@ __all__ = [
     "normalize_angle",
     "calculate_contour_properties",
     # ROI functions
-    "validate_roi",
     "extract_roi",
     # Overlay rendering functions
     "render_template_matches",
