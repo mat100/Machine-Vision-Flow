@@ -12,7 +12,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from api.models import ROI
 from core.camera_manager import CameraManager
-from core.history_buffer import HistoryBuffer
 from core.image_manager import ImageManager
 from core.template_manager import TemplateManager
 
@@ -35,12 +34,10 @@ class Managers:
         image_manager: ImageManager,
         camera_manager: CameraManager,
         template_manager: TemplateManager,
-        history_buffer: HistoryBuffer,
     ):
         self.image_manager = image_manager
         self.camera_manager = camera_manager
         self.template_manager = template_manager
-        self.history_buffer = history_buffer
 
 
 def get_managers(request: Request) -> Managers:
@@ -61,7 +58,6 @@ def get_managers(request: Request) -> Managers:
             image_manager=request.app.state.image_manager,
             camera_manager=request.app.state.camera_manager,
             template_manager=request.app.state.template_manager,
-            history_buffer=request.app.state.history_buffer,
         )
     except AttributeError as e:
         logger.error(f"Managers not initialized in app state: {e}")
@@ -83,11 +79,6 @@ def get_camera_manager(managers: Managers = Depends(get_managers)) -> CameraMana
 def get_template_manager(managers: Managers = Depends(get_managers)) -> TemplateManager:
     """Get TemplateManager instance."""
     return managers.template_manager
-
-
-def get_history_buffer(managers: Managers = Depends(get_managers)) -> HistoryBuffer:
-    """Get HistoryBuffer instance."""
-    return managers.history_buffer
 
 
 # Common query parameters
@@ -341,7 +332,6 @@ def get_image_service(image_manager: ImageManager = Depends(get_image_manager)) 
 def get_vision_service(
     image_manager: ImageManager = Depends(get_image_manager),
     template_manager: TemplateManager = Depends(get_template_manager),
-    history_buffer: HistoryBuffer = Depends(get_history_buffer),
 ) -> VisionService:
     """
     Get vision service instance.
@@ -349,7 +339,6 @@ def get_vision_service(
     Args:
         image_manager: Image manager dependency
         template_manager: Template manager dependency
-        history_buffer: History buffer dependency
 
     Returns:
         VisionService instance
@@ -357,5 +346,4 @@ def get_vision_service(
     return VisionService(
         image_manager=image_manager,
         template_manager=template_manager,
-        history_buffer=history_buffer,
     )

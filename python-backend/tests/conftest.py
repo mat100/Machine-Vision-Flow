@@ -9,7 +9,6 @@ import numpy as np
 import pytest
 
 from core.camera_manager import CameraManager
-from core.history_buffer import HistoryBuffer
 from core.image_manager import ImageManager
 from core.template_manager import TemplateManager
 from services.camera_service import CameraService
@@ -76,12 +75,6 @@ def template_manager(tmp_path):
 
 
 @pytest.fixture
-def history_buffer():
-    """Create HistoryBuffer instance for testing"""
-    return HistoryBuffer(max_size=100)
-
-
-@pytest.fixture
 def camera_service(camera_manager, image_manager):
     """Create CameraService instance for testing"""
     return CameraService(camera_manager=camera_manager, image_manager=image_manager)
@@ -94,12 +87,11 @@ def image_service(image_manager):
 
 
 @pytest.fixture
-def vision_service(image_manager, template_manager, history_buffer):
+def vision_service(image_manager, template_manager):
     """Create VisionService instance for testing"""
     return VisionService(
         image_manager=image_manager,
         template_manager=template_manager,
-        history_buffer=history_buffer,
     )
 
 
@@ -143,13 +135,4 @@ def mock_template_manager():
     mock.list_templates.return_value = []
     mock.learn_template.return_value = "new-template-id"
     mock.create_template_thumbnail.return_value = "base64-template-thumb"
-    return mock
-
-
-@pytest.fixture
-def mock_history_buffer():
-    """Create mock HistoryBuffer for unit testing"""
-    mock = MagicMock()
-    mock.add_inspection.return_value = None
-    mock.get_recent.return_value = []
     return mock

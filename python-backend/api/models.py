@@ -13,7 +13,6 @@ from core.enums import (
     AngleRange,
     ArucoDict,
     ColorMethod,
-    InspectionResult,
     RotationMethod,
     TemplateMethod,
     VisionObjectType,
@@ -24,7 +23,6 @@ __all__ = [
     "AngleRange",
     "ArucoDict",
     "ColorMethod",
-    "InspectionResult",
     "RotationMethod",
     "TemplateMethod",
     "VisionObjectType",
@@ -398,12 +396,12 @@ class EdgeDetectRequest(BaseModel):
 
     def get_detection_params(self) -> Dict[str, Any]:
         """
-        Extract detection parameters as dict.
+        Extract all parameters as dict (detection + preprocessing unified).
 
         Eliminates manual parameter dict construction in vision.py endpoint.
 
         Returns:
-            Dictionary with method-specific and filtering parameters
+            Dictionary with method-specific, filtering, and preprocessing parameters
         """
         return {
             # Method-specific parameters
@@ -424,18 +422,7 @@ class EdgeDetectRequest(BaseModel):
             "max_contour_perimeter": self.max_contour_perimeter,
             "max_contours": self.max_contours,
             "show_centers": self.show_centers,
-        }
-
-    def get_preprocessing_params(self) -> Dict[str, Any]:
-        """
-        Extract preprocessing parameters as dict.
-
-        Eliminates manual preprocessing dict construction in vision.py endpoint.
-
-        Returns:
-            Dictionary with preprocessing options
-        """
-        return {
+            # Preprocessing parameters (unified)
             "blur_enabled": self.blur_enabled,
             "blur_kernel": self.blur_kernel,
             "bilateral_enabled": self.bilateral_enabled,
@@ -469,27 +456,6 @@ class ColorDetectRequest(BaseModel):
     contour: Optional[List] = Field(
         None, description="Contour points for masking (from edge detection)"
     )
-
-
-# History models
-class InspectionRecord(BaseModel):
-    """Single inspection record"""
-
-    id: str
-    timestamp: datetime
-    image_id: str
-    result: InspectionResult
-    summary: str
-    thumbnail_base64: Optional[str] = None
-    processing_time_ms: int
-    detections: List[Dict[str, Any]]
-
-
-class HistoryResponse(BaseModel):
-    """Response with inspection history"""
-
-    inspections: List[InspectionRecord]
-    statistics: Dict[str, Any]
 
 
 # System models

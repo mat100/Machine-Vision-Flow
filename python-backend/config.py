@@ -14,7 +14,6 @@ from pydantic_settings import BaseSettings
 from core.constants import (
     APIConstants,
     CameraConstants,
-    HistoryConstants,
     ImageConstants,
     SystemConstants,
     TemplateConstants,
@@ -187,31 +186,6 @@ class VisionConfig(BaseSettings):
     model_config = ConfigDict(env_prefix="MV_VISION_", extra="ignore")
 
 
-class HistoryConfig(BaseSettings):
-    """History buffer configuration."""
-
-    buffer_size: int = Field(
-        default=HistoryConstants.DEFAULT_BUFFER_SIZE,
-        ge=HistoryConstants.MIN_BUFFER_SIZE,
-        le=HistoryConstants.MAX_BUFFER_SIZE,
-        description="History buffer size",
-    )
-    time_interval_minutes: int = Field(
-        default=HistoryConstants.DEFAULT_TIME_INTERVAL_MINUTES,
-        ge=HistoryConstants.MIN_TIME_INTERVAL_MINUTES,
-        le=HistoryConstants.MAX_TIME_INTERVAL_MINUTES,
-        description="Time series interval in minutes",
-    )
-    max_duration_hours: int = Field(
-        default=HistoryConstants.MAX_DURATION_HOURS,
-        ge=1,
-        le=720,
-        description="Maximum time series duration in hours",
-    )
-
-    model_config = ConfigDict(env_prefix="MV_HISTORY_", extra="ignore")
-
-
 class APIConfig(BaseSettings):
     """API configuration."""
 
@@ -294,7 +268,6 @@ class Settings(BaseSettings):
     camera: CameraConfig = Field(default_factory=CameraConfig)
     template: TemplateConfig = Field(default_factory=TemplateConfig)
     vision: VisionConfig = Field(default_factory=VisionConfig)
-    history: HistoryConfig = Field(default_factory=HistoryConfig)
     api: APIConfig = Field(default_factory=APIConfig)
     system: SystemConfig = Field(default_factory=SystemConfig)
 

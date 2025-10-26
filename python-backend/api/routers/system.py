@@ -9,7 +9,7 @@ from datetime import datetime
 import psutil
 from fastapi import APIRouter, Depends, Request
 
-from api.dependencies import get_camera_manager, get_history_buffer, get_image_manager
+from api.dependencies import get_camera_manager, get_image_manager
 from api.exceptions import safe_endpoint
 from api.models import DebugSettings, PerformanceMetrics, SystemStatus
 
@@ -55,20 +55,14 @@ async def get_status(
 
 @router.get("/performance")
 @safe_endpoint
-async def get_performance(history_buffer=Depends(get_history_buffer)) -> PerformanceMetrics:
+async def get_performance() -> PerformanceMetrics:
     """Get performance metrics"""
-    # Get statistics from history
-    stats = history_buffer.get_statistics()
-
-    # Calculate operations per minute
-    uptime_minutes = (time.time() - START_TIME) / 60
-    ops_per_minute = stats["total"] / uptime_minutes if uptime_minutes > 0 else 0
-
+    # Return default metrics since history tracking was removed
     return PerformanceMetrics(
-        avg_processing_time=stats["avg_time_ms"],
-        total_inspections=stats["total"],
-        success_rate=stats["success_rate"],
-        operations_per_minute=round(ops_per_minute, 2),
+        avg_processing_time=0.0,
+        total_inspections=0,
+        success_rate=100.0,
+        operations_per_minute=0.0,
     )
 
 

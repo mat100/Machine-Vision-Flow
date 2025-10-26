@@ -21,12 +21,11 @@ sys.path.append(str(Path(__file__).parent))
 from api.exceptions import register_exception_handlers  # noqa: E402
 
 # Import routers  # noqa: E402
-from api.routers import camera, history, image, system, template, vision  # noqa: E402
+from api.routers import camera, image, system, template, vision  # noqa: E402
 
 # Import configuration and exception handlers  # noqa: E402
 from config import get_settings  # noqa: E402
 from core.camera_manager import CameraManager  # noqa: E402
-from core.history_buffer import HistoryBuffer  # noqa: E402
 
 # Import core components  # noqa: E402
 from core.image_manager import ImageManager  # noqa: E402
@@ -49,14 +48,13 @@ logging.getLogger("watchfiles").setLevel(logging.WARNING)
 image_manager = None
 camera_manager = None
 template_manager = None
-history_buffer = None
 shutdown_event = asyncio.Event()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle"""
-    global image_manager, camera_manager, template_manager, history_buffer
+    global image_manager, camera_manager, template_manager
 
     # Startup
     logger.info("Starting Machine Vision Flow server...")
@@ -74,15 +72,12 @@ async def lifespan(app: FastAPI):
 
     template_manager = TemplateManager(storage_path=settings.template.storage_path)
 
-    history_buffer = HistoryBuffer(max_size=settings.history.buffer_size)
-
     logger.info("All managers initialized successfully")
 
     # Store managers in app state for access by routers
     app.state.image_manager = image_manager
     app.state.camera_manager = camera_manager
     app.state.template_manager = template_manager
-    app.state.history_buffer = history_buffer
     app.state.config = settings.to_dict()
     app.state.debug = settings.system.debug
 
@@ -133,7 +128,6 @@ app.include_router(camera.router, prefix="/api/camera", tags=["Camera"])
 app.include_router(vision.router, prefix="/api/vision", tags=["Vision"])
 app.include_router(template.router, prefix="/api/template", tags=["Template"])
 app.include_router(image.router, prefix="/api/image", tags=["Image"])
-app.include_router(history.router, prefix="/api/history", tags=["History"])
 app.include_router(system.router, prefix="/api/system", tags=["System"])
 
 
@@ -149,7 +143,6 @@ async def root():
             "vision": "/api/vision",
             "template": "/api/template",
             "image": "/api/image",
-            "history": "/api/history",
             "system": "/api/system",
             "docs": "/docs",
         },
@@ -168,8 +161,6 @@ async def health_check():
             and app.state.camera_manager is not None,
             "template_manager": hasattr(app.state, "template_manager")
             and app.state.template_manager is not None,
-            "history_buffer": hasattr(app.state, "history_buffer")
-            and app.state.history_buffer is not None,
         },
     }
 

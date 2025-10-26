@@ -14,11 +14,9 @@ from services.vision_service import VisionService
 class TestVisionService:
     """Test VisionService functionality"""
 
-    def test_template_match_success(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
+    def test_template_match_success(self, mock_image_manager, mock_template_manager):
         """Test successful template matching"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
+        service = VisionService(mock_image_manager, mock_template_manager)
 
         # Create test image and template
         test_image = np.zeros((480, 640, 3), dtype=np.uint8)
@@ -36,24 +34,19 @@ class TestVisionService:
         assert thumbnail == "base64-thumb"
         assert processing_time > 0
         assert isinstance(matches, list)
-        mock_history_buffer.add_inspection.assert_called_once()
 
-    def test_template_match_image_not_found(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
+    def test_template_match_image_not_found(self, mock_image_manager, mock_template_manager):
         """Test template matching with non-existent image"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
+        service = VisionService(mock_image_manager, mock_template_manager)
 
         mock_image_manager.get.return_value = None
 
         with pytest.raises(ImageNotFoundException):
             service.template_match(image_id="non-existent", template_id="test-tmpl", threshold=0.8)
 
-    def test_template_match_template_not_found(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
+    def test_template_match_template_not_found(self, mock_image_manager, mock_template_manager):
         """Test template matching with non-existent template"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
+        service = VisionService(mock_image_manager, mock_template_manager)
 
         test_image = np.zeros((480, 640, 3), dtype=np.uint8)
         mock_image_manager.get.return_value = test_image
@@ -62,11 +55,9 @@ class TestVisionService:
         with pytest.raises(TemplateNotFoundException):
             service.template_match(image_id="test-img", template_id="non-existent", threshold=0.8)
 
-    def test_template_match_with_roi(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
+    def test_template_match_with_roi(self, mock_image_manager, mock_template_manager):
         """Test template matching without ROI (ROI removed from API)"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
+        service = VisionService(mock_image_manager, mock_template_manager)
 
         test_image = np.zeros((480, 640, 3), dtype=np.uint8)
         test_template = np.ones((50, 50, 3), dtype=np.uint8) * 255
@@ -83,30 +74,9 @@ class TestVisionService:
         assert thumbnail is not None
         assert processing_time > 0
 
-    def test_template_match_no_history(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
-        """Test template matching without recording history"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
-
-        test_image = np.zeros((480, 640, 3), dtype=np.uint8)
-        test_template = np.ones((50, 50, 3), dtype=np.uint8) * 255
-
-        mock_image_manager.get.return_value = test_image
-        mock_template_manager.get_template.return_value = test_template
-        mock_image_manager.create_thumbnail.return_value = (test_image, "base64-thumb")
-
-        matches, thumbnail, processing_time = service.template_match(
-            image_id="test-img", template_id="test-tmpl", threshold=0.8, record_history=False
-        )
-
-        mock_history_buffer.add_inspection.assert_not_called()
-
-    def test_learn_template_from_roi(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
+    def test_learn_template_from_roi(self, mock_image_manager, mock_template_manager):
         """Test learning template from ROI"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
+        service = VisionService(mock_image_manager, mock_template_manager)
 
         test_image = np.zeros((480, 640, 3), dtype=np.uint8)
         test_image[100:200, 100:200] = 255  # White square
@@ -124,11 +94,9 @@ class TestVisionService:
         assert thumbnail == "template-thumb"
         mock_template_manager.learn_template.assert_called_once()
 
-    def test_learn_template_image_not_found(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
+    def test_learn_template_image_not_found(self, mock_image_manager, mock_template_manager):
         """Test learning template when image not found"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
+        service = VisionService(mock_image_manager, mock_template_manager)
 
         mock_image_manager.get.return_value = None
 
@@ -137,11 +105,9 @@ class TestVisionService:
         with pytest.raises(ImageNotFoundException):
             service.learn_template_from_roi(image_id="non-existent", roi=roi, name="Test")
 
-    def test_edge_detect_success(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
+    def test_edge_detect_success(self, mock_image_manager, mock_template_manager):
         """Test successful edge detection"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
+        service = VisionService(mock_image_manager, mock_template_manager)
 
         test_image = np.zeros((480, 640, 3), dtype=np.uint8)
         cv2.rectangle(test_image, (100, 100), (300, 300), (255, 255, 255), 2)
@@ -156,24 +122,19 @@ class TestVisionService:
         assert isinstance(detected_objects, list)
         assert thumbnail == "base64-thumb"
         assert processing_time > 0
-        mock_history_buffer.add_inspection.assert_called_once()
 
-    def test_edge_detect_image_not_found(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
+    def test_edge_detect_image_not_found(self, mock_image_manager, mock_template_manager):
         """Test edge detection when image not found"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
+        service = VisionService(mock_image_manager, mock_template_manager)
 
         mock_image_manager.get.return_value = None
 
         with pytest.raises(ImageNotFoundException):
             service.edge_detect(image_id="non-existent", method="canny")
 
-    def test_edge_detect_with_params(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
+    def test_edge_detect_with_params(self, mock_image_manager, mock_template_manager):
         """Test edge detection with custom parameters"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
+        service = VisionService(mock_image_manager, mock_template_manager)
 
         test_image = np.zeros((480, 640, 3), dtype=np.uint8)
         mock_image_manager.get.return_value = test_image
@@ -187,11 +148,9 @@ class TestVisionService:
         assert result is not None
         assert thumbnail is not None
 
-    def test_edge_detect_invalid_method(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
+    def test_edge_detect_invalid_method(self, mock_image_manager, mock_template_manager):
         """Test edge detection with invalid method defaults to canny"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
+        service = VisionService(mock_image_manager, mock_template_manager)
 
         test_image = np.zeros((480, 640, 3), dtype=np.uint8)
         mock_image_manager.get.return_value = test_image
@@ -204,22 +163,6 @@ class TestVisionService:
 
         assert result is not None
         assert thumbnail is not None
-
-    def test_edge_detect_no_history(
-        self, mock_image_manager, mock_template_manager, mock_history_buffer
-    ):
-        """Test edge detection without recording history"""
-        service = VisionService(mock_image_manager, mock_template_manager, mock_history_buffer)
-
-        test_image = np.zeros((480, 640, 3), dtype=np.uint8)
-        mock_image_manager.get.return_value = test_image
-        mock_image_manager.create_thumbnail.return_value = (test_image, "base64-thumb")
-
-        result, thumbnail, processing_time = service.edge_detect(
-            image_id="test-img", method="canny", record_history=False
-        )
-
-        mock_history_buffer.add_inspection.assert_not_called()
 
 
 class TestVisionServiceIntegration:

@@ -95,7 +95,6 @@ async def template_match(
             method=request.method.value,
             threshold=request.threshold,
             roi=roi,
-            record_history=True,
         ),
     )
 
@@ -118,7 +117,6 @@ async def edge_detect(
     - contour: Actual contour points for precise shape representation
     """
     params = request.get_detection_params()
-    preprocessing = request.get_preprocessing_params()
 
     return execute_vision_detection(
         request.image_id,
@@ -128,9 +126,7 @@ async def edge_detect(
             image_id=request.image_id,
             method=request.method.lower(),
             params=params,
-            preprocessing=preprocessing,
             roi=roi,
-            record_history=True,
         ),
     )
 
@@ -164,7 +160,6 @@ async def color_detect(
             expected_color=request.expected_color,
             min_percentage=request.min_percentage,
             method=request.method,
-            record_history=True,
         ),
     )
 
@@ -197,7 +192,6 @@ async def aruco_detect(
             dictionary=request.dictionary,
             roi=roi,
             params=request.params,
-            record_history=True,
         ),
     )
 
@@ -229,6 +223,5 @@ async def rotation_detect(
             method=request.method,
             angle_range=request.angle_range,
             roi=roi,
-            record_history=True,
         ),
     )

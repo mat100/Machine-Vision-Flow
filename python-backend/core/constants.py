@@ -136,30 +136,6 @@ class ROIConstants:
     ROI_OVERLAP_THRESHOLD = 0.5
 
 
-# History Buffer Constants
-class HistoryConstants:
-    """Constants for history buffer."""
-
-    DEFAULT_BUFFER_SIZE = 1000
-    MIN_BUFFER_SIZE = 10
-    MAX_BUFFER_SIZE = 10000
-
-    # Time series
-    DEFAULT_TIME_INTERVAL_MINUTES = 5
-    MIN_TIME_INTERVAL_MINUTES = 1
-    MAX_TIME_INTERVAL_MINUTES = 60
-
-    DEFAULT_DURATION_HOURS = 24
-    MAX_DURATION_HOURS = 168  # 1 week
-
-    # Status filters
-    class Status(str, Enum):
-        PASS = "pass"
-        FAIL = "fail"
-        ERROR = "error"
-        ALL = "all"
-
-
 # API Constants
 class APIConstants:
     """Constants for API endpoints."""

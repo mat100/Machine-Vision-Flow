@@ -26,7 +26,6 @@ class EdgeDetector:
         image: np.ndarray,
         method: EdgeMethod = EdgeMethod.CANNY,
         params: Optional[Dict[str, Any]] = None,
-        preprocessing: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Perform edge detection on image.
@@ -34,8 +33,7 @@ class EdgeDetector:
         Args:
             image: Input image (BGR or grayscale)
             method: Edge detection method
-            params: Method-specific parameters
-            preprocessing: Preprocessing options (blur, threshold, etc.)
+            params: Method-specific and preprocessing parameters (unified)
 
         Returns:
             Dictionary with edge detection results
@@ -43,8 +41,8 @@ class EdgeDetector:
         if params is None:
             params = {}
 
-        # Preprocessing
-        processed_image = self._preprocess(image, preprocessing)
+        # Preprocessing (using params instead of separate preprocessing dict)
+        processed_image = self._preprocess(image, params)
 
         # Convert to grayscale if needed
         gray = ImageUtils.ensure_grayscale(processed_image)
@@ -87,33 +85,40 @@ class EdgeDetector:
             "image": image,
         }
 
-    def _preprocess(self, image: np.ndarray, preprocessing: Optional[Dict[str, Any]]) -> np.ndarray:
-        """Apply preprocessing to image."""
-        if not preprocessing:
+    def _preprocess(self, image: np.ndarray, params: Optional[Dict[str, Any]]) -> np.ndarray:
+        """
+        Apply preprocessing to image using parameters from unified params dict.
+
+        Args:
+            image: Input image
+            params: Unified parameters dict containing preprocessing options
+
+        Returns:
+            Preprocessed image
+        """
+        if not params:
             return image
 
         result = image.copy()
 
         # Gaussian blur
-        if preprocessing.get("blur_enabled", False):
-            kernel_size = int(
-                preprocessing.get("blur_kernel", EdgeDetectionDefaults.BLUR_KERNEL_SIZE)
-            )
+        if params.get("blur_enabled", False):
+            kernel_size = int(params.get("blur_kernel", EdgeDetectionDefaults.BLUR_KERNEL_SIZE))
             if kernel_size % 2 == 0:
                 kernel_size += 1  # Ensure odd kernel size
             result = cv2.GaussianBlur(result, (kernel_size, kernel_size), 0)
 
         # Bilateral filter (edge-preserving blur)
-        if preprocessing.get("bilateral_enabled", False):
-            d = int(preprocessing.get("bilateral_d", EdgeDetectionDefaults.BILATERAL_D))
+        if params.get("bilateral_enabled", False):
+            d = int(params.get("bilateral_d", EdgeDetectionDefaults.BILATERAL_D))
             sigma_color = float(
-                preprocessing.get(
+                params.get(
                     "bilateral_sigma_color",
                     EdgeDetectionDefaults.BILATERAL_SIGMA_COLOR,
                 )
             )
             sigma_space = float(
-                preprocessing.get(
+                params.get(
                     "bilateral_sigma_space",
                     EdgeDetectionDefaults.BILATERAL_SIGMA_SPACE,
                 )
@@ -121,10 +126,10 @@ class EdgeDetector:
             result = cv2.bilateralFilter(result, d, sigma_color, sigma_space)
 
         # Morphological operations
-        if preprocessing.get("morphology_enabled", False):
-            operation = preprocessing.get("morphology_operation", "close")
+        if params.get("morphology_enabled", False):
+            operation = params.get("morphology_operation", "close")
             kernel_size = int(
-                preprocessing.get(
+                params.get(
                     "morphology_kernel",
                     EdgeDetectionDefaults.MORPHOLOGY_KERNEL_SIZE,
                 )
@@ -139,7 +144,7 @@ class EdgeDetector:
                 result = cv2.morphologyEx(result, cv2.MORPH_GRADIENT, kernel)
 
         # Histogram equalization
-        if preprocessing.get("equalize_enabled", False):
+        if params.get("equalize_enabled", False):
             if len(result.shape) == 3:
                 # Convert to LAB and equalize L channel
                 lab = cv2.cvtColor(result, cv2.COLOR_BGR2LAB)

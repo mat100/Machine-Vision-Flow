@@ -22,7 +22,6 @@ from api.models import (
     VisionObjectType,
 )
 from core.decorators import timer
-from core.history_buffer import HistoryBuffer
 from core.image_manager import ImageManager
 from core.overlay_renderer import OverlayRenderer
 from core.roi_handler import ROIHandler
@@ -46,7 +45,6 @@ class VisionService:
         self,
         image_manager: ImageManager,
         template_manager: TemplateManager,
-        history_buffer: HistoryBuffer,
     ):
         """
         Initialize vision service.
@@ -54,11 +52,9 @@ class VisionService:
         Args:
             image_manager: Image manager instance
             template_manager: Template manager instance
-            history_buffer: History buffer instance
         """
         self.image_manager = image_manager
         self.template_manager = template_manager
-        self.history_buffer = history_buffer
         self.color_detector = ColorDetector()
         self.aruco_detector = ArucoDetector()
         self.rotation_detector = RotationDetector()
@@ -69,8 +65,6 @@ class VisionService:
         image_id: str,
         detector_func,
         roi: Optional[Dict] = None,
-        record_history: bool = True,
-        history_type: str = "detection",
         **detector_kwargs,
     ) -> Tuple[any, str, int]:
         """
@@ -81,15 +75,12 @@ class VisionService:
         - ROI extraction
         - Coordinate adjustment
         - Thumbnail generation
-        - History recording
 
         Args:
             image_id: Image identifier
             detector_func: Detection function to execute
                 (receives image, returns result dict/objects)
             roi: Optional region of interest
-            record_history: Whether to record in history
-            history_type: Type of detection for history logging
             **detector_kwargs: Additional kwargs passed to detector function
 
         Returns:
@@ -113,78 +104,100 @@ class VisionService:
             # Execute detection
             result = detector_func(image, **detector_kwargs)
 
-            # Adjust coordinates if ROI was used
+            # Adjust coordinates if ROI was used (inline - used only here)
             if roi_offset != (0, 0):
-                result = self._adjust_coordinates_for_roi(result, roi_offset)
+                for obj in result["objects"]:
+                    # Adjust bounding box and center
+                    obj.bounding_box.x += roi_offset[0]
+                    obj.bounding_box.y += roi_offset[1]
+                    obj.center.x += roi_offset[0]
+                    obj.center.y += roi_offset[1]
+                    # Adjust contour points if present
+                    if hasattr(obj, "contour") and obj.contour:
+                        obj.contour = [
+                            [x + roi_offset[0], y + roi_offset[1]] for x, y in obj.contour
+                        ]
 
-            # Generate thumbnail
-            thumbnail_base64 = self._create_detection_thumbnail(result)
+            # Generate thumbnail (inline - used only here)
+            _, thumbnail_base64 = self.image_manager.create_thumbnail(result["image"])
 
         # Read processing time AFTER with block (timer updates in finally)
         processing_time_ms = t["ms"]
 
-        # Record history if requested
-        if record_history:
-            self._record_detection_history(
-                image_id, result, history_type, processing_time_ms, thumbnail_base64
-            )
-
         return result, thumbnail_base64, processing_time_ms
 
-    def _adjust_coordinates_for_roi(self, result, roi_offset):
+    @staticmethod
+    def _parse_enum(value: any, enum_class: type, default: any, normalize: bool = False) -> any:
         """
-        Adjust object coordinates by ROI offset.
+        Parse value to enum with fallback to default.
 
-        All detectors return Dict with "objects" list, so we can simplify this.
+        Unifies enum parsing logic across all detection methods.
+
+        Args:
+            value: Value to parse (string, enum, or None)
+            enum_class: Enum class to parse to
+            default: Default enum value if parsing fails
+            normalize: Whether to lowercase string before parsing (for case-insensitive matching)
+
+        Returns:
+            Parsed enum value or default
+
+        Example:
+            method = _parse_enum("CANNY", EdgeMethod, EdgeMethod.CANNY, normalize=True)
+            # Returns EdgeMethod.CANNY even if input is "canny", "Canny", "CANNY"
         """
-        # All detectors return dict with "objects" list
-        for obj in result["objects"]:
-            self._adjust_object_coordinates(obj, roi_offset)
-        return result
+        # Already an enum instance
+        if isinstance(value, enum_class):
+            return value
 
-    def _adjust_object_coordinates(self, obj: VisionObject, roi_offset: Tuple[int, int]):
-        """Adjust single object coordinates by ROI offset."""
-        obj.bounding_box.x += roi_offset[0]
-        obj.bounding_box.y += roi_offset[1]
-        obj.center.x += roi_offset[0]
-        obj.center.y += roi_offset[1]
+        # None or missing value
+        if value is None:
+            return default
 
-        # Adjust contour points if present
-        if hasattr(obj, "contour") and obj.contour:
-            obj.contour = [[x + roi_offset[0], y + roi_offset[1]] for x, y in obj.contour]
+        # String value - try to parse
+        try:
+            str_value = value.lower() if normalize else value
+            return enum_class(str_value)
+        except (ValueError, AttributeError):
+            return default
 
-    def _create_detection_thumbnail(self, result) -> str:
+    @staticmethod
+    def _enum_to_string(value: any) -> str:
         """
-        Create thumbnail from detection result.
+        Convert enum to string value, or pass through if already string.
 
-        All detectors return dict with "image" containing the annotated visualization.
+        Unifies enum → string conversion across all detection methods.
+
+        Args:
+            value: Enum instance or string
+
+        Returns:
+            String value (enum.value if enum, otherwise the value itself)
+
+        Example:
+            dictionary_str = _enum_to_string(ArucoDict.DICT_4X4_50)
+            # Returns "DICT_4X4_50"
         """
-        _, thumbnail_base64 = self.image_manager.create_thumbnail(result["image"])
-        return thumbnail_base64
+        return value.value if hasattr(value, "value") else value
 
-    def _record_detection_history(
-        self, image_id: str, result, detection_type: str, processing_time_ms: int, thumbnail: str
-    ):
+    @staticmethod
+    def _ensure_params_dict(params: Optional[Dict]) -> Dict:
         """
-        Record detection in history buffer.
+        Ensure params is a dict (create empty dict if None).
 
-        All detectors return dict with "objects" list.
+        Unifies params initialization across all detection methods.
+
+        Args:
+            params: Optional parameters dict
+
+        Returns:
+            Dict (original if not None, empty dict otherwise)
+
+        Example:
+            params = _ensure_params_dict(None)  # Returns {}
+            params = _ensure_params_dict({"key": "value"})  # Returns {"key": "value"}
         """
-        object_count = len(result["objects"])
-
-        self.history_buffer.add_inspection(
-            image_id=image_id,
-            result="PASS" if object_count > 0 else "FAIL",
-            detections=[
-                {
-                    "type": detection_type,
-                    "found": object_count > 0,
-                    "count": object_count,
-                }
-            ],
-            processing_time_ms=processing_time_ms,
-            thumbnail_base64=thumbnail,
-        )
+        return params if params is not None else {}
 
     def template_match(
         self,
@@ -193,7 +206,6 @@ class VisionService:
         method: str = "TM_CCOEFF_NORMED",
         threshold: float = 0.8,
         roi: Optional[Dict] = None,
-        record_history: bool = True,
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Perform template matching on an image.
@@ -204,7 +216,6 @@ class VisionService:
             method: OpenCV matching method
             threshold: Match threshold (0-1)
             roi: Optional region of interest to limit search area (dict with x, y, width, height)
-            record_history: Whether to record in history
 
         Returns:
             Tuple of (detected_objects, thumbnail_base64, processing_time_ms)
@@ -294,38 +305,16 @@ class VisionService:
                 "image": result_image,
             }
 
-        # Execute using template method - it handles ROI, coordinate adjustment, thumbnail, history
+        # Execute using template method - it handles ROI, coordinate adjustment, thumbnail
         result, thumbnail_base64, processing_time = self._execute_detection(
             image_id=image_id,
             detector_func=detect_func,
             roi=roi,
-            record_history=False,  # We'll do custom history recording
-            history_type="template_match",
         )
 
-        detected_objects = result["objects"]
+        logger.debug(f"Template matching: {len(result['objects'])} matches in {processing_time}ms")
 
-        # Custom history recording for template match (includes template_id and confidence)
-        if record_history:
-            self.history_buffer.add_inspection(
-                image_id=image_id,
-                result="PASS" if detected_objects else "FAIL",
-                detections=[
-                    {
-                        "type": "template_match",
-                        "template_id": template_id,
-                        "found": len(detected_objects) > 0,
-                        "confidence": detected_objects[0].confidence if detected_objects else 0,
-                        "count": len(detected_objects),
-                    }
-                ],
-                processing_time_ms=processing_time,
-                thumbnail_base64=thumbnail_base64,
-            )
-
-        logger.debug(f"Template matching: {len(detected_objects)} matches in {processing_time}ms")
-
-        return detected_objects, thumbnail_base64, processing_time
+        return result["objects"], thumbnail_base64, processing_time
 
     def learn_template_from_roi(
         self, image_id: str, roi: ROI, name: str, description: Optional[str] = None
@@ -372,9 +361,7 @@ class VisionService:
         image_id: str,
         method: str = "canny",
         params: Optional[Dict] = None,
-        preprocessing: Optional[Dict] = None,
         roi: Optional[Dict] = None,
-        record_history: bool = True,
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Perform edge detection on an image.
@@ -382,10 +369,8 @@ class VisionService:
         Args:
             image_id: Image identifier
             method: Edge detection method (canny, sobel, laplacian, etc.)
-            params: Method-specific parameters
-            preprocessing: Optional preprocessing parameters
+            params: Method-specific and preprocessing parameters (unified)
             roi: Optional region of interest to limit detection area
-            record_history: Whether to record in history
 
         Returns:
             Tuple of (detected_objects, thumbnail_base64, processing_time_ms)
@@ -397,15 +382,11 @@ class VisionService:
         from core.enums import EdgeMethod
         from vision.edge_detection import EdgeDetector
 
-        # Parse method
-        try:
-            edge_method = EdgeMethod(method.lower())
-        except ValueError:
-            edge_method = EdgeMethod.CANNY
+        # Parse method using helper (unified enum parsing)
+        edge_method = self._parse_enum(method, EdgeMethod, EdgeMethod.CANNY, normalize=True)
 
-        # Set default parameters if not provided
-        if params is None:
-            params = {}
+        # Ensure params is dict (unified params initialization)
+        params = self._ensure_params_dict(params)
 
         # Set method-specific defaults using constants
         if edge_method == EdgeMethod.CANNY:
@@ -419,17 +400,13 @@ class VisionService:
         # Create detector function
         def detect_func(image):
             detector = EdgeDetector()
-            return detector.detect(
-                image=image, method=edge_method, params=params, preprocessing=preprocessing
-            )
+            return detector.detect(image=image, method=edge_method, params=params)
 
         # Execute using template method
         result, thumbnail_base64, processing_time = self._execute_detection(
             image_id=image_id,
             detector_func=detect_func,
             roi=roi,
-            record_history=record_history,
-            history_type="edge_detection",
         )
 
         logger.debug(
@@ -437,7 +414,6 @@ class VisionService:
             f"found in {processing_time}ms"
         )
 
-        # Return List[VisionObject] directly (not Dict) for consistency
         return result["objects"], thumbnail_base64, processing_time
 
     def color_detect(
@@ -449,7 +425,6 @@ class VisionService:
         expected_color: Optional[str] = None,
         min_percentage: float = 50.0,
         method: Union[ColorMethod, str] = ColorMethod.HISTOGRAM,
-        record_history: bool = True,
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Perform color detection on an image.
@@ -462,7 +437,6 @@ class VisionService:
             expected_color: Expected color name (or None to just detect)
             min_percentage: Minimum percentage for color match
             method: Detection method ("histogram" or "kmeans")
-            record_history: Whether to record in history
 
         Returns:
             Tuple of (detected_objects, thumbnail_base64, processing_time_ms)
@@ -473,8 +447,8 @@ class VisionService:
 
         # Create detector function
         def detect_func(image):
-            # Convert ColorMethod enum to string if needed
-            method_str = method.value if isinstance(method, ColorMethod) else method
+            # Convert ColorMethod enum to string using helper (unified enum → string conversion)
+            method_str = self._enum_to_string(method)
             return self.color_detector.detect(
                 image=image,
                 roi=roi,
@@ -490,31 +464,9 @@ class VisionService:
             image_id=image_id,
             detector_func=detect_func,
             roi=None,  # ColorDetector handles ROI internally
-            record_history=False,  # Custom history recording below
-            history_type="color_detection",
         )
 
         detected_object = result["objects"][0]
-
-        # Custom history recording (PASS/FAIL based on match OR no expected color)
-        if record_history:
-            is_match = detected_object.properties.get("match", False)
-            inspection_result = "PASS" if (is_match or expected_color is None) else "FAIL"
-            self.history_buffer.add_inspection(
-                image_id=image_id,
-                result=inspection_result,
-                detections=[
-                    {
-                        "type": "color_detection",
-                        "dominant_color": detected_object.properties["dominant_color"],
-                        "expected_color": expected_color,
-                        "match": is_match,
-                        "confidence": detected_object.confidence,
-                    }
-                ],
-                processing_time_ms=processing_time,
-                thumbnail_base64=thumbnail_base64,
-            )
 
         logger.debug(
             f"Color detection completed: {detected_object.properties['dominant_color']} "
@@ -528,7 +480,7 @@ class VisionService:
             if not is_match:
                 return [], thumbnail_base64, processing_time
 
-        return [detected_object], thumbnail_base64, processing_time
+        return result["objects"], thumbnail_base64, processing_time
 
     def aruco_detect(
         self,
@@ -536,7 +488,6 @@ class VisionService:
         dictionary: Union[ArucoDict, str] = ArucoDict.DICT_4X4_50,
         roi: Optional[Dict] = None,
         params: Optional[Dict] = None,
-        record_history: bool = True,
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Detect ArUco markers in image.
@@ -546,7 +497,6 @@ class VisionService:
             dictionary: ArUco dictionary type
             roi: Optional region of interest to search in (dict with x, y, width, height)
             params: Detection parameters
-            record_history: Whether to record in history buffer
 
         Returns:
             (detected_objects, thumbnail_base64, processing_time_ms)
@@ -556,24 +506,26 @@ class VisionService:
         """
         from core.constants import ArucoDetectionDefaults
 
-        # Set default dictionary
-        if dictionary is None:
-            dictionary = ArucoDetectionDefaults.DEFAULT_DICTIONARY
+        # Use default dictionary if None (or use helper for parsing)
+        dictionary = (
+            dictionary if dictionary is not None else ArucoDetectionDefaults.DEFAULT_DICTIONARY
+        )
 
-        # Convert ArucoDict enum to string if needed
-        dictionary_str = dictionary.value if isinstance(dictionary, ArucoDict) else dictionary
+        # Convert ArucoDict enum to string using helper (unified enum → string conversion)
+        dictionary_str = self._enum_to_string(dictionary)
+
+        # Ensure params is dict (unified params initialization)
+        params = self._ensure_params_dict(params)
 
         # Create detector function
         def detect_func(image):
-            return self.aruco_detector.detect(image, dictionary=dictionary_str, params=params or {})
+            return self.aruco_detector.detect(image, dictionary=dictionary_str, params=params)
 
         # Execute using template method
         result, thumbnail_base64, processing_time = self._execute_detection(
             image_id=image_id,
             detector_func=detect_func,
             roi=roi,
-            record_history=record_history,
-            history_type="aruco_detection",
         )
 
         logger.debug(
@@ -590,7 +542,6 @@ class VisionService:
         method: Union[RotationMethod, str] = RotationMethod.MIN_AREA_RECT,
         angle_range: Union[AngleRange, str] = AngleRange.RANGE_0_360,
         roi: Optional[Dict[str, int]] = None,
-        record_history: bool = True,
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Detect rotation angle from contour.
@@ -601,7 +552,6 @@ class VisionService:
             method: Detection method (min_area_rect, ellipse_fit, pca)
             angle_range: Output angle range (0_360, -180_180, 0_180)
             roi: Optional ROI for visualization context
-            record_history: Whether to record in history buffer
 
         Returns:
             (detected_objects, thumbnail_base64, processing_time_ms)
@@ -609,22 +559,9 @@ class VisionService:
         Raises:
             ImageNotFoundException: If image not found
         """
-        # Convert string to enum if needed (API provides enums, but backwards compatibility)
-        if isinstance(method, str):
-            try:
-                method_enum = RotationMethod(method)
-            except ValueError:
-                method_enum = RotationMethod.MIN_AREA_RECT
-        else:
-            method_enum = method
-
-        if isinstance(angle_range, str):
-            try:
-                range_enum = AngleRange(angle_range)
-            except ValueError:
-                range_enum = AngleRange.RANGE_0_360
-        else:
-            range_enum = angle_range
+        # Parse enums using helper (unified enum parsing with backwards compatibility)
+        method_enum = self._parse_enum(method, RotationMethod, RotationMethod.MIN_AREA_RECT)
+        range_enum = self._parse_enum(angle_range, AngleRange, AngleRange.RANGE_0_360)
 
         # Create detector function
         def detect_func(image):
@@ -637,34 +574,13 @@ class VisionService:
             image_id=image_id,
             detector_func=detect_func,
             roi=None,  # RotationDetector handles ROI for visualization
-            record_history=False,  # Custom history recording below
-            history_type="rotation_analysis",
         )
 
         detected_object = result["objects"][0]
-
-        # Custom history recording (rotation always succeeds if contour valid)
-        if record_history:
-            from api.models import InspectionResult
-
-            self.history_buffer.add_inspection(
-                image_id=image_id,
-                result=InspectionResult.PASS,  # Rotation always succeeds if contour valid
-                detections=[
-                    {
-                        "type": "rotation_analysis",
-                        "rotation": detected_object.rotation,
-                        "method": method,
-                        "confidence": detected_object.confidence,
-                    }
-                ],
-                processing_time_ms=processing_time,
-                thumbnail_base64=thumbnail_base64,
-            )
 
         logger.debug(
             f"Rotation detection completed: {detected_object.rotation:.1f}° "
             f"({method}) in {processing_time}ms"
         )
 
-        return [detected_object], thumbnail_base64, processing_time
+        return result["objects"], thumbnail_base64, processing_time

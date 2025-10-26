@@ -71,10 +71,7 @@ class TestSystemRouterAPI:
         assert len(buffer_stats) > 0
 
     def test_get_performance_initial(self, client):
-        """Test performance metrics endpoint with no history"""
-        # Clear history first
-        client.post("/api/history/clear")
-
+        """Test performance metrics endpoint (history tracking removed)"""
         response = client.get("/api/system/performance")
 
         assert response.status_code == 200
@@ -92,21 +89,19 @@ class TestSystemRouterAPI:
         assert isinstance(data["success_rate"], (int, float))
         assert isinstance(data["operations_per_minute"], (int, float))
 
-        # With no history, total should be 0
-        assert data["total_inspections"] >= 0
-        assert data["avg_processing_time"] >= 0
-        assert 0 <= data["success_rate"] <= 100
+        # Since history was removed, performance metrics return default values
+        assert data["total_inspections"] == 0
+        assert data["avg_processing_time"] == 0.0
+        assert data["success_rate"] == 100.0
+        assert data["operations_per_minute"] == 0.0
 
     def test_get_performance_with_history(self, client):
-        """Test performance metrics with actual inspection history"""
-        # Clear history first
-        client.post("/api/history/clear")
-
+        """Test performance metrics (history tracking was removed, always returns defaults)"""
         # Capture an image
         capture_response = client.post("/api/camera/capture?camera_id=test")
         image_id = capture_response.json()["image_id"]
 
-        # Perform a vision operation to create history
+        # Perform a vision operation (but history is no longer tracked)
         edge_request = {
             "image_id": image_id,
             "method": "canny",
@@ -114,17 +109,17 @@ class TestSystemRouterAPI:
         }
         client.post("/api/vision/edge-detect", json=edge_request)
 
-        # Get performance metrics
+        # Get performance metrics (always returns default values now)
         response = client.get("/api/system/performance")
 
         assert response.status_code == 200
         data = response.json()
 
-        # Should have at least one inspection
-        assert data["total_inspections"] >= 1
-        assert data["avg_processing_time"] > 0
-        # Success rate should be valid
-        assert 0 <= data["success_rate"] <= 100
+        # History tracking was removed, so metrics are always default values
+        assert data["total_inspections"] == 0
+        assert data["avg_processing_time"] == 0.0
+        assert data["success_rate"] == 100.0
+        assert data["operations_per_minute"] == 0.0
 
     def test_set_debug_mode_enable(self, client):
         """Test enabling debug mode"""
@@ -213,27 +208,23 @@ class TestSystemRouterAPI:
         assert 0 <= memory["system_percent"] <= 100
 
     def test_performance_operations_per_minute(self, client):
-        """Test operations per minute calculation"""
-        # Clear history
-        client.post("/api/history/clear")
-
+        """Test operations per minute (history tracking removed)"""
         # Capture image and run multiple operations
         capture_response = client.post("/api/camera/capture?camera_id=test")
         image_id = capture_response.json()["image_id"]
 
-        # Run several edge detections
+        # Run several edge detections (but history is no longer tracked)
         for _ in range(3):
             edge_request = {"image_id": image_id, "method": "canny"}
             client.post("/api/vision/edge-detect", json=edge_request)
 
-        # Get performance
+        # Get performance (always returns default values now)
         response = client.get("/api/system/performance")
         data = response.json()
 
-        # Should show operations per minute
-        assert data["operations_per_minute"] >= 0
-        # With 3 operations, should be > 0
-        assert data["total_inspections"] >= 3
+        # History tracking was removed, so metrics are always default values
+        assert data["operations_per_minute"] == 0.0
+        assert data["total_inspections"] == 0
 
     def test_status_active_cameras(self, client):
         """Test active cameras count"""

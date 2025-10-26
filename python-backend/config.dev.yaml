@@ -57,12 +57,6 @@ template:
   supported_formats: [png, jpg, jpeg]
   auto_learn: true  # Enable auto-learning from ROI in dev
 
-history:
-  max_inspections: 500  # Keep more history in dev
-  retention_minutes: 180  # Longer retention in dev
-  persist_to_file: true  # Save history to file in dev
-  history_file: ./debug/history.json
-
 vision:
   template_matching:
     default_method: TM_CCOEFF_NORMED
