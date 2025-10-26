@@ -3,7 +3,6 @@ Template API Router - Template management
 """
 
 import logging
-from datetime import datetime
 from typing import List
 
 import cv2
@@ -27,17 +26,7 @@ router = APIRouter()
 async def list_templates(template_manager=Depends(get_template_manager)) -> List[TemplateInfo]:
     """List all templates"""
     templates = template_manager.list_templates()
-
-    return [
-        TemplateInfo(
-            id=t["id"],
-            name=t["name"],
-            description=t.get("description"),
-            size=Size(width=t["size"]["width"], height=t["size"]["height"]),
-            created_at=datetime.fromisoformat(t["created_at"]),
-        )
-        for t in templates
-    ]
+    return [TemplateInfo.from_manager_dict(t) for t in templates]
 
 
 @router.post("/upload")

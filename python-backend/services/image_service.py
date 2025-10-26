@@ -13,7 +13,7 @@ import numpy as np
 from api.exceptions import ImageNotFoundException
 from core.constants import ImageConstants
 from core.image_manager import ImageManager
-from core.roi_handler import ROIHandler
+from core.utils.roi_handler import ROIHandler
 from schemas import ROI
 
 logger = logging.getLogger(__name__)

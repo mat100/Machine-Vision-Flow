@@ -9,28 +9,18 @@ from typing import Any, Dict
 
 import cv2
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from core.enums import TemplateMethod
+from schemas.base import BaseDetectionParams
 
 
-class TemplateMatchParams(BaseModel):
+class TemplateMatchParams(BaseDetectionParams):
     """
     Template matching parameters.
 
     Supports multiple OpenCV matching methods with configurable thresholds.
     """
-
-    class Config:
-        extra = "forbid"
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Export to dict for detector functions."""
-        data = self.model_dump(exclude_none=True)
-        # Convert enum to string for OpenCV
-        if "method" in data and hasattr(data["method"], "value"):
-            data["method"] = data["method"].value
-        return data
 
     template_id: str = Field(description="Template identifier to match against")
     method: TemplateMethod = Field(

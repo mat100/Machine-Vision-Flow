@@ -24,6 +24,38 @@ class CameraInfo(BaseModel):
     resolution: Size
     connected: bool
 
+    @classmethod
+    def from_manager_dict(cls, data: Dict[str, Any]) -> "CameraInfo":
+        """
+        Create CameraInfo from camera manager dict.
+
+        Args:
+            data: Dictionary from camera manager with camera details
+
+        Returns:
+            CameraInfo instance
+
+        Example:
+            >>> cam_dict = {
+            ...     "id": "usb_0",
+            ...     "name": "USB Camera",
+            ...     "type": "usb",
+            ...     "resolution": {"width": 1920, "height": 1080},
+            ...     "connected": True
+            ... }
+            >>> info = CameraInfo.from_manager_dict(cam_dict)
+        """
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            type=data["type"],
+            resolution=Size(
+                width=data.get("resolution", {}).get("width", 1920),
+                height=data.get("resolution", {}).get("height", 1080),
+            ),
+            connected=data.get("connected", False),
+        )
+
 
 class CameraConnectRequest(BaseModel):
     """Request to connect to camera"""

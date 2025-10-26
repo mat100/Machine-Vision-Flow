@@ -10,9 +10,21 @@ Please use the focused modules in core.image instead:
 This file re-exports all functionality from the new modules.
 """
 
+import warnings
+
 from core.image.converters import ImageConverters
 from core.image.geometry import ImageGeometry
 from core.image.processors import ImageProcessors
+
+# Issue deprecation warning
+warnings.warn(
+    "core.image_utils.ImageUtils is deprecated. "
+    "Please use core.image.converters.ImageConverters, "
+    "core.image.processors.ImageProcessors, or "
+    "core.image.geometry.ImageGeometry directly.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class ImageUtils:

@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import pytest
 
-from core.image_utils import ImageUtils
+from core.utils.image_utils import ImageUtils
 
 
 class TestImageFormatConversion:

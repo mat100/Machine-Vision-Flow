@@ -7,8 +7,8 @@ import logging
 from functools import lru_cache
 from typing import Any, Dict, Optional
 
-from fastapi import Depends, HTTPException, Path, Query, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPBearer
 
 from core.camera_manager import CameraManager
 from core.image_manager import ImageManager
@@ -79,17 +79,6 @@ def get_camera_manager(managers: Managers = Depends(get_managers)) -> CameraMana
 def get_template_manager(managers: Managers = Depends(get_managers)) -> TemplateManager:
     """Get TemplateManager instance."""
     return managers.template_manager
-
-
-# Common query parameters
-def image_id_param(image_id: str = Path(..., description="Unique image identifier")) -> str:
-    """Common image ID path parameter."""
-    return image_id
-
-
-def camera_id_param(camera_id: str = Query("test", description="Camera identifier")) -> str:
-    """Common camera ID query parameter."""
-    return camera_id
 
 
 def validate_image_exists(
@@ -204,39 +193,11 @@ def validate_vision_request(
     return roi_to_dict(roi)
 
 
-# Authentication dependency (placeholder for future implementation)
-def optional_auth(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> Optional[str]:
-    """
-    Optional authentication check.
-
-    Returns:
-        User ID if authenticated, None otherwise
-    """
-    if credentials:
-        # TODO: Implement actual authentication logic
-        # For now, just return the token as user_id
-        return credentials.credentials
-    return None
-
-
-# Rate limiting dependency (placeholder)
-def check_rate_limit(
-    user_id: Optional[str] = Depends(optional_auth), request: Request = None
-) -> None:
-    """
-    Check rate limits for the request.
-
-    Args:
-        user_id: Optional authenticated user ID
-        request: FastAPI request object
-
-    Raises:
-        HTTPException: If rate limit exceeded
-    """
-    # TODO: Implement actual rate limiting
-    # Could use Redis or in-memory store to track request counts
+# Authentication and rate limiting removed - implement when needed
+# For future implementation, consider using:
+# - FastAPI Security utilities for OAuth2/JWT
+# - slowapi or fastapi-limiter for rate limiting
+# - Redis for distributed rate limiting state
 
 
 # Configuration access

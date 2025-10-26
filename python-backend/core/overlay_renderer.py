@@ -10,7 +10,7 @@ from typing import List, Optional, Tuple
 import cv2
 import numpy as np
 
-from core.image_utils import ImageUtils
+from core.utils.image_utils import ImageUtils
 from schemas import VisionObject
 
 

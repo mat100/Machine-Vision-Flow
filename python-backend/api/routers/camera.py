@@ -15,8 +15,8 @@ from fastapi.responses import StreamingResponse
 from api.dependencies import get_camera_manager  # Still needed for stream endpoint
 from api.dependencies import get_camera_service
 from api.exceptions import safe_endpoint
-from core.camera_identifier import CameraIdentifier
-from schemas import CameraCaptureResponse, CameraConnectRequest, CameraInfo, CaptureRequest, Size
+from core.utils.camera_identifier import CameraIdentifier
+from schemas import CameraCaptureResponse, CameraConnectRequest, CameraInfo, CaptureRequest
 
 logger = logging.getLogger(__name__)
 
@@ -28,20 +28,7 @@ router = APIRouter()
 async def list_cameras(camera_service=Depends(get_camera_service)) -> List[CameraInfo]:
     """List available cameras"""
     cameras = camera_service.list_available_cameras()
-
-    return [
-        CameraInfo(
-            id=cam["id"],
-            name=cam["name"],
-            type=cam["type"],
-            resolution=Size(
-                width=cam.get("resolution", {}).get("width", 1920),
-                height=cam.get("resolution", {}).get("height", 1080),
-            ),
-            connected=cam.get("connected", False),
-        )
-        for cam in cameras
-    ]
+    return [CameraInfo.from_manager_dict(cam) for cam in cameras]
 
 
 @router.post("/connect")

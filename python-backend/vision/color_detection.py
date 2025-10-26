@@ -6,29 +6,23 @@ and k-means clustering.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import cv2
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sklearn.cluster import KMeans
 
 from core.enums import ColorMethod
+from schemas.base import BaseDetectionParams
 
 
-class ColorDetectionParams(BaseModel):
+class ColorDetectionParams(BaseDetectionParams):
     """
     Color detection parameters.
 
     Supports both histogram (fast) and kmeans (accurate) detection methods.
     """
-
-    class Config:
-        extra = "forbid"
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Export to dict for detector functions."""
-        return self.model_dump(exclude_none=True)
 
     # === Common parameters ===
     method: ColorMethod = Field(
@@ -193,7 +187,7 @@ class ColorDetector:
         Returns:
             Dictionary with color information
         """
-        from core.color_utils import count_colors_vectorized
+        from core.utils.color_utils import count_colors_vectorized
 
         h, s, v = cv2.split(hsv)
 
@@ -255,7 +249,7 @@ class ColorDetector:
         Returns:
             Dictionary with color information
         """
-        from core.color_utils import hsv_to_color_name
+        from core.utils.color_utils import hsv_to_color_name
 
         # Reshape image to list of pixels
         if mask is not None:

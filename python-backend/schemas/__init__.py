@@ -35,6 +35,9 @@ from vision.edge_detection import EdgeDetectionParams
 from vision.rotation_detection import RotationDetectionParams
 from vision.template_matching import TemplateMatchParams
 
+# Base schemas
+from .base import BaseDetectionParams
+
 # Camera models
 from .camera import (
     CameraCaptureResponse,
@@ -105,6 +108,8 @@ __all__ = [
     "RotationMethod",
     "TemplateMethod",
     "VisionObjectType",
+    # Base schemas
+    "BaseDetectionParams",
     # Params (re-exported from vision modules)
     "EdgeDetectionParams",
     "ColorDetectionParams",

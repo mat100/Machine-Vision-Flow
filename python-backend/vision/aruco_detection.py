@@ -7,25 +7,19 @@ from typing import Any, Dict, Optional
 
 import cv2
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from core.enums import ArucoDict
+from schemas.base import BaseDetectionParams
 
 
-class ArucoDetectionParams(BaseModel):
+class ArucoDetectionParams(BaseDetectionParams):
     """
     ArUco marker detection parameters.
 
     ArUco markers are fiducial markers used for camera calibration,
     object tracking, and pose estimation.
     """
-
-    class Config:
-        extra = "forbid"
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Export to dict for detector functions."""
-        return self.model_dump(exclude_none=True)
 
     dictionary: ArucoDict = Field(
         default=ArucoDict.DICT_4X4_50,
@@ -134,7 +128,7 @@ class ArucoDetector:
         Returns:
             VisionObject with marker information
         """
-        from core.image_utils import ImageUtils
+        from core.utils.image_utils import ImageUtils
         from schemas import ROI, Point, VisionObject, VisionObjectType
 
         # Calculate center point

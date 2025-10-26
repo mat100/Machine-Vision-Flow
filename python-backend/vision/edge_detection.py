@@ -6,25 +6,19 @@ from typing import Any, Dict, Optional
 
 import cv2
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from core.enums import EdgeMethod
+from schemas.base import BaseDetectionParams
 
 
-class EdgeDetectionParams(BaseModel):
+class EdgeDetectionParams(BaseDetectionParams):
     """
     Unified edge detection parameters (flat structure).
 
     Contains all preprocessing, filtering, and method-specific parameters
     for all edge detection algorithms with validation and defaults.
     """
-
-    class Config:
-        extra = "forbid"  # Prevent typos in parameter names
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Export to dict for detector functions."""
-        return self.model_dump(exclude_none=True)
 
     # === Method selection ===
     method: str = Field(
@@ -201,7 +195,7 @@ class EdgeDetector:
         Returns:
             Dictionary with edge detection results
         """
-        from core.image_utils import ImageUtils
+        from core.utils.image_utils import ImageUtils
 
         if params is None:
             params = {}
@@ -426,7 +420,7 @@ class EdgeDetector:
 
     def _filter_contours(self, contours: list, params: Dict[str, Any]) -> list:
         """Filter contours based on parameters."""
-        from core.image_utils import ImageUtils
+        from core.utils.image_utils import ImageUtils
 
         min_area = float(params.get("min_contour_area", 10.0))
         max_area = float(params.get("max_contour_area", float("inf")))

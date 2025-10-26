@@ -7,25 +7,19 @@ from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from core.enums import AngleRange, RotationMethod
+from schemas.base import BaseDetectionParams
 
 
-class RotationDetectionParams(BaseModel):
+class RotationDetectionParams(BaseDetectionParams):
     """
     Rotation detection parameters.
 
     Calculates object orientation using minimum area rectangle,
     ellipse fitting, or PCA analysis.
     """
-
-    class Config:
-        extra = "forbid"
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Export to dict for detector functions."""
-        return self.model_dump(exclude_none=True)
 
     method: RotationMethod = Field(
         default=RotationMethod.MIN_AREA_RECT,
@@ -67,7 +61,7 @@ class RotationDetector:
         Returns:
             Dictionary with rotation detection results
         """
-        from core.image_utils import ImageUtils
+        from core.utils.image_utils import ImageUtils
         from schemas import ROI, VisionObject, VisionObjectType
 
         # Convert contour to numpy array
@@ -151,7 +145,7 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
-        from core.image_utils import ImageUtils
+        from core.utils.image_utils import ImageUtils
         from schemas import Point
 
         # Fit minimum area rectangle
@@ -185,7 +179,7 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
-        from core.image_utils import ImageUtils
+        from core.utils.image_utils import ImageUtils
         from schemas import Point
 
         # Fit ellipse
@@ -218,7 +212,7 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
-        from core.image_utils import ImageUtils
+        from core.utils.image_utils import ImageUtils
         from schemas import Point
 
         # Reshape contour to 2D array of points
@@ -270,7 +264,7 @@ class RotationDetector:
         Returns:
             Angle in requested range
         """
-        from core.image_utils import ImageUtils
+        from core.utils.image_utils import ImageUtils
 
         # Map AngleRange enum to ImageUtils format strings
         format_map = {

@@ -9,11 +9,13 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
-from core.decorators import timer
 from core.image_manager import ImageManager
 from core.overlay_renderer import OverlayRenderer
-from core.roi_handler import ROIHandler
 from core.template_manager import TemplateManager
+from core.utils.coordinate_adjuster import CoordinateAdjuster
+from core.utils.decorators import timer
+from core.utils.enum_converter import EnumConverter
+from core.utils.roi_handler import ROIHandler
 from schemas import ROI, TemplateMatchParams, VisionObject
 from vision.aruco_detection import ArucoDetectionParams, ArucoDetector
 from vision.color_detection import ColorDetectionParams, ColorDetector
@@ -94,19 +96,8 @@ class VisionService:
             # Execute detection
             result = detector_func(image, **detector_kwargs)
 
-            # Adjust coordinates if ROI was used (inline - used only here)
-            if roi_offset != (0, 0):
-                for obj in result["objects"]:
-                    # Adjust bounding box and center
-                    obj.bounding_box.x += roi_offset[0]
-                    obj.bounding_box.y += roi_offset[1]
-                    obj.center.x += roi_offset[0]
-                    obj.center.y += roi_offset[1]
-                    # Adjust contour points if present
-                    if hasattr(obj, "contour") and obj.contour:
-                        obj.contour = [
-                            [x + roi_offset[0], y + roi_offset[1]] for x, y in obj.contour
-                        ]
+            # Adjust coordinates if ROI was used
+            CoordinateAdjuster.adjust_for_roi_offset(result["objects"], roi_offset)
 
             # Generate thumbnail (inline - used only here)
             _, thumbnail_base64 = self.image_manager.create_thumbnail(result["image"])
@@ -309,7 +300,7 @@ class VisionService:
         from vision.edge_detection import EdgeDetector
 
         # Parse method string to enum
-        edge_method = self._parse_enum(method, EdgeMethod, EdgeMethod.CANNY, normalize=True)
+        edge_method = EnumConverter.parse_enum(method, EdgeMethod, EdgeMethod.CANNY, normalize=True)
 
         # Convert params to dict (all defaults already applied by Pydantic!)
         params_dict = params.to_dict()
@@ -362,7 +353,7 @@ class VisionService:
             params = ColorDetectionParams()
 
         # Extract individual params for ColorDetector.detect()
-        method_str = self._enum_to_string(params.method)
+        method_str = EnumConverter.enum_to_string(params.method)
         use_contour_mask = params.use_contour_mask
         min_percentage = params.min_percentage
 
@@ -429,7 +420,7 @@ class VisionService:
         params_dict = params.to_dict()
 
         # Extract dictionary parameter
-        dictionary_str = self._enum_to_string(params.dictionary)
+        dictionary_str = EnumConverter.enum_to_string(params.dictionary)
 
         # Create detector function
         def detect_func(image):

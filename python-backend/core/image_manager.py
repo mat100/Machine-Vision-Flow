@@ -13,7 +13,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 
 from core.constants import ImageConstants
-from core.image_utils import ImageUtils
+from core.utils.image_utils import ImageUtils
 
 logger = logging.getLogger(__name__)
 
