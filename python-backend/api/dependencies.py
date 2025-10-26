@@ -10,10 +10,10 @@ from typing import Any, Dict, Optional
 from fastapi import Depends, HTTPException, Path, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from api.models import ROI
 from core.camera_manager import CameraManager
 from core.image_manager import ImageManager
 from core.template_manager import TemplateManager
+from schemas import ROI
 
 # Import services
 from services.camera_service import CameraService
@@ -90,46 +90,6 @@ def image_id_param(image_id: str = Path(..., description="Unique image identifie
 def camera_id_param(camera_id: str = Query("test", description="Camera identifier")) -> str:
     """Common camera ID query parameter."""
     return camera_id
-
-
-def optional_roi_params(
-    x: Optional[int] = Query(None, ge=0, description="ROI x coordinate"),
-    y: Optional[int] = Query(None, ge=0, description="ROI y coordinate"),
-    width: Optional[int] = Query(None, ge=1, description="ROI width"),
-    height: Optional[int] = Query(None, ge=1, description="ROI height"),
-) -> Optional[Dict[str, int]]:
-    """Optional ROI query parameters."""
-    if all(v is not None for v in [x, y, width, height]):
-        return {"x": x, "y": y, "width": width, "height": height}
-    elif any(v is not None for v in [x, y, width, height]):
-        # Partial ROI parameters - invalid
-        raise HTTPException(
-            status_code=400, detail="ROI requires all parameters (x, y, width, height) or none"
-        )
-    return None
-
-
-def validate_template_exists(
-    template_id: str = Path(..., description="Template identifier"),
-    template_manager: TemplateManager = Depends(get_template_manager),
-) -> str:
-    """
-    Validate that template exists.
-
-    Args:
-        template_id: Template identifier
-        template_manager: TemplateManager instance
-
-    Returns:
-        Validated template_id
-
-    Raises:
-        HTTPException: If template not found
-    """
-    templates = template_manager.list_templates()
-    if not any(t["id"] == template_id for t in templates):
-        raise HTTPException(status_code=404, detail=f"Template {template_id} not found")
-    return template_id
 
 
 def validate_image_exists(

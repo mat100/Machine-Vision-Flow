@@ -16,7 +16,8 @@ from fastapi import APIRouter, Depends
 
 from api.dependencies import get_image_manager, get_vision_service, validate_vision_request
 from api.exceptions import safe_endpoint
-from api.models import (
+from core.image_manager import ImageManager
+from schemas import (
     ROI,
     ArucoDetectRequest,
     ColorDetectRequest,
@@ -26,7 +27,6 @@ from api.models import (
     VisionObject,
     VisionResponse,
 )
-from core.image_manager import ImageManager
 
 logger = logging.getLogger(__name__)
 

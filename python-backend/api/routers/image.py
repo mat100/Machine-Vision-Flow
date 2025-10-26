@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends
 
 from api.dependencies import get_image_service
 from api.exceptions import safe_endpoint
-from api.models import ROIExtractRequest, ROIExtractResponse
 from core.image_utils import ImageUtils
+from schemas import ROIExtractRequest, ROIExtractResponse
 
 logger = logging.getLogger(__name__)
 

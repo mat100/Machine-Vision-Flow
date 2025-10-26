@@ -9,7 +9,6 @@ import cv2
 import numpy as np
 from pydantic import BaseModel, Field
 
-from core.constants import RotationDetectionDefaults
 from core.enums import AngleRange, RotationMethod
 
 
@@ -68,8 +67,8 @@ class RotationDetector:
         Returns:
             Dictionary with rotation detection results
         """
-        from api.models import ROI, VisionObject, VisionObjectType
         from core.image_utils import ImageUtils
+        from schemas import ROI, VisionObject, VisionObjectType
 
         # Convert contour to numpy array
         contour_array = np.array(contour, dtype=np.float32)
@@ -79,14 +78,14 @@ class RotationDetector:
             contour_array = contour_array.reshape((-1, 1, 2))
 
         # Validate contour has enough points
-        min_points_ellipse = RotationDetectionDefaults.MIN_POINTS_FOR_ELLIPSE
+        min_points_ellipse = 5
         if len(contour_array) < min_points_ellipse and method == RotationMethod.ELLIPSE_FIT:
             raise ValueError(
                 f"Ellipse fitting requires at least {min_points_ellipse} points, "
                 f"got {len(contour_array)}"
             )
 
-        min_points_rotation = RotationDetectionDefaults.MIN_POINTS_FOR_ROTATION
+        min_points_rotation = 3
         if len(contour_array) < min_points_rotation:
             raise ValueError(
                 f"Rotation detection requires at least {min_points_rotation} points, "
@@ -152,8 +151,8 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
-        from api.models import Point
         from core.image_utils import ImageUtils
+        from schemas import Point
 
         # Fit minimum area rectangle
         rect = cv2.minAreaRect(contour)
@@ -172,7 +171,7 @@ class RotationDetector:
         angle = ImageUtils.normalize_angle(angle_rad, angle_format="0_360")
 
         center = Point(x=float(center_tuple[0]), y=float(center_tuple[1]))
-        confidence = RotationDetectionDefaults.MIN_AREA_RECT_CONFIDENCE
+        confidence = 1.0
 
         return float(angle), center, confidence
 
@@ -186,8 +185,8 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
-        from api.models import Point
         from core.image_utils import ImageUtils
+        from schemas import Point
 
         # Fit ellipse
         ellipse = cv2.fitEllipse(contour)
@@ -204,7 +203,7 @@ class RotationDetector:
 
         # Calculate confidence based on how well ellipse fits the contour
         # (simplified - could be improved with actual error metric)
-        confidence = RotationDetectionDefaults.ELLIPSE_FIT_CONFIDENCE
+        confidence = 0.9
 
         return float(angle), center, confidence
 
@@ -219,8 +218,8 @@ class RotationDetector:
         Returns:
             (angle, center, confidence)
         """
-        from api.models import Point
         from core.image_utils import ImageUtils
+        from schemas import Point
 
         # Reshape contour to 2D array of points
         points = contour.reshape(-1, 2).astype(np.float32)
@@ -254,7 +253,7 @@ class RotationDetector:
         # Higher ratio = more elongated = more confident in rotation
         if eigenvalues[1] > 0:
             ratio = eigenvalues[0] / eigenvalues[1]
-            confidence = min(1.0, ratio / RotationDetectionDefaults.PCA_CONFIDENCE_SCALE)
+            confidence = min(1.0, ratio / 10.0)
         else:
             confidence = 1.0
 

@@ -9,8 +9,7 @@ import cv2
 import numpy as np
 from pydantic import BaseModel, Field
 
-from api.models import ArucoDict
-from core.constants import ArucoDetectionDefaults
+from core.enums import ArucoDict
 
 
 class ArucoDetectionParams(BaseModel):
@@ -70,7 +69,7 @@ class ArucoDetector:
     def detect(
         self,
         image: np.ndarray,
-        dictionary: str = ArucoDetectionDefaults.DEFAULT_DICTIONARY,
+        dictionary: str = "DICT_4X4_50",
         params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
@@ -135,8 +134,8 @@ class ArucoDetector:
         Returns:
             VisionObject with marker information
         """
-        from api.models import ROI, Point, VisionObject, VisionObjectType
         from core.image_utils import ImageUtils
+        from schemas import ROI, Point, VisionObject, VisionObjectType
 
         # Calculate center point
         center_x = float(np.mean(corners[:, 0]))

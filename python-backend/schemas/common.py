@@ -1,47 +1,18 @@
 """
-Pydantic models for API requests and responses
+Common models shared across the API.
+
+This module contains fundamental data models used throughout the vision system:
+- ROI (Region of Interest) with geometric operations
+- Point and Size primitives
+- VisionObject for detection results
+- VisionResponse for unified API responses
 """
 
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator
-
-# Import enums from centralized location
-# Re-export commonly used enums for convenience (backwards compatibility)
-from core.enums import (
-    AngleRange,
-    ArucoDict,
-    ColorMethod,
-    RotationMethod,
-    TemplateMethod,
-    VisionObjectType,
-)
-
-# Import detection params from vision layer
-# Safe to import now because vision modules use late imports (after class definitions)
-from vision.aruco_detection import ArucoDetectionParams
-from vision.color_detection import ColorDetectionParams
-from vision.edge_detection import EdgeDetectionParams
-from vision.rotation_detection import RotationDetectionParams
-from vision.template_matching import TemplateMatchParams
-
-#  Explicitly declare public API for re-export
-__all__ = [
-    "AngleRange",
-    "ArucoDict",
-    "ColorMethod",
-    "RotationMethod",
-    "TemplateMethod",
-    "VisionObjectType",
-    "EdgeDetectionParams",
-    "ColorDetectionParams",
-    "ArucoDetectionParams",
-    "RotationDetectionParams",
-]
+from pydantic import BaseModel, Field
 
 
-# Common models
 class ROI(BaseModel):
     """
     Region of Interest - unified implementation.
@@ -223,7 +194,6 @@ class Size(BaseModel):
     height: int
 
 
-# Standard vision detection models
 class VisionObject(BaseModel):
     """
     Universal interface for any vision processing object.
@@ -265,204 +235,3 @@ class VisionResponse(BaseModel):
     objects: List[VisionObject] = Field(default_factory=list, description="List of vision objects")
     thumbnail_base64: str = Field(..., description="Base64-encoded thumbnail with visualization")
     processing_time_ms: int = Field(..., description="Processing time in milliseconds")
-
-
-# Camera models
-class CameraInfo(BaseModel):
-    """Camera information"""
-
-    id: str
-    name: str
-    type: str
-    resolution: Size
-    connected: bool
-
-
-class CameraConnectRequest(BaseModel):
-    """Request to connect to camera"""
-
-    camera_id: str
-    resolution: Optional[Size] = None
-
-
-class CaptureParams(BaseModel):
-    """Camera capture parameters."""
-
-    class Config:
-        extra = "forbid"
-
-    roi: Optional[ROI] = Field(
-        None, description="Region of interest to extract from captured image"
-    )
-    # Future parameters could include: resolution, format, exposure, etc.
-
-
-class CaptureRequest(BaseModel):
-    """Request to capture image from camera"""
-
-    camera_id: str = Field(
-        description="Camera identifier (e.g., 'usb_0', 'ip_192.168.1.100', 'test')"
-    )
-    params: Optional[CaptureParams] = Field(None, description="Capture parameters (ROI, etc.)")
-
-
-class CameraCaptureResponse(BaseModel):
-    """Response from camera capture"""
-
-    success: bool
-    image_id: str
-    timestamp: datetime
-    thumbnail_base64: str
-    metadata: Dict[str, Any]
-
-
-# Template models
-class TemplateInfo(BaseModel):
-    """Template information"""
-
-    id: str
-    name: str
-    description: Optional[str] = None
-    size: Size
-    created_at: datetime
-
-
-class TemplateUploadResponse(BaseModel):
-    """Response from template upload"""
-
-    success: bool
-    template_id: str
-    name: str
-    size: Size
-
-
-class TemplateLearnRequest(BaseModel):
-    """Request to learn template from image"""
-
-    image_id: str
-    name: str
-    roi: ROI
-    description: Optional[str] = None
-
-
-# Vision processing models
-class TemplateMatchRequest(BaseModel):
-    """Request for template matching"""
-
-    image_id: str
-    roi: Optional[ROI] = Field(None, description="Region of interest to limit search area")
-    params: TemplateMatchParams = Field(
-        description="Template matching parameters (template_id is required)"
-    )
-
-
-class EdgeDetectRequest(BaseModel):
-    """Request for edge detection"""
-
-    image_id: str
-    roi: Optional[ROI] = Field(None, description="Region of interest to limit search area")
-    params: EdgeDetectionParams = Field(
-        default_factory=EdgeDetectionParams,
-        description="Edge detection parameters (method, filtering, preprocessing)",
-    )
-
-
-class ColorDetectRequest(BaseModel):
-    """Request for color detection"""
-
-    image_id: str = Field(..., description="ID of the image to analyze")
-    roi: Optional[ROI] = Field(None, description="Region of interest (if None, analyze full image)")
-    expected_color: Optional[str] = Field(
-        None, description="Expected color name (red, blue, green, etc.) or None to just detect"
-    )
-    contour: Optional[List] = Field(
-        None, description="Contour points for masking (from edge detection)"
-    )
-    params: Optional[ColorDetectionParams] = Field(
-        None,
-        description=(
-            "Color detection parameters (method, thresholds, "
-            "kmeans settings, defaults applied if None)"
-        ),
-    )
-
-
-# System models
-class SystemStatus(BaseModel):
-    """System status information"""
-
-    status: str
-    uptime: float
-    memory_usage: Dict[str, float]
-    active_cameras: int
-    buffer_usage: Dict[str, Any]
-
-
-class PerformanceMetrics(BaseModel):
-    """Performance metrics"""
-
-    avg_processing_time: float
-    total_inspections: int
-    success_rate: float
-    operations_per_minute: float
-
-
-class DebugSettings(BaseModel):
-    """Debug settings"""
-
-    enabled: bool
-    save_images: bool
-    show_visualizations: bool
-    verbose_logging: bool
-
-
-# Image processing models
-class ROIExtractRequest(BaseModel):
-    """Request to extract ROI from image"""
-
-    image_id: str
-    roi: ROI = Field(..., description="Region of interest to extract")
-
-
-class ROIExtractResponse(BaseModel):
-    """Response from ROI extraction"""
-
-    success: bool
-    thumbnail: str
-    bounding_box: ROI
-
-
-class ArucoDetectRequest(BaseModel):
-    """Request for ArUco marker detection"""
-
-    image_id: str = Field(..., description="ID of the image to analyze")
-    roi: Optional[ROI] = Field(None, description="Region of interest to search in")
-    params: Optional[ArucoDetectionParams] = Field(
-        None,
-        description=(
-            "ArUco detection parameters (dictionary type, "
-            "detector settings, defaults applied if None)"
-        ),
-    )
-
-
-class RotationDetectRequest(BaseModel):
-    """Request for rotation detection"""
-
-    image_id: str = Field(..., description="ID of the image for visualization")
-    contour: List = Field(..., description="Contour points [[x1,y1], [x2,y2], ...]", min_length=5)
-    roi: Optional[ROI] = Field(None, description="Optional ROI for visualization context")
-    params: Optional[RotationDetectionParams] = Field(
-        None,
-        description="Rotation detection parameters (method, angle range, defaults applied if None)",
-    )
-
-    @field_validator("contour")
-    @classmethod
-    def validate_contour(cls, v):
-        """Validate contour has minimum required points."""
-        if len(v) < 5:
-            raise ValueError(
-                f"Contour must have at least 5 points for rotation detection, got {len(v)}"
-            )
-        return v

@@ -84,12 +84,20 @@ export MV_CONFIG_FILE=/home/cnc/MachineVisionFlow/python-backend/config.dev.yaml
 python-backend/
 ├── main.py                   # FastAPI app with lifespan management
 ├── config.py                 # Pydantic-based configuration
+├── schemas/                  # Pydantic schemas (validation/serialization)
+│   ├── common.py            # ROI, Point, Size, VisionObject, VisionResponse
+│   ├── camera.py            # Camera-related schemas
+│   ├── template.py          # Template schemas
+│   ├── vision.py            # Vision processing request schemas
+│   ├── system.py            # System status and metrics schemas
+│   └── image.py             # Image processing schemas
 ├── api/                      # REST API layer
-│   ├── models.py            # Shared Pydantic models (ROI, VisionObject, VisionResponse)
 │   ├── dependencies.py      # FastAPI dependency injection (get_managers, validate_*)
-│   ├── exceptions.py        # Custom exceptions + handlers
+│   ├── exceptions.py        # Custom exceptions + handlers + messages
 │   └── routers/             # Endpoint routers (camera, vision, template, image, history, system)
 ├── core/                     # Core infrastructure
+│   ├── enums.py             # All enums (EdgeMethod, ColorMethod, CameraType, etc.)
+│   ├── color_utils.py       # HSV color definitions and vectorized color utilities
 │   ├── camera_manager.py    # Multi-camera abstraction
 │   ├── image_manager.py     # Shared memory storage + LRU cache
 │   ├── template_manager.py  # Template file management
@@ -102,10 +110,11 @@ python-backend/
 │   ├── vision_service.py    # Orchestrates vision processing
 │   └── image_service.py
 └── vision/                   # Computer vision algorithms
-    ├── edge_detection.py    # Canny, Sobel, Laplacian, Prewitt, Scharr
-    ├── color_detection.py   # HSV-based color range detection
-    ├── aruco_detection.py   # ArUco marker detection
-    └── rotation_detection.py
+    ├── edge_detection.py    # Canny, Sobel, Laplacian, Prewitt, Scharr (+ EdgeDetectionParams)
+    ├── color_detection.py   # HSV-based color range detection (+ ColorDetectionParams)
+    ├── aruco_detection.py   # ArUco marker detection (+ ArucoDetectionParams)
+    ├── template_matching.py # Template matching (+ TemplateMatchParams)
+    └── rotation_detection.py # Rotation analysis (+ RotationDetectionParams)
 
 node-red/
 ├── nodes/                    # Custom Node-RED nodes
@@ -156,13 +165,38 @@ image_id = image_manager.store(frame)  # Returns UUID
 image = image_manager.get(image_id)     # Fast retrieval
 ```
 
-**4. Unified API Models**
+**4. Pydantic Schemas Architecture**
 ```python
-# api/models.py defines shared schemas:
-ROI           # Rectangular region with geometric operations
-VisionObject  # Detection result with bounding_box, contour, confidence
-VisionResponse # Container for objects + thumbnail + timing
+# schemas/ package contains all Pydantic validation/serialization schemas
+# Organized by domain and shared across ALL layers (API, services, core, vision)
+
+from schemas import (
+    ROI,            # Rectangular region with geometric operations (schemas/common.py)
+    VisionObject,   # Detection result with bounding_box, contour, confidence
+    VisionResponse, # Container for objects + thumbnail + timing
+)
+
+# Detection parameters live in vision/ modules but are re-exported from schemas/ for convenience
+from schemas import EdgeDetectionParams, ColorDetectionParams  # etc.
 ```
+
+**Why `schemas/` not `api/models/`?**
+- **Schemas are shared across all layers**: Used by API, services, core, and vision modules
+- **Follows FastAPI best practices**: `schemas/` = Pydantic (validation), `models/` = ORM/database
+- **Single source of truth**: Params classes live in vision modules (algorithm-specific) but re-exported for convenience
+- **All enums centralized**: `core/enums.py` contains all enum definitions
+
+**Schema Organization Principles:**
+- `schemas/common.py`: Core data structures (ROI, Point, VisionObject, VisionResponse)
+- `schemas/camera.py`: Camera connection, capture, and configuration schemas
+- `schemas/template.py`: Template learning and upload schemas
+- `schemas/vision.py`: Vision processing request schemas (imports Params from vision/)
+- `schemas/system.py`: System status, metrics, and debug schemas
+- `schemas/image.py`: Image processing and ROI extraction schemas
+- `vision/*_detection.py`: Each detector defines its own `*Params` class with defaults integrated
+- `core/enums.py`: All enums (EdgeMethod, ColorMethod, ArucoDict, CameraType, etc.)
+- `core/color_utils.py`: HSV color definitions (COLOR_DEFINITIONS) + vectorized color utilities
+- `api/exceptions.py`: Custom exceptions + ErrorMessages/SuccessMessages classes
 
 ### Data Flow Example (Vision Detection)
 
@@ -214,35 +248,90 @@ VisionResponse # Container for objects + thumbnail + timing
 1. Create detector module in `python-backend/vision/`:
 ```python
 # vision/my_detection.py
-def detect_my_feature(image, params):
-    # Implement detection logic
-    # Return list of VisionObject instances
-    return [VisionObject(type="my_feature", bounding_box=..., confidence=...)]
+from pydantic import BaseModel, Field
+from schemas import ROI, Point, VisionObject, VisionObjectType
+
+class MyDetectionParams(BaseModel):
+    """Parameters for my feature detection."""
+
+    class Config:
+        extra = "forbid"
+
+    def to_dict(self):
+        """Export to dict for detector functions."""
+        return self.model_dump(exclude_none=True)
+
+    threshold: float = Field(default=0.5, ge=0.0, le=1.0, description="Detection threshold")
+    # ... other parameters with defaults integrated
+
+class MyFeatureDetector:
+    """My feature detector."""
+
+    def detect(self, image, params):
+        # Implement detection logic
+        # Return list of VisionObject instances
+        return {
+            "success": True,
+            "objects": [VisionObject(
+                object_type=VisionObjectType.CUSTOM,
+                bounding_box=ROI(...),
+                confidence=...,
+            )],
+            "image": result_image,
+        }
 ```
 
-2. Add endpoint in `api/routers/vision.py`:
+2. Add request schema in `schemas/vision.py`:
 ```python
+class MyDetectRequest(BaseModel):
+    """Request for my feature detection."""
+    image_id: str
+    params: MyDetectionParams
+    roi: Optional[ROI] = None
+```
+
+3. Add endpoint in `api/routers/vision.py`:
+```python
+from schemas import MyDetectRequest, VisionResponse
+
 @router.post("/my-detect", response_model=VisionResponse)
 async def detect_my_feature(
     request: MyDetectRequest,
     vision_service: VisionService = Depends(get_vision_service),
 ):
     # Use vision_service._execute_detection() for unified flow
-    return await vision_service.my_detect(...)
+    return await vision_service.my_detect(
+        image_id=request.image_id,
+        params=request.params.to_dict(),
+        roi=request.roi.model_dump() if request.roi else None,
+    )
 ```
 
-3. Add service method in `services/vision_service.py`:
+4. Add service method in `services/vision_service.py`:
 ```python
 async def my_detect(self, image_id: str, params: dict, roi: Optional[dict] = None):
+    from vision.my_detection import MyFeatureDetector
+
+    detector = MyFeatureDetector()
     return await self._execute_detection(
         image_id=image_id,
         roi=roi,
-        detector_func=lambda img: detect_my_feature(img, params),
+        detector_func=lambda img: detector.detect(img, params),
         detector_name="my_feature",
     )
 ```
 
-4. Create corresponding Node-RED node in `node-red/nodes/vision/`:
+5. Re-export Params from `schemas/__init__.py` for convenience:
+```python
+from vision.my_detection import MyDetectionParams
+
+__all__ = [
+    # ... existing exports
+    "MyDetectionParams",
+]
+```
+
+6. Create corresponding Node-RED node in `node-red/nodes/vision/`:
 ```javascript
 // mv-my-detect.js + mv-my-detect.html
 // Make HTTP POST to /api/vision/my-detect

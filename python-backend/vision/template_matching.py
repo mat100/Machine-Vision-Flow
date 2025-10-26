@@ -11,7 +11,6 @@ import cv2
 import numpy as np
 from pydantic import BaseModel, Field
 
-from core.constants import TemplateMatchDefaults
 from core.enums import TemplateMethod
 
 
@@ -38,7 +37,7 @@ class TemplateMatchParams(BaseModel):
         default=TemplateMethod.TM_CCOEFF_NORMED, description="OpenCV template matching method"
     )
     threshold: float = Field(
-        default=TemplateMatchDefaults.DEFAULT_THRESHOLD,
+        default=0.8,
         ge=0.0,
         le=1.0,
         description="Match confidence threshold (0.0 to 1.0)",
@@ -81,11 +80,11 @@ class TemplateDetector:
         Returns:
             Dictionary with detection results
         """
-        from api.models import ROI, Point, VisionObject, VisionObjectType
+        from schemas import ROI, Point, VisionObject, VisionObjectType
 
         # Extract params
-        method = params.get("method", TemplateMatchDefaults.DEFAULT_METHOD)
-        threshold = params.get("threshold", TemplateMatchDefaults.DEFAULT_THRESHOLD)
+        method = params.get("method", "TM_CCOEFF_NORMED")
+        threshold = params.get("threshold", 0.8)
 
         # Convert to grayscale if needed
         if len(image.shape) == 3:

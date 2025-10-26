@@ -2,7 +2,7 @@
 Region of Interest (ROI) handler for the Machine Vision Flow system.
 
 Provides utility functions for ROI validation and image extraction.
-Works with the unified ROI Pydantic model from api.models.
+Works with the unified ROI Pydantic model from schemas.
 
 NOTE: This handler contains only actively used functions.
       ROI geometric operations (intersection, union, etc.) are in the ROI model itself.
@@ -13,7 +13,7 @@ from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 
-from api.models import ROI
+from schemas import ROI
 
 logger = logging.getLogger(__name__)
 

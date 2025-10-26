@@ -13,8 +13,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 from sklearn.cluster import KMeans
 
-from api.models import ColorMethod
-from core.constants import ColorDetectionDefaults
+from core.enums import ColorMethod
 
 
 class ColorDetectionParams(BaseModel):
@@ -37,30 +36,30 @@ class ColorDetectionParams(BaseModel):
         description="Detection method: histogram (fast) or kmeans (accurate)",
     )
     min_percentage: float = Field(
-        default=ColorDetectionDefaults.MIN_PERCENTAGE,
+        default=50.0,
         ge=0.0,
         le=100.0,
         description="Minimum percentage for color match",
     )
     use_contour_mask: bool = Field(
-        default=ColorDetectionDefaults.USE_CONTOUR_MASK,
+        default=True,
         description="Use contour mask instead of full bounding box when contour is available",
     )
 
     # === KMeans-specific parameters (ignored if method != kmeans) ===
     kmeans_clusters: int = Field(
-        default=ColorDetectionDefaults.KMEANS_CLUSTERS,
+        default=3,
         ge=2,
         le=10,
         description="Number of color clusters for k-means",
     )
     kmeans_random_state: int = Field(
-        default=ColorDetectionDefaults.KMEANS_RANDOM_STATE,
+        default=42,
         ge=0,
         description="Random state for reproducible k-means results",
     )
     kmeans_n_init: int = Field(
-        default=ColorDetectionDefaults.KMEANS_N_INIT,
+        default=10,
         ge=1,
         description="Number of k-means initializations",
     )
@@ -81,10 +80,10 @@ class ColorDetector:
         image: np.ndarray,
         roi: Optional[Dict[str, int]] = None,
         contour_points: Optional[list] = None,
-        use_contour_mask: bool = ColorDetectionDefaults.USE_CONTOUR_MASK,
+        use_contour_mask: bool = True,
         expected_color: Optional[str] = None,
-        min_percentage: float = ColorDetectionDefaults.MIN_PERCENTAGE,
-        method: str = ColorDetectionDefaults.DEFAULT_METHOD,
+        min_percentage: float = 50.0,
+        method: str = "histogram",
     ) -> Dict:
         """
         Detect dominant color in image or ROI.
@@ -101,7 +100,7 @@ class ColorDetector:
         Returns:
             Dictionary with detection results
         """
-        from api.models import ROI, Point, VisionObject, VisionObjectType
+        from schemas import ROI, Point, VisionObject, VisionObjectType
 
         # Extract ROI if specified
         if roi is not None:
@@ -194,7 +193,7 @@ class ColorDetector:
         Returns:
             Dictionary with color information
         """
-        from vision.color_definitions import count_colors_vectorized
+        from core.color_utils import count_colors_vectorized
 
         h, s, v = cv2.split(hsv)
 
@@ -243,7 +242,7 @@ class ColorDetector:
         self,
         hsv: np.ndarray,
         mask: Optional[np.ndarray] = None,
-        k: int = ColorDetectionDefaults.KMEANS_CLUSTERS,
+        k: int = 3,
     ) -> Dict:
         """
         Detect dominant colors using k-means clustering (more accurate, slower).
@@ -256,7 +255,7 @@ class ColorDetector:
         Returns:
             Dictionary with color information
         """
-        from vision.color_definitions import hsv_to_color_name
+        from core.color_utils import hsv_to_color_name
 
         # Reshape image to list of pixels
         if mask is not None:
@@ -269,8 +268,8 @@ class ColorDetector:
         # Perform k-means clustering
         kmeans = KMeans(
             n_clusters=k,
-            random_state=ColorDetectionDefaults.KMEANS_RANDOM_STATE,
-            n_init=ColorDetectionDefaults.KMEANS_N_INIT,
+            random_state=42,
+            n_init=10,
         )
         kmeans.fit(pixels)
 

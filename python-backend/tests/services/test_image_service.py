@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from api.exceptions import ImageNotFoundException
-from api.models import ROI
+from schemas import ROI
 from services.image_service import ImageService
 
 

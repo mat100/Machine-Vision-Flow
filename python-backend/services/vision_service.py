@@ -6,25 +6,19 @@ template matching, edge detection, and other computer vision tasks.
 """
 
 import logging
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from api.exceptions import ImageNotFoundException, TemplateNotFoundException
-from api.models import ROI, VisionObject
 from core.decorators import timer
 from core.image_manager import ImageManager
 from core.overlay_renderer import OverlayRenderer
 from core.roi_handler import ROIHandler
 from core.template_manager import TemplateManager
-from vision.aruco_detection import ArucoDetector
-from vision.color_detection import ColorDetector
-from vision.rotation_detection import RotationDetector
-
-if TYPE_CHECKING:
-    from api.models import TemplateMatchParams
-    from vision.aruco_detection import ArucoDetectionParams
-    from vision.color_detection import ColorDetectionParams
-    from vision.edge_detection import EdgeDetectionParams
-    from vision.rotation_detection import RotationDetectionParams
+from schemas import ROI, TemplateMatchParams, VisionObject
+from vision.aruco_detection import ArucoDetectionParams, ArucoDetector
+from vision.color_detection import ColorDetectionParams, ColorDetector
+from vision.edge_detection import EdgeDetectionParams
+from vision.rotation_detection import RotationDetectionParams, RotationDetector
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +194,7 @@ class VisionService:
         image_id: str,
         template_id: str,
         roi: Optional[Dict],
-        params: "TemplateMatchParams",
+        params: TemplateMatchParams,
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Perform template matching on an image.
@@ -345,7 +339,7 @@ class VisionService:
         roi: Optional[Dict[str, int]],
         contour: Optional[list],
         expected_color: Optional[str],
-        params: Optional["ColorDetectionParams"],
+        params: Optional[ColorDetectionParams],
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Perform color detection on an image.
@@ -364,8 +358,6 @@ class VisionService:
             ImageNotFoundException: If image not found
         """
         # Create default params if not provided
-        from vision.color_detection import ColorDetectionParams
-
         if params is None:
             params = ColorDetectionParams()
 
@@ -413,7 +405,7 @@ class VisionService:
         self,
         image_id: str,
         roi: Optional[Dict],
-        params: Optional["ArucoDetectionParams"],
+        params: Optional[ArucoDetectionParams],
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Detect ArUco markers in image.
@@ -430,8 +422,6 @@ class VisionService:
             ImageNotFoundException: If image not found
         """
         # Create default params if not provided
-        from vision.aruco_detection import ArucoDetectionParams
-
         if params is None:
             params = ArucoDetectionParams()
 
@@ -464,7 +454,7 @@ class VisionService:
         image_id: str,
         contour: List,
         roi: Optional[Dict[str, int]],
-        params: Optional["RotationDetectionParams"],
+        params: Optional[RotationDetectionParams],
     ) -> Tuple[List[VisionObject], str, int]:
         """
         Detect rotation angle from contour.
@@ -482,8 +472,6 @@ class VisionService:
             ImageNotFoundException: If image not found
         """
         # Create default params if not provided
-        from vision.rotation_detection import RotationDetectionParams
-
         if params is None:
             params = RotationDetectionParams()
 

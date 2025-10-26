@@ -289,3 +289,50 @@ def register_exception_handlers(app):
     app.add_exception_handler(Exception, generic_exception_handler)
 
     logger.info("Exception handlers registered")
+
+
+# Standard Messages
+class ErrorMessages:
+    """Standard error messages."""
+
+    # Image errors
+    IMAGE_NOT_FOUND = "Image with ID {image_id} not found"
+    IMAGE_STORAGE_FULL = "Image storage is full, cannot store new image"
+    INVALID_IMAGE_FORMAT = "Invalid image format: {format}"
+
+    # Camera errors
+    CAMERA_NOT_FOUND = "Camera {camera_id} not found"
+    CAMERA_CONNECTION_FAILED = "Failed to connect to camera {camera_id}: {error}"
+    CAMERA_CAPTURE_FAILED = "Failed to capture from camera {camera_id}: {error}"
+    CAMERA_ALREADY_EXISTS = "Camera {camera_id} already exists"
+
+    # Template errors
+    TEMPLATE_NOT_FOUND = "Template {template_id} not found"
+    TEMPLATE_UPLOAD_FAILED = "Failed to upload template: {error}"
+    TEMPLATE_INVALID_SIZE = "Template size {size} is invalid (min: {min}, max: {max})"
+
+    # ROI errors
+    ROI_OUT_OF_BOUNDS = "ROI {roi} is out of image bounds {bounds}"
+    ROI_INVALID_SIZE = "ROI size is invalid: {width}x{height}"
+    ROI_MISSING_PARAMS = "ROI requires all parameters: x, y, width, height"
+
+    # Processing errors
+    PROCESSING_FAILED = "Image processing failed: {error}"
+    INVALID_PARAMETER = "Invalid parameter {param}: {value}"
+    OPERATION_TIMEOUT = "Operation timed out after {timeout} seconds"
+
+    # System errors
+    INITIALIZATION_FAILED = "Failed to initialize {component}: {error}"
+    CONFIGURATION_ERROR = "Configuration error: {error}"
+    RESOURCE_EXHAUSTED = "Resource exhausted: {resource}"
+
+
+class SuccessMessages:
+    """Standard success messages."""
+
+    CAMERA_CONNECTED = "Successfully connected to camera {camera_id}"
+    CAMERA_DISCONNECTED = "Successfully disconnected camera {camera_id}"
+    IMAGE_CAPTURED = "Successfully captured image {image_id}"
+    TEMPLATE_UPLOADED = "Successfully uploaded template {template_id}"
+    TEMPLATE_DELETED = "Successfully deleted template {template_id}"
+    PROCESSING_COMPLETE = "Processing completed successfully"

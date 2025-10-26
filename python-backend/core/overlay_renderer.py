@@ -10,8 +10,8 @@ from typing import List, Optional, Tuple
 import cv2
 import numpy as np
 
-from api.models import VisionObject
 from core.image_utils import ImageUtils
+from schemas import VisionObject
 
 
 class OverlayRenderer:

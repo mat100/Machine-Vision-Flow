@@ -99,3 +99,12 @@ class VisionObjectType(str, Enum):
     COLOR_REGION = "color_region"
     ARUCO_MARKER = "aruco_marker"
     ROTATION_ANALYSIS = "rotation_analysis"
+
+
+# Camera type enums
+class CameraType(str, Enum):
+    """Camera connection types."""
+
+    USB = "usb"
+    IP = "ip"
+    FILE = "file"

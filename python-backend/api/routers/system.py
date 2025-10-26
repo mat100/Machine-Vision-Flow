@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request
 
 from api.dependencies import get_camera_manager, get_image_manager
 from api.exceptions import safe_endpoint
-from api.models import DebugSettings, PerformanceMetrics, SystemStatus
+from schemas import DebugSettings, PerformanceMetrics, SystemStatus
 
 logger = logging.getLogger(__name__)
 

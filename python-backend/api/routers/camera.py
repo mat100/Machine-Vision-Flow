@@ -15,8 +15,8 @@ from fastapi.responses import StreamingResponse
 from api.dependencies import get_camera_manager  # Still needed for stream endpoint
 from api.dependencies import get_camera_service
 from api.exceptions import safe_endpoint
-from api.models import CameraCaptureResponse, CameraConnectRequest, CameraInfo, CaptureRequest, Size
 from core.camera_identifier import CameraIdentifier
+from schemas import CameraCaptureResponse, CameraConnectRequest, CameraInfo, CaptureRequest, Size
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,6 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from enum import Enum
 from queue import Queue
 from threading import Lock, Thread
 from typing import Any, Dict, List, Optional
@@ -14,18 +13,14 @@ from typing import Any, Dict, List, Optional
 import cv2
 import numpy as np
 
+from core.enums import CameraType
+
 logger = logging.getLogger(__name__)
 
 
-class CameraType(Enum):
-    USB = "usb"
-    IP = "ip"
-    FILE = "file"
-
-
 @dataclass
-class CameraConfig:
-    """Camera configuration"""
+class CameraSettings:
+    """Camera settings and configuration"""
 
     id: str
     name: str
@@ -38,7 +33,7 @@ class CameraConfig:
 class Camera:
     """Base camera class"""
 
-    def __init__(self, config: CameraConfig):
+    def __init__(self, config: CameraSettings):
         self.config = config
         self.cap = None
         self.connected = False
@@ -228,7 +223,7 @@ class CameraManager:
                 return True
 
             # Create camera configuration
-            config = CameraConfig(
+            config = CameraSettings(
                 id=camera_id,
                 name=name or camera_id,
                 type=CameraType(camera_type),
