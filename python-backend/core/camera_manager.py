@@ -5,6 +5,8 @@ Camera Manager - Handles multiple camera types (USB, IP, etc.)
 import asyncio
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
 from queue import Queue
 from threading import Lock, Thread
@@ -28,6 +30,7 @@ class CameraSettings:
     source: Any  # int for USB, str for IP/file
     resolution: tuple = (1920, 1080)
     fps: int = 30
+    capture_timeout_ms: int = 5000  # Timeout for capture operations in milliseconds
 
 
 class Camera:
@@ -40,6 +43,8 @@ class Camera:
         self.lock = Lock()
         self.last_frame = None
         self.last_capture_time = 0
+        # Thread pool for timeout handling (single thread per camera)
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"cam_{config.id}")
 
     def connect(self) -> bool:
         """Connect to camera"""
@@ -89,22 +94,60 @@ class Camera:
                     self.cap = None
             self.connected = False
             self.last_frame = None
-            logger.info(f"Camera {self.config.id} disconnected")
+
+        # Shutdown executor outside of lock to avoid deadlock
+        try:
+            self._executor.shutdown(wait=False)
+        except Exception as e:
+            logger.warning(f"Error shutting down executor: {e}")
+
+        logger.info(f"Camera {self.config.id} disconnected")
+
+    def _capture_frame_blocking(self) -> tuple:
+        """
+        Internal method to capture a frame (blocking).
+        This is run in a separate thread to enable timeout.
+        """
+        with self.lock:
+            if self.cap and self.cap.isOpened():
+                return self.cap.read()
+        return False, None
 
     def capture(self) -> Optional[np.ndarray]:
-        """Capture single frame"""
+        """
+        Capture single frame with timeout protection.
+
+        Returns:
+            Frame as numpy array, or None if capture fails or times out
+        """
         if not self.connected:
             return None
 
-        with self.lock:
-            if self.cap and self.cap.isOpened():
-                ret, frame = self.cap.read()
-                if ret:
-                    self.last_frame = frame
-                    self.last_capture_time = time.time()
-                    return frame
+        # Convert timeout from milliseconds to seconds
+        timeout_seconds = self.config.capture_timeout_ms / 1000.0
 
-        return None
+        try:
+            # Submit capture task to executor with timeout
+            future = self._executor.submit(self._capture_frame_blocking)
+            ret, frame = future.result(timeout=timeout_seconds)
+
+            if ret and frame is not None:
+                self.last_frame = frame
+                self.last_capture_time = time.time()
+                return frame
+            else:
+                logger.warning(f"Camera {self.config.id}: capture failed (no frame returned)")
+                return None
+
+        except FuturesTimeoutError:
+            logger.error(
+                f"Camera {self.config.id}: capture timeout after {timeout_seconds}s "
+                f"- camera may be disconnected or unresponsive"
+            )
+            return None
+        except Exception as e:
+            logger.error(f"Camera {self.config.id}: capture error: {e}")
+            return None
 
     def get_preview(self) -> Optional[np.ndarray]:
         """Get preview frame (can be cached)"""
@@ -120,7 +163,7 @@ class Camera:
 class CameraManager:
     """Manages multiple cameras"""
 
-    def __init__(self, default_resolution: Dict[str, int] = None):
+    def __init__(self, default_resolution: Dict[str, int] = None, capture_timeout_ms: int = 5000):
         self.cameras: Dict[str, Camera] = {}
         self.lock = Lock()
         self.default_resolution = (
@@ -128,13 +171,17 @@ class CameraManager:
             if default_resolution
             else (1920, 1080)
         )
+        self.capture_timeout_ms = capture_timeout_ms
 
         # Preview thread
         self.preview_thread = None
         self.preview_queue = Queue()
         self.preview_running = False
 
-        logger.info("Camera Manager initialized")
+        logger.info(
+            f"Camera Manager initialized (timeout: {capture_timeout_ms}ms, "
+            f"resolution: {self.default_resolution})"
+        )
 
     def list_available_cameras(self) -> List[Dict[str, Any]]:
         """List available cameras"""
@@ -229,6 +276,7 @@ class CameraManager:
                 type=CameraType(camera_type),
                 source=source,
                 resolution=resolution or self.default_resolution,
+                capture_timeout_ms=self.capture_timeout_ms,
             )
 
             # Create and connect camera

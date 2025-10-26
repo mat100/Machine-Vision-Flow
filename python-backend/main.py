@@ -68,7 +68,9 @@ async def lifespan(app: FastAPI):
         thumbnail_width=settings.image.thumbnail_width,
     )
 
-    camera_manager = CameraManager()
+    camera_manager = CameraManager(
+        capture_timeout_ms=settings.camera.capture_timeout_ms,
+    )
 
     template_manager = TemplateManager(storage_path=settings.template.storage_path)
 
