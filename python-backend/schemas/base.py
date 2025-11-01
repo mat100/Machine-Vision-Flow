@@ -44,7 +44,7 @@ class BaseDetectionParams(BaseModel):
             >>> data = params.to_dict()
             >>> # Returns {"method": "canny", ...}
         """
-        data = self.model_dump(exclude_none=True)
+        data = self.dict(exclude_none=True)
 
         # Convert enum values to strings
         for key, value in data.items():

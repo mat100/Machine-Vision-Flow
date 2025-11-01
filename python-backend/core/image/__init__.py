@@ -29,8 +29,6 @@ from core.image.converters import (
     ensure_bgr,
     ensure_grayscale,
     from_base64,
-    numpy_to_pil,
-    pil_to_numpy,
     to_base64,
 )
 
@@ -56,8 +54,6 @@ from core.image.roi import extract_roi
 
 __all__ = [
     # Converter functions
-    "numpy_to_pil",
-    "pil_to_numpy",
     "to_base64",
     "from_base64",
     "encode_image_to_base64",

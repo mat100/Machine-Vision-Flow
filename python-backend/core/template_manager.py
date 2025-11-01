@@ -263,45 +263,34 @@ class TemplateManager:
 
     def create_template_thumbnail(self, template_id: str, max_width: int = 100) -> Optional[str]:
         """
-        Create thumbnail for template
+        Create thumbnail for template using OpenCV.
 
         Args:
             template_id: Template identifier
             max_width: Maximum thumbnail width
 
         Returns:
-            Base64 encoded thumbnail or None
+            Base64 encoded thumbnail with data URI prefix or None
         """
         template = self.get_template(template_id)
         if template is None:
             return None
 
         import base64
-        from io import BytesIO
 
-        from PIL import Image
-
-        # Calculate size
+        # Calculate size maintaining aspect ratio
         aspect = template.shape[0] / template.shape[1]
         width = min(max_width, template.shape[1])
         height = int(width * aspect)
 
-        # Resize
-        thumbnail = cv2.resize(template, (width, height))
+        # Resize using Lanczos interpolation for quality
+        thumbnail = cv2.resize(template, (width, height), interpolation=cv2.INTER_LANCZOS4)
 
-        # Convert to RGB
-        if len(thumbnail.shape) == 2:
-            thumbnail_rgb = cv2.cvtColor(thumbnail, cv2.COLOR_GRAY2RGB)
-        else:
-            thumbnail_rgb = cv2.cvtColor(thumbnail, cv2.COLOR_BGR2RGB)
+        # Encode to PNG
+        success, buffer = cv2.imencode(".png", thumbnail)
 
-        # Convert to PIL
-        pil_image = Image.fromarray(thumbnail_rgb)
+        if not success:
+            return None
 
-        # Encode
-        buffer = BytesIO()
-        pil_image.save(buffer, format="PNG")
-        buffer.seek(0)
-
-        base64_str = base64.b64encode(buffer.read()).decode("utf-8")
+        base64_str = base64.b64encode(buffer).decode("utf-8")
         return f"data:image/png;base64,{base64_str}"

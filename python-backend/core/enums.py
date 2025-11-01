@@ -46,7 +46,6 @@ class ColorMethod(str, Enum):
     """Color detection methods."""
 
     HISTOGRAM = "histogram"
-    KMEANS = "kmeans"
 
 
 # ArUco marker enums

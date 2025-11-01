@@ -1,8 +1,7 @@
 """
 Color detection algorithms for machine vision.
 
-Provides automatic dominant color detection using histogram analysis
-and k-means clustering.
+Provides automatic dominant color detection using histogram analysis.
 """
 
 import logging
@@ -10,14 +9,12 @@ from typing import Dict, Optional
 
 import cv2
 import numpy as np
-from sklearn.cluster import KMeans
 
-from core.constants import VisionConstants
 from schemas import ROI, Point, VisionObject, VisionObjectType
 
 
 class ColorDetector:
-    """Color detection processor using histogram and k-means methods."""
+    """Color detection processor using histogram analysis."""
 
     def __init__(self):
         """Initialize color detector."""
@@ -35,7 +32,7 @@ class ColorDetector:
         method: str = "histogram",
     ) -> Dict:
         """
-        Detect dominant color in image or ROI.
+        Detect dominant color in image or ROI using histogram analysis.
 
         Args:
             image: Input image (BGR format)
@@ -44,7 +41,7 @@ class ColorDetector:
             use_contour_mask: Whether to use contour mask (if contour_points provided)
             expected_color: Expected color name (or None to just detect)
             min_percentage: Minimum percentage for color match
-            method: Detection method ("histogram" or "kmeans")
+            method: Detection method (only "histogram" supported)
 
         Returns:
             Dictionary with detection results
@@ -81,11 +78,8 @@ class ColorDetector:
                 self.logger.warning(f"Contour mask creation failed: {e}")
                 mask = None
 
-        # Detect dominant colors
-        if method == "kmeans":
-            color_info = self._detect_kmeans(hsv, mask)
-        else:  # histogram (default)
-            color_info = self._detect_histogram(hsv, mask)
+        # Detect dominant colors using histogram analysis
+        color_info = self._detect_histogram(hsv, mask)
 
         # Check if it matches expected color
         match = False
@@ -179,85 +173,6 @@ class ColorDetector:
 
         # Calculate mean HSV for dominant color
         hsv_mean = [int(np.mean(h)), int(np.mean(s)), int(np.mean(v))]
-
-        return {
-            "dominant_color": dominant_color,
-            "color_percentages": color_percentages,
-            "all_colors": {k: round(v, 1) for k, v in color_percentages.items() if v > 0},
-            "hsv_mean": hsv_mean,
-        }
-
-    def _detect_kmeans(
-        self,
-        hsv: np.ndarray,
-        mask: Optional[np.ndarray] = None,
-        k: int = VisionConstants.KMEANS_DEFAULT_CLUSTERS,
-    ) -> Dict:
-        """
-        Detect dominant colors using k-means clustering (more accurate, slower).
-
-        Args:
-            hsv: HSV image
-            mask: Optional binary mask (only analyze masked pixels)
-            k: Number of clusters (dominant colors to find)
-
-        Returns:
-            Dictionary with color information
-        """
-        from core.image import hsv_to_color_name
-
-        # Reshape image to list of pixels
-        if mask is not None:
-            # Extract only masked pixels
-            pixels = hsv[mask > 0]
-        else:
-            pixels = hsv.reshape(-1, 3)
-        pixels = np.float32(pixels)
-
-        # Perform k-means clustering
-        kmeans = KMeans(
-            n_clusters=k,
-            random_state=42,
-            n_init=10,
-        )
-        kmeans.fit(pixels)
-
-        # Get cluster centers and labels
-        centers = kmeans.cluster_centers_
-        labels = kmeans.labels_
-
-        # Count pixels in each cluster
-        label_counts = np.bincount(labels)
-        total_pixels = len(labels)
-
-        # Map each cluster center to a color name
-        cluster_colors = []
-        for i, center in enumerate(centers):
-            h, s, v = center
-            color_name = hsv_to_color_name(int(h), int(s), int(v))
-            if color_name is None:
-                color_name = "unknown"
-
-            percentage = (label_counts[i] / total_pixels) * 100
-            cluster_colors.append({"color": color_name, "percentage": percentage, "hsv": center})
-
-        # Sort by percentage
-        cluster_colors.sort(key=lambda x: x["percentage"], reverse=True)
-
-        # Aggregate colors (multiple clusters might map to same color)
-        color_percentages = {}
-        for cluster in cluster_colors:
-            color = cluster["color"]
-            if color not in color_percentages:
-                color_percentages[color] = 0
-            color_percentages[color] += cluster["percentage"]
-
-        # Find dominant color
-        dominant_color = max(color_percentages, key=color_percentages.get)
-
-        # Get HSV mean for dominant color
-        dominant_cluster = cluster_colors[0]
-        hsv_mean = [int(v) for v in dominant_cluster["hsv"]]
 
         return {
             "dominant_color": dominant_color,

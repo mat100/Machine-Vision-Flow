@@ -124,9 +124,6 @@ class VisionConstants:
     CONFIDENCE_HIGH = 0.9  # High confidence score
     CONFIDENCE_SCALING_FACTOR = 10.0  # Factor for ratio-based confidence scaling
 
-    # Color detection
-    KMEANS_DEFAULT_CLUSTERS = 3  # Default number of clusters for k-means color detection
-
 
 # API Constants
 class APIConstants:

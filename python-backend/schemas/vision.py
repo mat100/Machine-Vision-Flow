@@ -11,7 +11,7 @@ This module contains request models for various vision detection operations:
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, validator
 
 from schemas.params import (
     ArucoDetectionParams,
@@ -86,8 +86,7 @@ class RotationDetectRequest(BaseModel):
     image_id: str = Field(..., description="ID of the image for visualization")
     contour: List = Field(
         ...,
-        description="Contour points [[x1,y1], [x2,y2], ...]",
-        min_length=5,
+        description="Contour points [[x1,y1], [x2,y2], ...] (minimum 5 points required)",
     )
     roi: Optional[ROI] = Field(None, description="Optional ROI for visualization context")
     params: Optional[RotationDetectionParams] = Field(
@@ -97,8 +96,7 @@ class RotationDetectRequest(BaseModel):
         ),
     )
 
-    @field_validator("contour")
-    @classmethod
+    @validator("contour")
     def validate_contour(cls, v):
         """Validate contour has minimum required points."""
         if len(v) < 5:

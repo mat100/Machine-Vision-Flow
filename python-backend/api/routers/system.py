@@ -6,7 +6,6 @@ import logging
 import time
 from datetime import datetime
 
-import psutil
 from fastapi import APIRouter, Depends, Request
 
 from api.dependencies import get_camera_manager, get_image_manager
@@ -26,14 +25,7 @@ START_TIME = time.time()
 async def get_status(
     image_manager=Depends(get_image_manager), camera_manager=Depends(get_camera_manager)
 ) -> SystemStatus:
-    """Get system status"""
-    # Get memory usage
-    process = psutil.Process()
-    memory_info = process.memory_info()
-
-    # Get system memory
-    virtual_memory = psutil.virtual_memory()
-
+    """Get system status (simplified without psutil dependency)"""
     # Count active cameras
     active_cameras = len([cam for cam_id, cam in camera_manager.cameras.items() if cam.connected])
 
@@ -44,9 +36,8 @@ async def get_status(
         status="healthy",
         uptime=time.time() - START_TIME,
         memory_usage={
-            "process_mb": memory_info.rss / 1024 / 1024,
-            "system_percent": virtual_memory.percent,
-            "available_mb": virtual_memory.available / 1024 / 1024,
+            "buffer_mb": buffer_stats.get("memory_mb", 0),
+            "buffer_images": buffer_stats.get("count", 0),
         },
         active_cameras=active_cameras,
         buffer_usage=buffer_stats,

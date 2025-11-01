@@ -41,8 +41,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Suppress watchfiles debug messages
-logging.getLogger("watchfiles").setLevel(logging.WARNING)
+# Suppress watchfiles debug messages (if available in dev mode)
+try:
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
+except Exception:
+    pass  # watchfiles not installed (production mode)
 
 # Initialize managers
 image_manager = None

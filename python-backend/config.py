@@ -8,8 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
-from pydantic_settings import BaseSettings
+from pydantic import BaseSettings, Field, root_validator, validator
 
 from core.constants import (
     APIConstants,
@@ -57,7 +56,9 @@ class ImageConfig(BaseSettings):
         description="Memory usage threshold to trigger cleanup",
     )
 
-    model_config = ConfigDict(env_prefix="MV_IMAGE_", extra="ignore")
+    class Config:
+        env_prefix = "MV_IMAGE_"
+        extra = "ignore"
 
 
 class CameraConfig(BaseSettings):
@@ -97,7 +98,9 @@ class CameraConfig(BaseSettings):
         default=CameraConstants.TEST_IMAGE_HEIGHT, ge=100, le=4096, description="Test image height"
     )
 
-    model_config = ConfigDict(env_prefix="MV_CAMERA_", extra="ignore")
+    class Config:
+        env_prefix = "MV_CAMERA_"
+        extra = "ignore"
 
 
 class TemplateConfig(BaseSettings):
@@ -129,8 +132,7 @@ class TemplateConfig(BaseSettings):
         description="Default template matching threshold",
     )
 
-    @field_validator("storage_path")
-    @classmethod
+    @validator("storage_path")
     def validate_storage_path(cls, v):
         """Ensure storage path exists or can be created."""
         path = Path(v)
@@ -141,7 +143,9 @@ class TemplateConfig(BaseSettings):
                 raise ValueError(f"Cannot create storage path: {e}")
         return str(path.absolute())
 
-    model_config = ConfigDict(env_prefix="MV_TEMPLATE_", extra="ignore")
+    class Config:
+        env_prefix = "MV_TEMPLATE_"
+        extra = "ignore"
 
 
 class VisionConfig(BaseSettings):
@@ -175,15 +179,16 @@ class VisionConfig(BaseSettings):
         description="Default Gaussian blur kernel size",
     )
 
-    @field_validator("gaussian_blur_size")
-    @classmethod
+    @validator("gaussian_blur_size")
     def validate_odd_number(cls, v):
         """Ensure kernel size is odd."""
         if v % 2 == 0:
             return v + 1
         return v
 
-    model_config = ConfigDict(env_prefix="MV_VISION_", extra="ignore")
+    class Config:
+        env_prefix = "MV_VISION_"
+        extra = "ignore"
 
 
 class APIConfig(BaseSettings):
@@ -214,7 +219,9 @@ class APIConfig(BaseSettings):
         description="Rate limit per minute",
     )
 
-    model_config = ConfigDict(env_prefix="MV_API_", extra="ignore")
+    class Config:
+        env_prefix = "MV_API_"
+        extra = "ignore"
 
 
 class SystemConfig(BaseSettings):
@@ -239,8 +246,7 @@ class SystemConfig(BaseSettings):
     )
     health_check_enabled: bool = Field(default=True, description="Enable health checks")
 
-    @field_validator("log_level")
-    @classmethod
+    @validator("log_level")
     def validate_log_level(cls, v):
         """Validate log level."""
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -249,15 +255,16 @@ class SystemConfig(BaseSettings):
             raise ValueError(f"Invalid log level: {v}. Must be one of {valid_levels}")
         return v_upper
 
-    @field_validator("data_dir", "temp_dir")
-    @classmethod
+    @validator("data_dir", "temp_dir")
     def create_directories(cls, v):
         """Ensure directories exist."""
         path = Path(v)
         path.mkdir(parents=True, exist_ok=True)
         return str(path.absolute())
 
-    model_config = ConfigDict(env_prefix="MV_SYSTEM_", extra="ignore")
+    class Config:
+        env_prefix = "MV_SYSTEM_"
+        extra = "ignore"
 
 
 class Settings(BaseSettings):
@@ -279,8 +286,7 @@ class Settings(BaseSettings):
     # Config file support
     config_file: Optional[str] = Field(default=None, description="Path to YAML config file")
 
-    @model_validator(mode="before")
-    @classmethod
+    @root_validator(pre=True)
     def load_config_file(cls, values):
         """Load configuration from YAML file if specified."""
         import os
@@ -303,8 +309,7 @@ class Settings(BaseSettings):
 
         return values
 
-    @field_validator("environment")
-    @classmethod
+    @validator("environment")
     def validate_environment(cls, v):
         """Validate environment value."""
         valid_envs = ["development", "staging", "production", "test"]
@@ -314,7 +319,7 @@ class Settings(BaseSettings):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert settings to dictionary."""
-        return self.model_dump(exclude_none=True)
+        return self.dict(exclude_none=True)
 
     def save_to_file(self, path: str) -> None:
         """Save current configuration to YAML file."""
@@ -324,9 +329,11 @@ class Settings(BaseSettings):
         with open(path, "w") as f:
             yaml.dump(config_dict, f, default_flow_style=False)
 
-    model_config = ConfigDict(
-        env_prefix="MV_", case_sensitive=False, env_nested_delimiter="__", extra="ignore"
-    )
+    class Config:
+        env_prefix = "MV_"
+        case_sensitive = False
+        env_nested_delimiter = "__"
+        extra = "ignore"
 
 
 @lru_cache()

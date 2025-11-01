@@ -1,72 +1,27 @@
 """
 Image format conversion utilities.
 
-Handles conversions between different image formats:
+Handles conversions between different image formats using OpenCV:
 - NumPy arrays (OpenCV BGR format)
-- PIL Images (RGB format)
 - Base64 encoded strings
 - Grayscale/color conversions
 """
 
 import base64
-import io
 import logging
-from typing import Union
 
 import cv2
 import numpy as np
-from PIL import Image
 
 logger = logging.getLogger(__name__)
 
 
-def numpy_to_pil(image: np.ndarray) -> Image.Image:
+def to_base64(image: np.ndarray, format: str = "JPEG", quality: int = 85) -> str:
     """
-    Convert NumPy array (OpenCV format) to PIL Image.
+    Convert image to base64 string using OpenCV.
 
     Args:
-        image: NumPy array in BGR format (OpenCV)
-
-    Returns:
-        PIL Image in RGB format
-    """
-    # Convert BGR to RGB if needed
-    if len(image.shape) == 3 and image.shape[2] == 3:
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    else:
-        image_rgb = image
-
-    return Image.fromarray(image_rgb)
-
-
-def pil_to_numpy(image: Image.Image, bgr: bool = True) -> np.ndarray:
-    """
-    Convert PIL Image to NumPy array.
-
-    Args:
-        image: PIL Image
-        bgr: If True, convert to BGR format (OpenCV), else keep RGB
-
-    Returns:
-        NumPy array
-    """
-    array = np.array(image)
-
-    # Convert RGB to BGR if needed
-    if bgr and len(array.shape) == 3 and array.shape[2] == 3:
-        array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
-
-    return array
-
-
-def to_base64(
-    image: Union[np.ndarray, Image.Image, bytes], format: str = "JPEG", quality: int = 85
-) -> str:
-    """
-    Convert image to base64 string.
-
-    Args:
-        image: Input image (NumPy array, PIL Image, or raw bytes)
+        image: Input image as NumPy array (BGR format)
         format: Image format (JPEG, PNG, etc.)
         quality: JPEG quality (1-100, ignored for PNG)
 
@@ -74,26 +29,29 @@ def to_base64(
         Base64 encoded string
     """
     try:
-        # If already bytes, directly encode
+        # Handle bytes input
         if isinstance(image, bytes):
             return base64.b64encode(image).decode("utf-8")
 
-        # Convert numpy to PIL if needed
-        if isinstance(image, np.ndarray):
-            image = numpy_to_pil(image)
+        # Prepare encoding parameters
+        ext = f".{format.lower()}" if not format.startswith(".") else format.lower()
 
-        # Convert PIL Image to bytes
-        buffer = io.BytesIO()
-        save_kwargs = {"format": format}
+        if ext in [".jpg", ".jpeg"]:
+            params = [cv2.IMWRITE_JPEG_QUALITY, quality, cv2.IMWRITE_JPEG_OPTIMIZE, 1]
+        elif ext == ".png":
+            # Map quality to PNG compression (0-9 scale, higher = more compression)
+            compression = 9 - int(quality / 11)
+            params = [cv2.IMWRITE_PNG_COMPRESSION, max(0, min(9, compression))]
+        else:
+            params = []
 
-        if format.upper() == "JPEG":
-            save_kwargs["quality"] = quality
-            save_kwargs["optimize"] = True
+        # Encode image to bytes
+        success, buffer = cv2.imencode(ext, image, params)
 
-        image.save(buffer, **save_kwargs)
-        image_bytes = buffer.getvalue()
+        if not success:
+            raise ValueError(f"Failed to encode image to {format}")
 
-        return base64.b64encode(image_bytes).decode("utf-8")
+        return base64.b64encode(buffer).decode("utf-8")
 
     except Exception as e:
         logger.error(f"Failed to convert image to base64: {e}")
@@ -102,7 +60,7 @@ def to_base64(
 
 def from_base64(base64_string: str) -> np.ndarray:
     """
-    Convert base64 string to NumPy array.
+    Convert base64 string to NumPy array using OpenCV.
 
     Args:
         base64_string: Base64 encoded image
@@ -114,11 +72,16 @@ def from_base64(base64_string: str) -> np.ndarray:
         # Decode base64
         image_bytes = base64.b64decode(base64_string)
 
-        # Convert to PIL Image
-        image = Image.open(io.BytesIO(image_bytes))
+        # Convert bytes to NumPy array
+        nparr = np.frombuffer(image_bytes, np.uint8)
 
-        # Convert to NumPy array (BGR for OpenCV)
-        return pil_to_numpy(image, bgr=True)
+        # Decode image
+        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        if image is None:
+            raise ValueError("Failed to decode base64 image")
+
+        return image
 
     except Exception as e:
         logger.error(f"Failed to decode base64 image: {e}")
@@ -129,8 +92,7 @@ def encode_image_to_base64(image: np.ndarray, format: str = ".png") -> str:
     """
     Encode OpenCV image (NumPy array) to base64 string.
 
-    This is a simpler alternative to to_base64() specifically for OpenCV images,
-    avoiding PIL conversion overhead.
+    This is a simpler alternative to to_base64() specifically for OpenCV images.
 
     Args:
         image: OpenCV image (NumPy array)

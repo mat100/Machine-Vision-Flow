@@ -6,6 +6,9 @@
 # Include production dependencies
 -r requirements.txt
 
+# Development server (with auto-reload support)
+uvicorn[standard]==0.24.0  # Includes watchfiles for auto-reload in dev mode
+
 # Testing
 pytest==7.4.3
 pytest-asyncio==0.21.1
