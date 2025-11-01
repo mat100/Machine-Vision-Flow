@@ -63,7 +63,7 @@ async def extract_roi(
     original_image = image_service.get_image(request.image_id)
     img_height, img_width = original_image.shape[:2]
 
-    clipped_bbox = request.roi.model_copy()
+    clipped_bbox = request.roi.copy()
     clipped_bbox.x = max(0, min(clipped_bbox.x, img_width - 1))
     clipped_bbox.y = max(0, min(clipped_bbox.y, img_height - 1))
     clipped_bbox.width = min(clipped_bbox.width, img_width - clipped_bbox.x)
