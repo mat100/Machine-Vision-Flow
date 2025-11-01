@@ -13,11 +13,13 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from vision.aruco_detection import ArucoDetectionParams
-from vision.color_detection import ColorDetectionParams
-from vision.edge_detection import EdgeDetectionParams
-from vision.rotation_detection import RotationDetectionParams
-from vision.template_matching import TemplateMatchParams
+from schemas.params import (
+    ArucoDetectionParams,
+    ColorDetectionParams,
+    EdgeDetectionParams,
+    RotationDetectionParams,
+    TemplateMatchParams,
+)
 
 from .common import ROI
 

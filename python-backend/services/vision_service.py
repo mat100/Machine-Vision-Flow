@@ -13,11 +13,18 @@ from core.image import extract_roi
 from core.image_manager import ImageManager
 from core.template_manager import TemplateManager
 from core.utils import enum_to_string, parse_enum, timer
-from schemas import ROI, TemplateMatchParams, VisionObject
-from vision.aruco_detection import ArucoDetectionParams, ArucoDetector
-from vision.color_detection import ColorDetectionParams, ColorDetector
-from vision.edge_detection import EdgeDetectionParams
-from vision.rotation_detection import RotationDetectionParams, RotationDetector
+from schemas import (
+    ROI,
+    ArucoDetectionParams,
+    ColorDetectionParams,
+    EdgeDetectionParams,
+    RotationDetectionParams,
+    TemplateMatchParams,
+    VisionObject,
+)
+from vision.aruco_detection import ArucoDetector
+from vision.color_detection import ColorDetector
+from vision.rotation_detection import RotationDetector
 
 logger = logging.getLogger(__name__)
 

@@ -27,13 +27,15 @@ from core.enums import (
     VisionObjectType,
 )
 
-# Import detection params from vision layer for convenience
-# These are imported from vision modules, not duplicated here
-from vision.aruco_detection import ArucoDetectionParams
-from vision.color_detection import ColorDetectionParams
-from vision.edge_detection import EdgeDetectionParams
-from vision.rotation_detection import RotationDetectionParams
-from vision.template_matching import TemplateMatchParams
+# Import detection params from params module (centralized)
+# This eliminates circular dependencies with vision modules
+from schemas.params import (
+    ArucoDetectionParams,
+    ColorDetectionParams,
+    EdgeDetectionParams,
+    RotationDetectionParams,
+    TemplateMatchParams,
+)
 
 # Base schemas
 from .base import BaseDetectionParams

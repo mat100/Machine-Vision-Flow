@@ -7,29 +7,10 @@ from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
-from pydantic import Field
 
 from core.constants import VisionConstants
 from core.enums import AngleRange, RotationMethod
-from schemas.base import BaseDetectionParams
-
-
-class RotationDetectionParams(BaseDetectionParams):
-    """
-    Rotation detection parameters.
-
-    Calculates object orientation using minimum area rectangle,
-    ellipse fitting, or PCA analysis.
-    """
-
-    method: RotationMethod = Field(
-        default=RotationMethod.MIN_AREA_RECT,
-        description="Rotation calculation method (min_area_rect, ellipse_fit, pca)",
-    )
-    angle_range: AngleRange = Field(
-        default=AngleRange.RANGE_0_360,
-        description="Output angle range format (0_360, -180_180, or 0_180)",
-    )
+from schemas import ROI, Point, VisionObject, VisionObjectType
 
 
 class RotationDetector:
@@ -60,7 +41,6 @@ class RotationDetector:
             Dictionary with rotation detection results
         """
         from core.image.geometry import calculate_contour_properties
-        from schemas import ROI, VisionObject, VisionObjectType
 
         # Convert contour to numpy array
         contour_array = np.array(contour, dtype=np.float32)
@@ -147,7 +127,6 @@ class RotationDetector:
             (angle, center, confidence)
         """
         from core.image.geometry import normalize_angle
-        from schemas import Point
 
         # Fit minimum area rectangle
         rect = cv2.minAreaRect(contour)
@@ -181,7 +160,6 @@ class RotationDetector:
             (angle, center, confidence)
         """
         from core.image.geometry import normalize_angle
-        from schemas import Point
 
         # Fit ellipse
         ellipse = cv2.fitEllipse(contour)
@@ -214,7 +192,6 @@ class RotationDetector:
             (angle, center, confidence)
         """
         from core.image.geometry import normalize_angle
-        from schemas import Point
 
         # Reshape contour to 2D array of points
         points = contour.reshape(-1, 2).astype(np.float32)

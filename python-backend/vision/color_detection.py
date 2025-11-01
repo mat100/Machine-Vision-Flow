@@ -10,54 +10,10 @@ from typing import Dict, Optional
 
 import cv2
 import numpy as np
-from pydantic import Field
 from sklearn.cluster import KMeans
 
 from core.constants import VisionConstants
-from core.enums import ColorMethod
-from schemas.base import BaseDetectionParams
-
-
-class ColorDetectionParams(BaseDetectionParams):
-    """
-    Color detection parameters.
-
-    Supports both histogram (fast) and kmeans (accurate) detection methods.
-    """
-
-    # === Common parameters ===
-    method: ColorMethod = Field(
-        default=ColorMethod.HISTOGRAM,
-        description="Detection method: histogram (fast) or kmeans (accurate)",
-    )
-    min_percentage: float = Field(
-        default=50.0,
-        ge=0.0,
-        le=100.0,
-        description="Minimum percentage for color match",
-    )
-    use_contour_mask: bool = Field(
-        default=True,
-        description="Use contour mask instead of full bounding box when contour is available",
-    )
-
-    # === KMeans-specific parameters (ignored if method != kmeans) ===
-    kmeans_clusters: int = Field(
-        default=3,
-        ge=2,
-        le=10,
-        description="Number of color clusters for k-means",
-    )
-    kmeans_random_state: int = Field(
-        default=42,
-        ge=0,
-        description="Random state for reproducible k-means results",
-    )
-    kmeans_n_init: int = Field(
-        default=10,
-        ge=1,
-        description="Number of k-means initializations",
-    )
+from schemas import ROI, Point, VisionObject, VisionObjectType
 
 
 class ColorDetector:
@@ -93,8 +49,6 @@ class ColorDetector:
         Returns:
             Dictionary with detection results
         """
-        from schemas import ROI, Point, VisionObject, VisionObjectType
-
         # Extract ROI if specified
         if roi is not None:
             x, y, w, h = roi["x"], roi["y"], roi["width"], roi["height"]

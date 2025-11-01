@@ -9,36 +9,8 @@ from typing import Any, Dict
 
 import cv2
 import numpy as np
-from pydantic import Field
 
-from core.enums import TemplateMethod
-from schemas.base import BaseDetectionParams
-
-
-class TemplateMatchParams(BaseDetectionParams):
-    """
-    Template matching parameters.
-
-    Supports multiple OpenCV matching methods with configurable thresholds.
-    """
-
-    template_id: str = Field(description="Template identifier to match against")
-    method: TemplateMethod = Field(
-        default=TemplateMethod.TM_CCOEFF_NORMED, description="OpenCV template matching method"
-    )
-    threshold: float = Field(
-        default=0.8,
-        ge=0.0,
-        le=1.0,
-        description="Match confidence threshold (0.0 to 1.0)",
-    )
-    multi_scale: bool = Field(default=False, description="Enable multi-scale template matching")
-    scale_range: list = Field(
-        default=[0.8, 1.2], description="Scale range for multi-scale matching [min, max]"
-    )
-    scale_steps: int = Field(
-        default=5, ge=2, le=20, description="Number of scale steps for multi-scale matching"
-    )
+from schemas import ROI, Point, VisionObject, VisionObjectType
 
 
 class TemplateDetector:
@@ -68,8 +40,6 @@ class TemplateDetector:
         Returns:
             Dictionary with detection results
         """
-        from schemas import ROI, Point, VisionObject, VisionObjectType
-
         # Extract params
         method = params.get("method", "TM_CCOEFF_NORMED")
         threshold = params.get("threshold", 0.8)

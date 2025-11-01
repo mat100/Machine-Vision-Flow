@@ -6,168 +6,10 @@ from typing import Any, Dict, Optional
 
 import cv2
 import numpy as np
-from pydantic import Field
 
 from core.constants import VisionConstants
 from core.enums import EdgeMethod
-from schemas.base import BaseDetectionParams
-
-
-class EdgeDetectionParams(BaseDetectionParams):
-    """
-    Unified edge detection parameters (flat structure).
-
-    Contains all preprocessing, filtering, and method-specific parameters
-    for all edge detection algorithms with validation and defaults.
-    """
-
-    # === Method selection ===
-    method: str = Field(
-        default="canny",
-        description=(
-            "Edge detection method (canny, sobel, laplacian, "
-            "prewitt, scharr, roberts, morphgrad)"
-        ),
-    )
-
-    # === Preprocessing parameters (common to all methods) ===
-    blur_enabled: bool = Field(default=False, description="Enable Gaussian blur preprocessing")
-    blur_kernel: int = Field(
-        default=5,
-        ge=3,
-        description="Gaussian blur kernel size (must be odd)",
-    )
-    bilateral_enabled: bool = Field(
-        default=False, description="Enable bilateral filter (edge-preserving blur)"
-    )
-    bilateral_d: int = Field(default=9, ge=1, description="Bilateral filter diameter")
-    bilateral_sigma_color: float = Field(
-        default=75.0,
-        ge=0,
-        description="Bilateral filter sigma in color space",
-    )
-    bilateral_sigma_space: float = Field(
-        default=75.0,
-        ge=0,
-        description="Bilateral filter sigma in coordinate space",
-    )
-    morphology_enabled: bool = Field(
-        default=False, description="Enable morphological preprocessing"
-    )
-    morphology_operation: str = Field(
-        default="close", description="Morphological operation (close/open/gradient)"
-    )
-    morphology_kernel: int = Field(
-        default=3,
-        ge=1,
-        description="Morphological kernel size",
-    )
-    equalize_enabled: bool = Field(default=False, description="Enable histogram equalization")
-
-    # === Contour filtering parameters (common to all methods) ===
-    min_contour_area: float = Field(
-        default=10.0,
-        ge=0,
-        description="Minimum contour area in pixels",
-    )
-    max_contour_area: float = Field(
-        default=100000.0, ge=0, description="Maximum contour area in pixels"
-    )
-    min_contour_perimeter: float = Field(
-        default=0.0,
-        ge=0,
-        description="Minimum contour perimeter in pixels",
-    )
-    max_contour_perimeter: float = Field(
-        default=float("inf"), description="Maximum contour perimeter in pixels"
-    )
-    max_contours: int = Field(
-        default=100,
-        ge=1,
-        description="Maximum number of contours to return",
-    )
-    show_centers: bool = Field(
-        default=True,
-        description="Show contour centers in visualization",
-    )
-
-    # === Canny edge detection parameters ===
-    canny_low: int = Field(
-        default=50,
-        ge=0,
-        le=500,
-        description="Canny low threshold",
-    )
-    canny_high: int = Field(
-        default=150,
-        ge=0,
-        le=500,
-        description="Canny high threshold",
-    )
-    canny_aperture: int = Field(
-        default=3,
-        ge=3,
-        le=7,
-        description="Canny aperture size (must be odd)",
-    )
-    canny_l2_gradient: bool = Field(
-        default=False,
-        description="Use L2 gradient norm (more accurate but slower)",
-    )
-
-    # === Sobel edge detection parameters ===
-    sobel_threshold: float = Field(default=50.0, ge=0, description="Sobel edge threshold")
-    sobel_kernel: int = Field(
-        default=3,
-        ge=1,
-        le=31,
-        description="Sobel kernel size (must be odd)",
-    )
-    sobel_scale: float = Field(default=1.0, ge=0, description="Sobel scale factor")
-    sobel_delta: float = Field(default=0.0, ge=0, description="Sobel delta (added to result)")
-
-    # === Laplacian edge detection parameters ===
-    laplacian_threshold: float = Field(
-        default=30.0,
-        ge=0,
-        description="Laplacian edge threshold",
-    )
-    laplacian_kernel: int = Field(
-        default=3,
-        ge=1,
-        le=31,
-        description="Laplacian kernel size (must be odd)",
-    )
-    laplacian_scale: float = Field(default=1.0, ge=0, description="Laplacian scale factor")
-    laplacian_delta: float = Field(
-        default=0.0,
-        ge=0,
-        description="Laplacian delta (added to result)",
-    )
-
-    # === Prewitt edge detection parameters ===
-    prewitt_threshold: float = Field(default=50.0, ge=0, description="Prewitt edge threshold")
-
-    # === Scharr edge detection parameters ===
-    scharr_threshold: float = Field(default=50.0, ge=0, description="Scharr edge threshold")
-    scharr_scale: float = Field(default=1.0, ge=0, description="Scharr scale factor")
-    scharr_delta: float = Field(
-        default=0.0,
-        ge=0,
-        description="Scharr delta (added to result)",
-    )
-
-    # === Morphological gradient parameters ===
-    morph_threshold: float = Field(
-        default=30.0,
-        ge=0,
-        description="Morphological gradient threshold",
-    )
-    morph_kernel: int = Field(
-        default=3,
-        ge=1,
-        description="Morphological gradient kernel size",
-    )
+from schemas import ROI, Point, VisionObject, VisionObjectType
 
 
 class EdgeDetector:
@@ -476,8 +318,6 @@ class EdgeDetector:
 
     def _contours_to_objects(self, contours: list, method: str):
         """Convert contour dicts to VisionObject instances."""
-        from schemas import ROI, Point, VisionObject, VisionObjectType
-
         objects = []
         for i, contour_dict in enumerate(contours):
             obj = VisionObject(

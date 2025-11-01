@@ -7,28 +7,8 @@ from typing import Any, Dict, Optional
 
 import cv2
 import numpy as np
-from pydantic import Field
 
-from core.enums import ArucoDict
-from schemas.base import BaseDetectionParams
-
-
-class ArucoDetectionParams(BaseDetectionParams):
-    """
-    ArUco marker detection parameters.
-
-    ArUco markers are fiducial markers used for camera calibration,
-    object tracking, and pose estimation.
-    """
-
-    dictionary: ArucoDict = Field(
-        default=ArucoDict.DICT_4X4_50,
-        description="ArUco dictionary type (defines marker set and size)",
-    )
-    # Future: můžeme přidat detector params:
-    # adaptive_thresh_constant: float = Field(default=7.0, ge=0)
-    # min_marker_perimeter_rate: float = Field(default=0.03, ge=0, le=1)
-    # ...
+from schemas import ROI, Point, VisionObject, VisionObjectType
 
 
 class ArucoDetector:
@@ -127,7 +107,6 @@ class ArucoDetector:
             VisionObject with marker information
         """
         from core.image.geometry import normalize_angle
-        from schemas import ROI, Point, VisionObject, VisionObjectType
 
         # Calculate center point
         center_x = float(np.mean(corners[:, 0]))
